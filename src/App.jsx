@@ -1010,7 +1010,7 @@ export default function App() {
             {Object.keys(clients).map(pid => <option key={pid} value={pid}>{pid}</option>)}
           </select>}
           <button onClick={() => fileRef.current?.click()} style={{ background: C.teal, border: "none", color: C.navy, padding: "5px 14px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>
-            {hasData ? "+ Data" : "Upload CSV"}
+            {hasData ? "+ Data" : "Upload Data"}
           </button>
           <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
         </div>
