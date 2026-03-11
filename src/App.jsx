@@ -86,6 +86,304 @@ function makeDefaultProcWeights() {
   const w = {}; SYSTEMS.forEach(s => Object.keys(s.processes).forEach(p => { w[p] = { ...DEFAULT_PROC_ENTRY }; })); return w;
 }
 
+// ─── Demo client (all markers at green-zone midpoint) ────────────────────────
+const DEMO_MARKERS = {
+  "5HIAA": { value: 0.05, refLow: 0.042, refHigh: 0.058 },
+  "ADMA": { value: 0.465, refLow: 0.3, refHigh: 0.63 },
+  "Acetyl-Ornithine": { value: 0.96, refLow: 0.32, refHigh: 1.6 },
+  "Adipocyte plasma membrane-associated protein": { value: 20.45, refLow: 8.9, refHigh: 32.0 },
+  "Afamin": { value: 504.2, refLow: 281.0, refHigh: 727.4 },
+  "Alanine": { value: 390.55, refLow: 242.5, refHigh: 538.6 },
+  "Alpha-1-acid glycoprotein 1": { value: 5241.05, refLow: 2592.7, refHigh: 7889.4 },
+  "Alpha-1-antichymotrypsin": { value: 3177.25, refLow: 2065.3, refHigh: 4289.2 },
+  "Alpha-1-antitrypsin": { value: 22714.3, refLow: 13435.6, refHigh: 31993.0 },
+  "Alpha-1B-glycoprotein": { value: 1743.55, refLow: 925.1, refHigh: 2562.0 },
+  "Alpha-2-HS-glycoprotein": { value: 4920.3, refLow: 3120.4, refHigh: 6720.2 },
+  "Alpha-2-antiplasmin": { value: 1045.0, refLow: 772.8, refHigh: 1317.2 },
+  "Alpha-2-macroglobulin": { value: 8169.8, refLow: 3953.4, refHigh: 12386.2 },
+  "Alpha-amino-N-butyric acid": { value: 17.85, refLow: 8.6, refHigh: 27.1 },
+  "Angiogenin": { value: 6.25, refLow: 2.5, refHigh: 10.0 },
+  "Angiotensinogen": { value: 1167.65, refLow: 494.6, refHigh: 1840.7 },
+  "Antithrombin-III": { value: 86003.55, refLow: 70378.6, refHigh: 101628.5 },
+  "Apolipoprotein A-I": { value: 47648.75, refLow: 28754.4, refHigh: 66543.1 },
+  "Apolipoprotein A-II": { value: 10532.7, refLow: 5913.7, refHigh: 15151.7 },
+  "Apolipoprotein A-IV": { value: 1610.85, refLow: 638.8, refHigh: 2582.9 },
+  "Apolipoprotein B-100": { value: 326.75, refLow: 143.1, refHigh: 510.4 },
+  "Apolipoprotein C-I": { value: 4288.1, refLow: 1408.1, refHigh: 7168.1 },
+  "Apolipoprotein C-II": { value: 1940.0, refLow: 713.0, refHigh: 3167.0 },
+  "Apolipoprotein C-III": { value: 7161.2, refLow: 2588.1, refHigh: 11734.3 },
+  "Apolipoprotein C-IV": { value: 130.2, refLow: 26.7, refHigh: 233.7 },
+  "Apolipoprotein D": { value: 2161.2, refLow: 1105.9, refHigh: 3216.5 },
+  "Apolipoprotein E": { value: 880.1, refLow: 406.1, refHigh: 1354.1 },
+  "Apolipoprotein L1": { value: 467.1, refLow: 222.6, refHigh: 711.6 },
+  "Apolipoprotein M": { value: 420.45, refLow: 176.5, refHigh: 664.4 },
+  "Arginine": { value: 78.45, refLow: 43.8, refHigh: 113.1 },
+  "Asparagine": { value: 40.4, refLow: 26.6, refHigh: 54.2 },
+  "Aspartic acid": { value: 12.95, refLow: 6.1, refHigh: 19.8 },
+  "Attractin": { value: 109.1, refLow: 72.8, refHigh: 145.4 },
+  "Benzoic acid": { value: 0.2215, refLow: 0.053, refHigh: 0.39 },
+  "Beta-2-glycoprotein 1": { value: 1732.9, refLow: 358.9, refHigh: 3106.9 },
+  "Beta-2-microglobulin": { value: 138.65, refLow: 77.9, refHigh: 199.4 },
+  "Beta-Ala-His dipeptidase": { value: 89.85, refLow: 42.8, refHigh: 136.9 },
+  "Beta-alanine": { value: 11.15, refLow: 4.4, refHigh: 17.9 },
+  "Betaine": { value: 57.1, refLow: 19.3, refHigh: 94.9 },
+  "Biotinidase": { value: 96.95, refLow: 56.6, refHigh: 137.3 },
+  "Butyric acid": { value: 1.125, refLow: 0.55, refHigh: 1.7 },
+  "C-reactive protein": { value: 54.15, refLow: 0.0, refHigh: 108.3 },
+  "C0": { value: 38.45, refLow: 22.2, refHigh: 54.7 },
+  "C10": { value: 0.47, refLow: 0.16, refHigh: 0.78 },
+  "C10:1": { value: 0.28, refLow: 0.14, refHigh: 0.42 },
+  "C10:2": { value: 0.0635, refLow: 0.041, refHigh: 0.086 },
+  "C12": { value: 0.126, refLow: 0.062, refHigh: 0.19 },
+  "C12-DC": { value: 0.01395, refLow: 0.0089, refHigh: 0.019 },
+  "C12:1": { value: 0.18, refLow: 0.1, refHigh: 0.26 },
+  "C14": { value: 0.049, refLow: 0.032, refHigh: 0.066 },
+  "C14:1": { value: 0.135, refLow: 0.06, refHigh: 0.21 },
+  "C14:1-OH": { value: 0.0235, refLow: 0.016, refHigh: 0.031 },
+  "C14:2": { value: 0.0545, refLow: 0.02, refHigh: 0.089 },
+  "C14:2-OH": { value: 0.016, refLow: 0.01, refHigh: 0.022 },
+  "C16": { value: 0.119, refLow: 0.068, refHigh: 0.17 },
+  "C16-OH": { value: 0.0136, refLow: 0.0092, refHigh: 0.018 },
+  "C16:1": { value: 0.045, refLow: 0.029, refHigh: 0.061 },
+  "C16:1-OH": { value: 0.0147, refLow: 0.0094, refHigh: 0.02 },
+  "C16:2": { value: 0.0164, refLow: 0.0098, refHigh: 0.023 },
+  "C16:2-OH": { value: 0.01255, refLow: 0.0081, refHigh: 0.017 },
+  "C18": { value: 0.0455, refLow: 0.023, refHigh: 0.068 },
+  "C18:1": { value: 0.134, refLow: 0.078, refHigh: 0.19 },
+  "C18:1-OH": { value: 0.01315, refLow: 0.0083, refHigh: 0.018 },
+  "C18:2": { value: 0.0615, refLow: 0.034, refHigh: 0.089 },
+  "C2": { value: 8.25, refLow: 4.1, refHigh: 12.4 },
+  "C3": { value: 0.365, refLow: 0.18, refHigh: 0.55 },
+  "C3-DC (C4-OH)": { value: 0.054, refLow: 0.029, refHigh: 0.079 },
+  "C3-OH": { value: 0.0385, refLow: 0.025, refHigh: 0.052 },
+  "C3:1": { value: 0.071, refLow: 0.045, refHigh: 0.097 },
+  "C4": { value: 0.225, refLow: 0.11, refHigh: 0.34 },
+  "C4:1": { value: 0.029, refLow: 0.015, refHigh: 0.043 },
+  "C4b-binding protein alpha chain": { value: 3301.45, refLow: 1606.7, refHigh: 4996.2 },
+  "C5": { value: 0.1325, refLow: 0.065, refHigh: 0.2 },
+  "C5-M-DC": { value: 0.035, refLow: 0.023, refHigh: 0.047 },
+  "C5-OH (C3-DC-M)": { value: 0.038, refLow: 0.024, refHigh: 0.052 },
+  "C5:1": { value: 0.0565, refLow: 0.043, refHigh: 0.07 },
+  "C5:1-DC": { value: 0.022, refLow: 0.013, refHigh: 0.031 },
+  "C6 (C4:1-DC)": { value: 0.082, refLow: 0.044, refHigh: 0.12 },
+  "C6:1": { value: 0.3165, refLow: 0.043, refHigh: 0.59 },
+  "C7-DC": { value: 0.074, refLow: 0.038, refHigh: 0.11 },
+  "C8": { value: 0.295, refLow: 0.17, refHigh: 0.42 },
+  "C9": { value: 0.0565, refLow: 0.025, refHigh: 0.088 },
+  "CD44 antigen": { value: 50.4, refLow: 22.7, refHigh: 78.1 },
+  "CD5 antigen-like": { value: 660.85, refLow: 227.2, refHigh: 1094.5 },
+  "Cadherin-5": { value: 36.3, refLow: 18.4, refHigh: 54.2 },
+  "Carbonic anhydrase 1": { value: 87.45, refLow: 20.7, refHigh: 154.2 },
+  "Carboxypeptidase B2": { value: 95.55, refLow: 60.5, refHigh: 130.6 },
+  "Carboxypeptidase N catalytic chain": { value: 99.5, refLow: 57.4, refHigh: 141.6 },
+  "Carboxypeptidase N subunit 2": { value: 200.35, refLow: 53.6, refHigh: 347.1 },
+  "Carnosine": { value: 0.0475, refLow: 0.0, refHigh: 0.095 },
+  "Cartilage acidic protein 1": { value: 22.0, refLow: 8.2, refHigh: 35.8 },
+  "Ceruloplasmin": { value: 2030.7, refLow: 1058.6, refHigh: 3002.8 },
+  "Choline": { value: 11.65, refLow: 6.0, refHigh: 17.3 },
+  "Cholinesterase": { value: 10.8, refLow: 5.7, refHigh: 15.9 },
+  "Citric acid": { value: 107.4, refLow: 62.1, refHigh: 152.7 },
+  "Citrulline": { value: 30.95, refLow: 19.4, refHigh: 42.5 },
+  "Clusterin": { value: 529.9, refLow: 111.7, refHigh: 948.1 },
+  "Coagulation factor IX": { value: 45.1, refLow: 27.0, refHigh: 63.2 },
+  "Coagulation factor V": { value: 59.9, refLow: 37.7, refHigh: 82.1 },
+  "Coagulation factor X": { value: 141.65, refLow: 89.7, refHigh: 193.6 },
+  "Coagulation factor XI": { value: 52.0, refLow: 33.3, refHigh: 70.7 },
+  "Coagulation factor XII": { value: 356.65, refLow: 126.0, refHigh: 587.3 },
+  "Coagulation factor XIII A chain": { value: 111.1, refLow: 55.3, refHigh: 166.9 },
+  "Coagulation factor XIII B chain": { value: 129.75, refLow: 75.3, refHigh: 184.2 },
+  "Complement C1q subcomponent subunit B": { value: 316.2, refLow: 202.1, refHigh: 430.3 },
+  "Complement C1r subcomponent": { value: 372.7, refLow: 261.8, refHigh: 483.6 },
+  "Complement C1r subcomponent-like protein": { value: 59.8, refLow: 39.1, refHigh: 80.5 },
+  "Complement C1s subcomponent": { value: 254.65, refLow: 177.3, refHigh: 332.0 },
+  "Complement C2": { value: 114.35, refLow: 65.4, refHigh: 163.3 },
+  "Complement C3": { value: 4274.5, refLow: 2484.3, refHigh: 6064.7 },
+  "Complement C4-B": { value: 1408.55, refLow: 608.5, refHigh: 2208.6 },
+  "Complement C5": { value: 192.85, refLow: 124.0, refHigh: 261.7 },
+  "Complement component C6": { value: 227.35, refLow: 112.4, refHigh: 342.3 },
+  "Complement component C7": { value: 169.85, refLow: 91.2, refHigh: 248.5 },
+  "Complement component C8 alpha chain": { value: 166.15, refLow: 96.1, refHigh: 236.2 },
+  "Complement component C8 beta chain": { value: 194.6, refLow: 121.1, refHigh: 268.1 },
+  "Complement component C9": { value: 274.2, refLow: 123.2, refHigh: 425.2 },
+  "Complement factor B": { value: 1345.2, refLow: 772.7, refHigh: 1917.7 },
+  "Complement factor D": { value: 59.75, refLow: 32.3, refHigh: 87.2 },
+  "Complement factor H": { value: 1182.7, refLow: 695.7, refHigh: 1669.7 },
+  "Complement factor I": { value: 372.4, refLow: 220.3, refHigh: 524.5 },
+  "Corticosteroid-binding globulin": { value: 661.45, refLow: 365.4, refHigh: 957.5 },
+  "Cotinine": { value: 0.008, refLow: 0.0, refHigh: 0.016 },
+  "Creatine": { value: 23.65, refLow: 8.8, refHigh: 38.5 },
+  "Creatinine": { value: 86.25, refLow: 50.5, refHigh: 122.0 },
+  "Cystatin-C": { value: 40.95, refLow: 23.4, refHigh: 58.5 },
+  "DOPA": { value: 0.00485, refLow: 0.0018, refHigh: 0.0079 },
+  "Diacetylspermine": { value: 0.048, refLow: 0.046, refHigh: 0.05 },
+  "Endothelial protein C receptor": { value: 9.15, refLow: 8.8, refHigh: 9.5 },
+  "Extracellular matrix protein 1": { value: 69.3, refLow: 39.1, refHigh: 99.5 },
+  "Fetuin-B": { value: 72.65, refLow: 31.8, refHigh: 113.5 },
+  "Fibrinogen alpha chain": { value: 18419.05, refLow: 10298.2, refHigh: 26539.9 },
+  "Fibrinogen beta chain": { value: 13744.25, refLow: 7806.5, refHigh: 19682.0 },
+  "Fibrinogen gamma chain": { value: 15671.05, refLow: 8532.7, refHigh: 22809.4 },
+  "Fibronectin": { value: 1427.6, refLow: 339.9, refHigh: 2515.3 },
+  "Fibulin-1": { value: 195.45, refLow: 107.5, refHigh: 283.4 },
+  "Ficolin-2": { value: 58.3, refLow: 24.9, refHigh: 91.7 },
+  "Ficolin-3": { value: 229.55, refLow: 119.1, refHigh: 340.0 },
+  "Fumaric acid": { value: 1.215, refLow: 0.53, refHigh: 1.9 },
+  "Galectin-3-binding protein": { value: 53.2, refLow: 32.2, refHigh: 74.2 },
+  "Gamma-aminobutyric acid": { value: 0.206, refLow: 0.082, refHigh: 0.33 },
+  "Gelsolin": { value: 406.55, refLow: 268.4, refHigh: 544.7 },
+  "Glucose": { value: 4798.55, refLow: 3824.3, refHigh: 5772.8 },
+  "Glutamic acid": { value: 62.35, refLow: 29.6, refHigh: 95.1 },
+  "Glutamine": { value: 539.85, refLow: 391.2, refHigh: 688.5 },
+  "Glutathione peroxidase 3": { value: 129.6, refLow: 77.1, refHigh: 182.1 },
+  "Glycine": { value: 260.15, refLow: 158.5, refHigh: 361.8 },
+  "Haptoglobin": { value: 25646.45, refLow: 5184.6, refHigh: 46108.3 },
+  "Hemoglobin subunit alpha 1": { value: 1521.0, refLow: 269.9, refHigh: 2772.1 },
+  "Hemopexin": { value: 6721.25, refLow: 1698.1, refHigh: 11744.4 },
+  "Heparin cofactor 2": { value: 755.55, refLow: 409.5, refHigh: 1101.6 },
+  "Hippuric acid": { value: 7.95, refLow: 1.4, refHigh: 14.5 },
+  "Histamine": { value: 0.00475, refLow: 0.0, refHigh: 0.0095 },
+  "Histidine": { value: 80.05, refLow: 55.6, refHigh: 104.5 },
+  "Histidine-rich glycoprotein": { value: 1956.1, refLow: 773.3, refHigh: 3138.9 },
+  "Homocysteine": { value: 9.7, refLow: 6.3, refHigh: 13.1 },
+  "Homovanillic acid": { value: 0.0605, refLow: 0.029, refHigh: 0.092 },
+  "Hydroxyphenylacetic acid": { value: 0.2005, refLow: 0.081, refHigh: 0.32 },
+  "Ig mu chain C region": { value: 10223.5, refLow: 2887.8, refHigh: 17559.2 },
+  "IgGFc-binding protein": { value: 13.15, refLow: 3.1, refHigh: 23.2 },
+  "Indole acetic acid": { value: 1.75, refLow: 1.0, refHigh: 2.5 },
+  "Insulin-like growth factor-binding protein 2": { value: 6.55, refLow: 1.9, refHigh: 11.2 },
+  "Insulin-like growth factor-binding protein 3": { value: 30.1, refLow: 17.3, refHigh: 42.9 },
+  "Insulin-like growth factor-binding protein complex acid labile subunit": { value: 133.35, refLow: 72.0, refHigh: 194.7 },
+  "Inter-alpha-trypsin inhibitor heavy chain H1": { value: 3150.65, refLow: 1035.5, refHigh: 5265.8 },
+  "Inter-alpha-trypsin inhibitor heavy chain H2": { value: 1375.1, refLow: 945.3, refHigh: 1804.9 },
+  "Inter-alpha-trypsin inhibitor heavy chain H4": { value: 1549.55, refLow: 918.7, refHigh: 2180.4 },
+  "Intercellular adhesion molecule 1": { value: 6.75, refLow: 4.2, refHigh: 9.3 },
+  "Isobutyric acid": { value: 1.285, refLow: 0.67, refHigh: 1.9 },
+  "Isoleucine": { value: 62.2, refLow: 39.9, refHigh: 84.5 },
+  "Kallistatin": { value: 95.65, refLow: 54.0, refHigh: 137.3 },
+  "Kininogen-1": { value: 1869.45, refLow: 1265.6, refHigh: 2473.3 },
+  "Kynurenine": { value: 2.5, refLow: 1.6, refHigh: 3.4 },
+  "L-selectin": { value: 46.0, refLow: 24.3, refHigh: 67.7 },
+  "Lactic acid": { value: 1484.2, refLow: 692.0, refHigh: 2276.4 },
+  "Leucine": { value: 126.7, refLow: 80.3, refHigh: 173.1 },
+  "Leucine-rich alpha-2-glycoprotein 1": { value: 438.85, refLow: 198.5, refHigh: 679.2 },
+  "Lipopolysaccharide-binding protein": { value: 59.8, refLow: 24.6, refHigh: 95.0 },
+  "Lumican": { value: 319.5, refLow: 189.4, refHigh: 449.6 },
+  "Lysine": { value: 183.65, refLow: 116.6, refHigh: 250.7 },
+  "Lysozyme C": { value: 78.45, refLow: 43.3, refHigh: 113.6 },
+  "Mannan-binding lectin serine protease 2": { value: 35.7, refLow: 26.2, refHigh: 45.2 },
+  "Mannose-binding protein C": { value: 58.55, refLow: 26.6, refHigh: 90.5 },
+  "Methionine": { value: 24.05, refLow: 16.3, refHigh: 31.8 },
+  "Methionine-Sulfoxide": { value: 0.745, refLow: 0.39, refHigh: 1.1 },
+  "Methylhistidine": { value: 37.2, refLow: 6.0, refHigh: 68.4 },
+  "Methylmalonic acid": { value: 0.094, refLow: 0.038, refHigh: 0.15 },
+  "Nitro-Tyrosine": { value: 0.02185, refLow: 0.0067, refHigh: 0.037 },
+  "Ornithine": { value: 72.9, refLow: 46.6, refHigh: 99.2 },
+  "PC aa C32:2": { value: 3.5, refLow: 1.8, refHigh: 5.2 },
+  "PC aa C36:0": { value: 8.0, refLow: 4.5, refHigh: 11.5 },
+  "PC aa C36:6": { value: 1.485, refLow: 0.57, refHigh: 2.4 },
+  "PC aa C38:0": { value: 4.75, refLow: 2.3, refHigh: 7.2 },
+  "PC aa C38:6": { value: 99.05, refLow: 46.5, refHigh: 151.6 },
+  "PC aa C40:1": { value: 0.705, refLow: 0.44, refHigh: 0.97 },
+  "PC aa C40:2": { value: 0.615, refLow: 0.33, refHigh: 0.9 },
+  "PC aa C40:6": { value: 27.35, refLow: 13.2, refHigh: 41.5 },
+  "PC ae C36:0": { value: 1.38, refLow: 0.66, refHigh: 2.1 },
+  "PC ae C40:6": { value: 5.55, refLow: 2.8, refHigh: 8.3 },
+  "Para-hydroxyhippuric acid": { value: 0.081, refLow: 0.022, refHigh: 0.14 },
+  "Peroxiredoxin-2": { value: 32.75, refLow: 8.9, refHigh: 56.6 },
+  "Phenylalanine": { value: 59.75, refLow: 44.2, refHigh: 75.3 },
+  "Phenylethylamine": { value: 0.000245, refLow: 0.0, refHigh: 0.00049 },
+  "Phosphatidylinositol-glycan-specific phospholipase D": { value: 75.0, refLow: 36.9, refHigh: 113.1 },
+  "Phospholipid transfer protein": { value: 49.45, refLow: 29.2, refHigh: 69.7 },
+  "Pigment epithelium-derived factor": { value: 236.4, refLow: 145.1, refHigh: 327.7 },
+  "Plasma protease C1 inhibitor": { value: 1562.55, refLow: 1023.8, refHigh: 2101.3 },
+  "Plasma serine protease inhibitor": { value: 121.75, refLow: 66.8, refHigh: 176.7 },
+  "Plasminogen": { value: 476.8, refLow: 297.3, refHigh: 656.3 },
+  "Plastin-2": { value: 34.3, refLow: 21.2, refHigh: 47.4 },
+  "Pregnancy zone protein": { value: 398.1, refLow: 41.7, refHigh: 754.5 },
+  "Probable G-protein coupled receptor 116": { value: 2.5, refLow: 1.2, refHigh: 3.8 },
+  "Proline": { value: 200.55, refLow: 109.2, refHigh: 291.9 },
+  "Proline-Betaine": { value: 10.45, refLow: 1.1, refHigh: 19.8 },
+  "Propionic acid": { value: 1.205, refLow: 0.71, refHigh: 1.7 },
+  "Protein AMBP": { value: 830.8, refLow: 338.1, refHigh: 1323.5 },
+  "Protein S100-A9": { value: 21.7, refLow: 6.8, refHigh: 36.6 },
+  "Protein Z-dependent protease inhibitor": { value: 35.75, refLow: 21.8, refHigh: 49.7 },
+  "Proteoglycan 4": { value: 55.45, refLow: 16.9, refHigh: 94.0 },
+  "Prothrombin": { value: 1150.95, refLow: 761.1, refHigh: 1540.8 },
+  "Putrescine": { value: 0.225, refLow: 0.12, refHigh: 0.33 },
+  "Pyruvic acid": { value: 77.85, refLow: 38.9, refHigh: 116.8 },
+  "Retinol-binding protein 4": { value: 1656.25, refLow: 866.5, refHigh: 2446.0 },
+  "SM (OH) C14:1": { value: 6.95, refLow: 3.5, refHigh: 10.4 },
+  "SM (OH) C16:1": { value: 4.75, refLow: 2.5, refHigh: 7.0 },
+  "SM (OH) C22:1": { value: 12.65, refLow: 7.5, refHigh: 17.8 },
+  "SM (OH) C22:2": { value: 10.45, refLow: 5.8, refHigh: 15.1 },
+  "SM (OH) C24:1": { value: 1.75, refLow: 1.0, refHigh: 2.5 },
+  "SM C16:0": { value: 124.65, refLow: 78.3, refHigh: 171.0 },
+  "SM C16:1": { value: 17.95, refLow: 10.1, refHigh: 25.8 },
+  "SM C18:0": { value: 26.3, refLow: 15.2, refHigh: 37.4 },
+  "SM C18:1": { value: 12.2, refLow: 6.4, refHigh: 18.0 },
+  "SM C20:2": { value: 0.53, refLow: 0.26, refHigh: 0.8 },
+  "Sarcosine": { value: 11.75, refLow: 2.4, refHigh: 21.1 },
+  "Serine": { value: 115.3, refLow: 81.7, refHigh: 148.9 },
+  "Serotonin": { value: 0.7, refLow: 0.2, refHigh: 1.2 },
+  "Serotransferrin": { value: 17958.3, refLow: 11558.2, refHigh: 24358.4 },
+  "Serum albumin": { value: 481921.8, refLow: 342711.6, refHigh: 621132.0 },
+  "Serum amyloid A-1 protein": { value: 60.45, refLow: 34.6, refHigh: 86.3 },
+  "Serum amyloid A-4 protein": { value: 1346.2, refLow: 593.8, refHigh: 2098.6 },
+  "Serum amyloid P-component": { value: 588.6, refLow: 241.0, refHigh: 936.2 },
+  "Serum paraoxonase/arylesterase 1": { value: 884.05, refLow: 416.5, refHigh: 1351.6 },
+  "Sex hormone-binding globulin": { value: 95.2, refLow: 20.4, refHigh: 170.0 },
+  "Spermidine": { value: 0.21, refLow: 0.12, refHigh: 0.3 },
+  "Spermine": { value: 0.185, refLow: 0.15, refHigh: 0.22 },
+  "Succinic acid": { value: 4.0, refLow: 2.3, refHigh: 5.7 },
+  "TMAO": { value: 8.6, refLow: 1.1, refHigh: 16.1 },
+  "Taurine": { value: 65.9, refLow: 33.1, refHigh: 98.7 },
+  "Tenascin": { value: 4.0, refLow: 2.4, refHigh: 5.6 },
+  "Tetranectin": { value: 213.45, refLow: 129.2, refHigh: 297.7 },
+  "Threonine": { value: 140.1, refLow: 87.4, refHigh: 192.8 },
+  "Thrombospondin-1": { value: 54.1, refLow: 7.4, refHigh: 100.8 },
+  "Thyroxine-binding globulin": { value: 282.75, refLow: 158.2, refHigh: 407.3 },
+  "Transthyretin": { value: 538.5, refLow: 197.7, refHigh: 879.3 },
+  "Trigonelline": { value: 0.89, refLow: 0.18, refHigh: 1.6 },
+  "Tryptophan": { value: 61.75, refLow: 42.3, refHigh: 81.2 },
+  "Tyramine": { value: 0.00475, refLow: 0.0, refHigh: 0.0095 },
+  "Tyrosine": { value: 63.65, refLow: 38.9, refHigh: 88.4 },
+  "Uric acid": { value: 337.5, refLow: 199.3, refHigh: 475.7 },
+  "Valine": { value: 240.45, refLow: 162.4, refHigh: 318.5 },
+  "Vasorin": { value: 12.25, refLow: 7.3, refHigh: 17.2 },
+  "Vitamin D-binding protein": { value: 2535.95, refLow: 1704.2, refHigh: 3367.7 },
+  "Vitamin K-dependent protein S": { value: 292.3, refLow: 173.4, refHigh: 411.2 },
+  "Vitamin K-dependent protein Z": { value: 75.8, refLow: 21.9, refHigh: 129.7 },
+  "Vitronectin": { value: 3312.05, refLow: 1909.6, refHigh: 4714.5 },
+  "Xaa-Pro dipeptidase": { value: 7.0, refLow: 3.1, refHigh: 10.9 },
+  "Zinc-alpha-2-glycoprotein": { value: 323.25, refLow: 64.0, refHigh: 582.5 },
+  "alpha-Aminoadipic acid": { value: 1.215, refLow: 0.23, refHigh: 2.2 },
+  "alpha-Ketoglutaric acid": { value: 9.6, refLow: 6.8, refHigh: 12.4 },
+  "beta-Hydroxybutyric acid": { value: 136.8, refLow: 22.8, refHigh: 250.8 },
+  "lysoPC a C14:0": { value: 4.95, refLow: 2.1, refHigh: 7.8 },
+  "lysoPC a C16:0": { value: 79.45, refLow: 50.6, refHigh: 108.3 },
+  "lysoPC a C16:1": { value: 2.35, refLow: 1.1, refHigh: 3.6 },
+  "lysoPC a C17:0": { value: 1.71, refLow: 0.92, refHigh: 2.5 },
+  "lysoPC a C18:0": { value: 27.95, refLow: 15.0, refHigh: 40.9 },
+  "lysoPC a C18:1": { value: 24.15, refLow: 12.0, refHigh: 36.3 },
+  "lysoPC a C18:2": { value: 33.6, refLow: 15.4, refHigh: 51.8 },
+  "lysoPC a C20:3": { value: 2.55, refLow: 1.1, refHigh: 4.0 },
+  "lysoPC a C20:4": { value: 6.3, refLow: 2.7, refHigh: 9.9 },
+  "lysoPC a C24:0": { value: 0.159, refLow: 0.088, refHigh: 0.23 },
+  "lysoPC a C26:0": { value: 0.895, refLow: 0.49, refHigh: 1.3 },
+  "lysoPC a C26:1": { value: 0.1175, refLow: 0.065, refHigh: 0.17 },
+  "lysoPC a C28:0": { value: 0.575, refLow: 0.33, refHigh: 0.82 },
+  "lysoPC a C28:1": { value: 0.45, refLow: 0.23, refHigh: 0.67 },
+  "trans-OH-Proline": { value: 10.55, refLow: 4.6, refHigh: 16.5 },
+  "von Willebrand Factor": { value: 20.8, refLow: 8.0, refHigh: 33.6 },
+};
+
+const DEMO_CLIENT_ID = "DEMO";
+const DEMO_CLIENT = {
+  id: DEMO_CLIENT_ID,
+  markers: Object.fromEntries(
+    Object.entries(DEMO_MARKERS).map(([name, v]) => [name, { value: v.value, refLow: v.refLow, refHigh: v.refHigh }])
+  ),
+};
+
 // ─── Scoring ──────────────────────────────────────────────────────────────────
 function calcZone(v, lo, hi, gp = 0.05) {
   const rng = hi - lo, gL = lo + gp * rng, gH = hi - gp * rng;
@@ -361,8 +659,9 @@ function makeProfile(id, name, params) {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [clients,         setClients]         = useState({});
-  const [clientId,        setClientId]        = useState(null);
+  const [clients,         setClients]         = useState({ [DEMO_CLIENT_ID]: DEMO_CLIENT });
+  const [clientId,        setClientId]        = useState(DEMO_CLIENT_ID);
+  const [demoLoaded,      setDemoLoaded]      = useState(false);
   const [activeView,      setActiveView]      = useState("aggregate");
   const [systemId,        setSystemId]        = useState("bfvh");
   const [activeProc,      setActiveProc]      = useState(null);
@@ -572,6 +871,14 @@ export default function App() {
     URL.revokeObjectURL(url);
   }, []);
 
+  const loadDemo = useCallback(() => {
+    setClientId(DEMO_CLIENT_ID);
+    setDemoLoaded(true);
+    setUploadErr("");
+    setActiveView("aggregate");
+    setTutorialStep(prev => prev === 0 ? 1 : prev);
+  }, []);
+
   const handleFile = useCallback(file => {
     if (!file) return;
     const r = new FileReader();
@@ -579,7 +886,7 @@ export default function App() {
       try {
         const d = buildClients(parseCSV(e.target.result));
         if (!Object.keys(d).length) throw new Error("No valid rows.");
-        setClients(prev => ({ ...prev, ...d }));
+        setClients(prev => ({ [DEMO_CLIENT_ID]: DEMO_CLIENT, ...prev, ...d }));
         setClientId(Object.keys(d)[0]);
         setUploadErr("");
         // Tutorial: advance past "upload" step when data loads
@@ -639,14 +946,23 @@ export default function App() {
     return f.sort((a, b) => a.score - b.score);
   }, [procResults]);
 
+  const adjustmentCount = useMemo(() => {
+    const bioAdj = Object.entries(bioWeights).filter(([, e]) =>
+      (e?.weight ?? 1) !== 1 || (e?.color ?? "red") !== "red" || (e?.level ?? "high") !== "high").length;
+    const procAdj = Object.entries(procWeights).filter(([, e]) =>
+      (e?.weight ?? 1) !== 1 || (e?.color ?? "red") !== "red").length;
+    return bioAdj + procAdj;
+  }, [bioWeights, procWeights]);
+
   const TABS = [
-    { key: "weights-proc", label: "Process Weights" },
-    { key: "weights-bio",  label: "Biomarker Weights" },
-    { key: "curves",       label: "Biomarker Curves" },
-    { key: "flags",        label: `Biomarker Flags${oorFlags.length ? ` (${oorFlags.length})` : ""}` },
+    { key: "weights-proc",  label: "Process Weights" },
+    { key: "weights-bio",   label: "Biomarker Weights" },
+    { key: "curves",        label: "Biomarker Curves" },
+    { key: "flags",         label: `Biomarker Flags${oorFlags.length ? ` (${oorFlags.length})` : ""}` },
+    { key: "adjustments",   label: `Active Adjustments${adjustmentCount ? ` (${adjustmentCount})` : ""}` },
   ];
 
-  const hasData = !!clientId;
+  const hasData = demoLoaded || Object.keys(clients).some(k => k !== DEMO_CLIENT_ID);
   const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, boxShadow: "0 1px 4px rgba(24,55,75,0.04)" };
 
   return (
@@ -803,8 +1119,8 @@ export default function App() {
         const STEPS = [
           // 0
           { title: "Step 1 of 17 · Upload Data",
-            body: "Start by uploading client lab data. Drop a CSV file onto the box, or click it to browse.",
-            cta: "📂 Drop a CSV file or click the upload box",
+            body: "Start by uploading client lab data. Drop a CSV file onto the box, or click it to browse. No data handy? Click \"Load Demo Data\" below the upload box — it loads 286 synthetic biomarkers, all perfectly in range, so you can explore the full tool right away.",
+            cta: "📂 Upload a CSV — or click Load Demo Data to explore immediately",
             spotlight: "upload-dropzone", advance: "auto" },
           // 1
           { title: "Step 2 of 17 · Aggregate Statistics",
@@ -876,7 +1192,7 @@ export default function App() {
             spotlight: "manage-profiles-btn", advance: "auto" },
           // 15
           { title: "Step 16 of 17 · Clean Up",
-            body: "You can delete the Tutorial profile here or keep it to experiment further. Each profile is fully independent — weights and parameters on one profile never affect another. Use Duplicate to create variants, or select a different pill first in Aggregate to change the baseline.",
+            body: "You can delete the Tutorial profile here or keep it to experiment further. Each profile is fully independent — weights and parameters on one profile never affect another. When you're happy with a profile, hit ⬇ Export to download its non-default weights as a CSV, ready for the science team to review and annotate with PubMed references.",
             spotlight: null, advance: "next" },
           // 16
           { title: "Step 17 of 17 · You're Ready! 🎉",
@@ -904,22 +1220,22 @@ export default function App() {
           const spRight  = left + width;
           const winH = window.innerHeight, winW = window.innerWidth;
 
-          if (spBottom + 200 < winH) {
-            // Below — left-align with spotlight, clamp to viewport
-            cardStyle.top  = spBottom + PAD;
-            cardStyle.left = Math.min(Math.max(left, 8), winW - CARD_W - 8);
-          } else if (top > 220) {
-            // Above
-            cardStyle.bottom = winH - top + PAD;
-            cardStyle.left   = Math.min(Math.max(left, 8), winW - CARD_W - 8);
+          if (left >= CARD_W + PAD + 8) {
+            // Left — preferred
+            cardStyle.right = winW - left + PAD;
+            cardStyle.top   = Math.max(8, Math.min(top, winH - 240));
           } else if (spRight + CARD_W + PAD < winW) {
             // Right
             cardStyle.left = spRight + PAD;
             cardStyle.top  = Math.max(8, Math.min(top, winH - 240));
+          } else if (top > 220) {
+            // Above
+            cardStyle.bottom = winH - top + PAD;
+            cardStyle.left   = Math.min(Math.max(left, 8), winW - CARD_W - 8);
           } else {
-            // Left
-            cardStyle.right = winW - left + PAD;
-            cardStyle.top   = Math.max(8, Math.min(top, winH - 240));
+            // Below
+            cardStyle.top  = spBottom + PAD;
+            cardStyle.left = Math.min(Math.max(left, 8), winW - CARD_W - 8);
           }
         } else {
           cardStyle.top = "50%"; cardStyle.left = "50%";
@@ -1186,7 +1502,7 @@ export default function App() {
         {/* ── Main area ── */}
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minWidth: 0 }}>
           {!hasData ? (
-            <UploadPrompt fileRef={fileRef} dragOver={dragOver} setDragOver={setDragOver} handleFile={handleFile} uploadErr={uploadErr} />
+            <UploadPrompt fileRef={fileRef} dragOver={dragOver} setDragOver={setDragOver} handleFile={handleFile} uploadErr={uploadErr} loadDemo={loadDemo} />
           ) : activeView === "aggregate" ? (
             <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} />
           ) : (
@@ -1236,6 +1552,7 @@ export default function App() {
                 {tab === "weights-bio"  && <BioWeightsTab activeProcResult={activeProcResult} selProc={selProc} bioWeights={bioWeights} setBioWeights={setBioWeights} greenPct={greenPct} yellowWeight={yellowWeight} setYellowWeight={setYellowWeight} redWeight={redWeight} setRedWeight={setRedWeight} card={card} />}
                 {tab === "curves"       && <CurvesTab activeProcResult={activeProcResult} selProc={selProc} cutoff={cutoff} setCutoff={setCutoff} greenPct={greenPct} setGreenPct={setGreenPct} curve={curve} setCurve={setCurve} card={card} />}
                 {tab === "flags"        && <FlagsTab oorFlags={oorFlags} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
+                {tab === "adjustments"  && <AdjustmentsTab bioWeights={bioWeights} procWeights={procWeights} setBioWeights={setBioWeights} setProcWeights={setProcWeights} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
               </div>
             </>
           )}
@@ -1246,22 +1563,38 @@ export default function App() {
 }
 
 // ─── Upload ───────────────────────────────────────────────────────────────────
-function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr }) {
+function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, loadDemo }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 24 }}>
       <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: 26, fontFamily: T.display, color: C.navy, marginBottom: 8 }}>Biomarker Scoring Workbench</div>
         <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.8, maxWidth: 440 }}>Upload client lab data to score biomarkers across all seven health systems.</div>
       </div>
-      <div data-tutorial="upload-dropzone" onClick={() => fileRef.current?.click()}
-        onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
-        onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
-        style={{ border: `1.5px dashed ${dragOver ? C.teal : C.iceMid}`, borderRadius: 12, padding: "36px 48px",
-          textAlign: "center", cursor: "pointer", background: dragOver ? `${C.teal}0A` : C.white, transition: "all 0.2s", maxWidth: 400, width: "100%" }}>
-        <div style={{ fontSize: 26, color: C.teal, marginBottom: 8 }}>↑</div>
-        <div style={{ fontSize: 13, color: C.textSecond, fontWeight: 600, marginBottom: 4 }}>Drop CSV or click to upload</div>
-        <div style={{ fontSize: 11, color: C.textFaint }}>Columns: my_id · measure_name · lab_concentration · lower/upper_reference_range</div>
-        {uploadErr && <div style={{ marginTop: 8, fontSize: 11, color: C.critical }}>{uploadErr}</div>}
+      <div data-tutorial="upload-dropzone" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: "100%", maxWidth: 400 }}>
+        <div onClick={() => fileRef.current?.click()}
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
+          onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
+          style={{ border: `1.5px dashed ${dragOver ? C.teal : C.iceMid}`, borderRadius: 12, padding: "36px 48px",
+            textAlign: "center", cursor: "pointer", background: dragOver ? `${C.teal}0A` : C.white, transition: "all 0.2s", width: "100%" }}>
+          <div style={{ fontSize: 26, color: C.teal, marginBottom: 8 }}>↑</div>
+          <div style={{ fontSize: 13, color: C.textSecond, fontWeight: 600, marginBottom: 4 }}>Drop CSV or click to upload</div>
+          <div style={{ fontSize: 11, color: C.textFaint }}>Columns: my_id · measure_name · lab_concentration · lower/upper_reference_range</div>
+          {uploadErr && <div style={{ marginTop: 8, fontSize: 11, color: C.critical }}>{uploadErr}</div>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, width: "100%" }}>
+          <div style={{ flex: 1, height: 1, background: C.border }} />
+          <span style={{ fontSize: 11, color: C.textFaint }}>or</span>
+          <div style={{ flex: 1, height: 1, background: C.border }} />
+        </div>
+        <button onClick={loadDemo}
+          style={{ width: "100%", padding: "11px 0", borderRadius: 10, border: `1.5px solid ${C.teal}`,
+            background: "transparent", color: C.teal, fontSize: 13, fontWeight: 600,
+            cursor: "pointer", fontFamily: T.body, letterSpacing: "0.01em" }}>
+          ✦ Load Demo Data
+        </button>
+        <div style={{ fontSize: 11, color: C.textFaint, textAlign: "center", maxWidth: 340 }}>
+          Explore the tool with synthetic data — all 286 biomarkers at healthy reference-range midpoints.
+        </div>
       </div>
     </div>
   );
@@ -1569,6 +1902,149 @@ function FlagsTab({ oorFlags, setActiveProc, setTab, card }) {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 10 }}>
             {yellow.map(bm => <FlagCard key={`${bm.process}-${bm.name}`} bm={bm} setActiveProc={setActiveProc} setTab={setTab} card={card} />)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Active Adjustments Tab ───────────────────────────────────────────────────
+function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights, setActiveProc, setTab, card }) {
+  // Gather non-default biomarker adjustments, grouped by system → process
+  const bioAdj = [];
+  SYSTEMS.forEach(sys => {
+    Object.entries(sys.processes).forEach(([proc, markers]) => {
+      markers.forEach(name => {
+        const e = bioWeights[name] ?? { weight: 1, color: "red", level: "high", ref: "" };
+        const isModified = e.weight !== 1 || e.color !== "red" || e.level !== "high";
+        if (isModified) bioAdj.push({ sys: sys.name, sysId: sys.id, proc, name, entry: e });
+      });
+    });
+  });
+
+  // Gather non-default process adjustments
+  const procAdj = [];
+  SYSTEMS.forEach(sys => {
+    Object.keys(sys.processes).forEach(proc => {
+      const e = procWeights[proc] ?? { weight: 1, color: "red", ref: "" };
+      const isModified = e.weight !== 1 || e.color !== "red";
+      if (isModified) procAdj.push({ sys: sys.name, sysId: sys.id, proc, entry: e });
+    });
+  });
+
+  const total = bioAdj.length + procAdj.length;
+
+  const pillStyle = (active, col) => ({
+    padding: "2px 7px", borderRadius: 4, fontSize: 10, fontWeight: 600,
+    background: active ? col + "22" : C.iceLight,
+    color: active ? col : C.textFaint,
+    border: `1px solid ${active ? col + "55" : C.border}`,
+  });
+
+  const colorMap = { red: C.critical, yellow: C.fair, both: C.steel };
+  const levelMap = { high: C.critical, low: C.atRisk, both: C.steel };
+
+  if (total === 0) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        gap: 10, padding: "60px 0", color: C.textFaint }}>
+        <div style={{ fontSize: 28 }}>✓</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>No adjustments applied</div>
+        <div style={{ fontSize: 11, color: C.textFaint, textAlign: "center", maxWidth: 280, lineHeight: 1.6 }}>
+          All biomarker and process weights are at their defaults. Adjust weights in the Process Weights or Biomarker Weights tabs to see them listed here.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {procAdj.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, letterSpacing: "0.06em",
+            textTransform: "uppercase", marginBottom: 12 }}>
+            Process Weights ({procAdj.length})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {procAdj.map(({ sys, proc, entry }) => (
+              <div key={proc} style={{ ...card, padding: "10px 14px", cursor: "pointer",
+                borderLeft: `3px solid ${C.steel}` }}
+                onClick={() => { setActiveProc(proc); setTab("weights-proc"); }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary }}>{proc}</div>
+                    <div style={{ fontSize: 10, color: C.textFaint, marginTop: 2 }}>{sys}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    {entry.weight !== 1 && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: C.navy,
+                        background: C.iceLight, borderRadius: 4, padding: "2px 7px",
+                        border: `1px solid ${C.border}` }}>
+                        ×{entry.weight}
+                      </span>
+                    )}
+                    {["red","yellow","both"].map(c => (
+                      <span key={c} style={pillStyle(entry.color === c, colorMap[c])}>{c}</span>
+                    ))}
+                    <button onClick={ev => { ev.stopPropagation(); setProcWeights(prev => ({ ...prev, [proc]: { weight:1, color:"red", ref:"" } })); }}
+                      style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer",
+                        fontSize: 15, lineHeight: 1, padding: "0 0 0 4px" }} title="Reset to default">×</button>
+                  </div>
+                </div>
+                {entry.ref && (
+                  <div style={{ fontSize: 10, color: C.textFaint, marginTop: 5 }}>
+                    PubMed: {entry.ref}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {bioAdj.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, letterSpacing: "0.06em",
+            textTransform: "uppercase", marginBottom: 12 }}>
+            Biomarker Weights ({bioAdj.length})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {bioAdj.map(({ sys, proc, name, entry }) => (
+              <div key={name} style={{ ...card, padding: "10px 14px", cursor: "pointer",
+                borderLeft: `3px solid ${C.teal}` }}
+                onClick={() => { setActiveProc(proc); setTab("weights-bio"); }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary }}>{name}</div>
+                    <div style={{ fontSize: 10, color: C.textFaint, marginTop: 2 }}>{proc} · {sys}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    {entry.weight !== 1 && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: C.navy,
+                        background: C.iceLight, borderRadius: 4, padding: "2px 7px",
+                        border: `1px solid ${C.border}` }}>
+                        ×{entry.weight}
+                      </span>
+                    )}
+                    {["red","yellow","both"].map(c => (
+                      <span key={c} style={pillStyle(entry.color === c, colorMap[c])}>{c}</span>
+                    ))}
+                    {["high","low","both"].map(l => (
+                      <span key={l} style={pillStyle(entry.level === l, levelMap[l])}>{l}</span>
+                    ))}
+                    <button onClick={ev => { ev.stopPropagation(); setBioWeights(prev => ({ ...prev, [name]: { weight:1, color:"red", level:"high", ref:"" } })); }}
+                      style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer",
+                        fontSize: 15, lineHeight: 1, padding: "0 0 0 4px" }} title="Reset to default">×</button>
+                  </div>
+                </div>
+                {entry.ref && (
+                  <div style={{ fontSize: 10, color: C.textFaint, marginTop: 5 }}>
+                    PubMed: {entry.ref}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
