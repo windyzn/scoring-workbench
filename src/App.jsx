@@ -2320,10 +2320,10 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
           Global Biomarker Weights
           <span style={{ fontSize: 10, color: C.textFaint, fontWeight: 400, marginLeft: 8 }}>Amplify out-of-range markers in process scores</span>
         </div>
-        <Slider label="Yellow zone weight" value={yellowWeight} min={1.0} max={5.0} step={0.1}
+        <Slider label="Yellow global weight" value={yellowWeight} min={1.0} max={5.0} step={0.1}
           onChange={setYellowWeight} color={C.fair} fmt={v => `${v.toFixed(1)}×`}
           tooltip={"Multiplier applied to biomarkers just outside the reference range.\nHigher values amplify their influence on the process score. Default: 2×."} />
-        <Slider label="Red zone weight" value={redWeight} min={1.0} max={10.0} step={0.5}
+        <Slider label="Red global weight" value={redWeight} min={1.0} max={10.0} step={0.5}
           onChange={setRedWeight} color={C.critical} fmt={v => `${v.toFixed(1)}×`}
           tooltip={"Multiplier applied to biomarkers well outside the reference range.\nHigher values give flagged markers stronger pull on the score. Default: 4×."} />
       </div>
