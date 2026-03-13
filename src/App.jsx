@@ -2317,7 +2317,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
       <div style={{ ...card, marginBottom: 16, padding: "14px 16px",
         background: `${C.iceLight}60`, borderLeft: `3px solid ${C.steel}` }}>
         <div style={{ fontSize: 11, color: C.textSecond, fontWeight: 600, marginBottom: 10 }}>
-          Zone Weights
+          Global Biomarker Weights
           <span style={{ fontSize: 10, color: C.textFaint, fontWeight: 400, marginLeft: 8 }}>Amplify out-of-range markers in process scores</span>
         </div>
         <Slider label="Yellow zone weight" value={yellowWeight} min={1.0} max={5.0} step={0.1}
