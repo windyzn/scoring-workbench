@@ -80,10 +80,10 @@ const DEFAULT_BIO_ENTRY  = { weight: 1, color: "red",  level: "high", ref: "" };
 const DEFAULT_PROC_ENTRY = { weight: 1, color: "red",               ref: "" };
 
 function makeDefaultBioWeights() {
-  const w = {}; ALL_MARKERS.forEach(m => { w[m] = { ...DEFAULT_BIO_ENTRY }; }); return w;
+  return {};
 }
 function makeDefaultProcWeights() {
-  const w = {}; SYSTEMS.forEach(s => Object.keys(s.processes).forEach(p => { w[p] = { ...DEFAULT_PROC_ENTRY }; })); return w;
+  return {};
 }
 
 // ─── Demo client (all markers at green-zone midpoint) ────────────────────────
@@ -984,11 +984,19 @@ function calcZone(v, lo, hi, gp = 0.05) {
   return "red";
 }
 
+
+function procZone(score) {
+  if (score === null) return null;
+  if (score >= 91) return "green";
+  if (score >= 70) return "yellow";
+  return "red";
+}
+
 function scoreBM(v, lo, hi, cutoff = 0.5, gp = 0.05, curve = "linear") {
-  const rng = hi - lo; if (rng <= 0) return 0;
+  const rng = hi - lo; if (rng <= 0) return null;
   const gL = lo + gp * rng, gH = hi - gp * rng;
   if (v >= gL && v <= gH) return 100;
-  const dist = v > gH ? (v - hi) / rng : (lo - v) / rng;
+  const dist = v > gH ? (v - gH) / rng : (gL - v) / rng;
   const t = Math.max(0, Math.min(1, dist / cutoff));
   let s = curve === "linear" ? 100 * (1 - t)
     : curve === "sqrt" ? 100 * (1 - Math.sqrt(t))
@@ -996,13 +1004,13 @@ function scoreBM(v, lo, hi, cutoff = 0.5, gp = 0.05, curve = "linear") {
   return Math.max(0, Math.min(100, s));
 }
 
-function gradeOf(s) {
-  if (s == null) return { label: "—", color: C.textFaint };
-  if (s >= 90) return { label: "Excellent", color: C.green };
-  if (s >= 75) return { label: "Good",      color: C.good };
-  if (s >= 60) return { label: "Fair",      color: C.fair };
-  if (s >= 40) return { label: "At Risk",   color: C.atRisk };
-  return               { label: "Critical", color: C.critical };
+
+// Colour for process/system scores using the defined zone thresholds
+function procColour(s) {
+  if (s == null) return C.textFaint;
+  if (s >= 91) return C.teal;
+  if (s >= 70) return C.fair;
+  return C.critical;
 }
 
 function wavg(pairs) {
@@ -1010,22 +1018,25 @@ function wavg(pairs) {
   return tw ? pairs.reduce((s, [v, w]) => s + v * w, 0) / tw : 0;
 }
 
-// effectiveWeight: if the biomarker's zone/status matches the weight's color+level
-// conditions, apply the manual weight directly (overrides global zone multiplier).
-// Otherwise fall back to 1 × global zone multiplier.
-function effectiveWeight(entry, zone, status, yellowW, redW) {
+// effectiveWeight: if the biomarker has an explicit entry and its colour/level
+// conditions are met, apply the manual weight (overrides global colour multiplier).
+// If no explicit entry exists, fall back to the global colour multiplier.
+function effectiveWeight(entry, hasEntry, zone, status, yellowW, redW) {
+  if (!hasEntry) {
+    const zm = zone === "yellow" ? yellowW : zone === "red" ? redW : 1.0;
+    return zm;
+  }
   const w = typeof entry === "object" ? entry.weight : entry;
   const color = typeof entry === "object" ? (entry.color ?? "both") : "both";
   const level = typeof entry === "object" ? (entry.level ?? "both") : "both";
-  // Check if conditions are met
   const colorMatch = color === "both"
     || (color === "red"    && zone === "red")
     || (color === "yellow" && zone === "yellow");
   const levelMatch = level === "both"
     || (level === "high" && status === "HIGH")
     || (level === "low"  && status === "LOW");
-  if (colorMatch && levelMatch && w !== 1) return w; // manual override
-  // Fall back to global zone multiplier on weight 1
+  if (colorMatch && levelMatch) return w; // manual override applies
+  // Conditions not met — fall back to global colour multiplier
   const zm = zone === "yellow" ? yellowW : zone === "red" ? redW : 1.0;
   return zm;
 }
@@ -1039,10 +1050,11 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
       const s = scoreBM(m.value, m.refLow, m.refHigh, cutoff, gp, curve);
       const zone = calcZone(m.value, m.refLow, m.refHigh, gp);
       const rng = m.refHigh - m.refLow, gL = m.refLow + gp * rng, gH = m.refHigh - gp * rng;
+      const hasEntry = name in bioW;
       const entry  = bioW[name] ?? DEFAULT_BIO_ENTRY;
       const manualW = typeof entry === "object" ? entry.weight : entry;
       const status  = m.value > gH ? "HIGH" : m.value < gL ? "LOW" : "NORMAL";
-      const effW = effectiveWeight(entry, zone, status, yellowW, redW);
+      const effW = effectiveWeight(entry, hasEntry, zone, status, yellowW, redW);
       return {
         name, value: m.value, refLow: m.refLow, refHigh: m.refHigh,
         score: s, zone, weight: manualW, effWeight: effW, missing: false,
@@ -1055,9 +1067,17 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
   });
   const valid = procResults.filter(p => p.score !== null);
   const sysScore = valid.length ? wavg(valid.map(p => {
+    const hasProcEntry = p.process in procW;
     const pe = procW[p.process] ?? DEFAULT_PROC_ENTRY;
-    const pw = typeof pe === "object" ? pe.weight : pe;
-    return [p.score, pw];
+    const pw     = typeof pe === "object" ? (pe.weight ?? 1) : pe;
+    const pcolor = typeof pe === "object" ? (pe.color  ?? "red") : "red";
+    const pzone  = procZone(p.score);
+    const colorMatch = pcolor === "both"
+      || (pcolor === "red"    && pzone === "red")
+      || (pcolor === "yellow" && pzone === "yellow")
+      || (pcolor === "green"  && pzone === "green");
+    const effPw = hasProcEntry && colorMatch ? pw : 1;
+    return [p.score, effPw];
   })) : null;
   return { procResults, sysScore };
 }
@@ -1097,18 +1117,18 @@ function stats(arr) {
 
 // ─── Atoms ────────────────────────────────────────────────────────────────────
 function ArcGauge({ score, size = 64, label }) {
-  const g = gradeOf(score), r = size * 0.37, cx = size / 2, cy = size / 2, circ = 2 * Math.PI * r;
+  const col = procColour(score), r = size * 0.37, cx = size / 2, cy = size / 2, circ = 2 * Math.PI * r;
   const dash = ((score ?? 0) / 100) * circ;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
       <svg width={size} height={size}>
         <circle cx={cx} cy={cy} r={r} fill="none" stroke={C.iceLight} strokeWidth={size * 0.09} />
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke={score != null ? g.color : C.iceMid}
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke={score != null ? col : C.iceMid}
           strokeWidth={size * 0.09} strokeDasharray={`${dash} ${circ - dash}`}
           strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`}
           style={{ transition: "stroke-dasharray 0.5s ease" }} />
         <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle"
-          fill={score != null ? g.color : C.textFaint} fontSize={size * 0.23} fontWeight="700" fontFamily={T.body}>
+          fill={score != null ? col : C.textFaint} fontSize={size * 0.23} fontWeight="700" fontFamily={T.body}>
           {score != null ? Math.round(score) : "—"}
         </text>
       </svg>
@@ -1117,17 +1137,11 @@ function ArcGauge({ score, size = 64, label }) {
   );
 }
 
-function GradeChip({ score, small }) {
-  const g = gradeOf(score);
-  return <span style={{ display: "inline-flex", alignItems: "center",
-    padding: small ? "2px 8px" : "3px 11px", borderRadius: 20, fontSize: small ? 10 : 11,
-    fontWeight: 600, color: g.color, background: `${g.color}15`, border: `1px solid ${g.color}40` }}>{g.label}</span>;
-}
 
-function ScoreBar({ score, h = 4 }) {
-  const g = gradeOf(score ?? 0);
+function ScoreBar({ score, h = 4, colour }) {
+  const col = colour ?? procColour(score ?? 0);
   return <div style={{ height: h, background: C.iceLight, borderRadius: h, overflow: "hidden" }}>
-    <div style={{ height: "100%", width: `${score ?? 0}%`, background: g.color, borderRadius: h, transition: "width 0.4s" }} />
+    <div style={{ height: "100%", width: `${score ?? 0}%`, background: col, borderRadius: h, transition: "width 0.4s" }} />
   </div>;
 }
 
@@ -1412,12 +1426,12 @@ export default function App() {
   const exportProfile = useCallback((p) => {
     const rows = [];
     const header = ["MYCO_ID","CATEGORY","HEALTH_AREA_TYPE","HEALTH_AREA_ID","HEALTH_AREA_NAME","MEASURE_ID","ITEM_NAME","COLOR","LEVEL","VALUE","REFERENCES"];
-    // Biomarker weights — only non-default entries (weight !== 1)
+    // Biomarker weights — all explicitly set entries
     SYSTEMS.forEach(sys => {
       Object.entries(sys.processes).forEach(([proc, bms]) => {
         bms.forEach(bmName => {
           const e = p.bioWeights[bmName];
-          if (!e || e.weight === 1) return;
+          if (!e) return;
           rows.push([
             "",                    // MYCO_ID — leave blank
             "biomarker_weight",
@@ -1434,11 +1448,11 @@ export default function App() {
         });
       });
     });
-    // Process weights — only non-default entries (weight !== 1)
+    // Process weights — all explicitly set entries
     SYSTEMS.forEach(sys => {
       Object.keys(sys.processes).forEach(proc => {
         const e = p.procWeights[proc];
-        if (!e || e.weight === 1) return;
+        if (!e) return;
         rows.push([
           "",
           "process_weight",
@@ -1531,9 +1545,13 @@ export default function App() {
 
   const oorFlags = useMemo(() => {
     const f = [];
-    procResults.forEach(pr => pr.biomarkers.forEach(bm => {
-      if (!bm.missing && bm.zone !== "green") f.push({ ...bm, process: pr.process });
-    }));
+    procResults.forEach(pr => {
+      const sys = SYSTEMS.find(s => Object.keys(s.processes).includes(pr.process));
+      pr.biomarkers.forEach(bm => {
+        if (!bm.missing && bm.zone !== "green")
+          f.push({ ...bm, process: pr.process, system: sys?.name ?? "", systemId: sys?.id ?? "" });
+      });
+    });
     return f.sort((a, b) => a.score - b.score);
   }, [procResults]);
 
@@ -2030,7 +2048,7 @@ export default function App() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
                       <span style={{ fontSize: 12, color: active ? C.navy : C.textSecond, fontWeight: active ? 700 : 400, lineHeight: 1.3, flex: 1 }}>{sys.name}</span>
                       {s != null
-                        ? <span style={{ fontSize: 12, color: gradeOf(s).color, fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.round(s)}</span>
+                        ? <span style={{ fontSize: 12, color: procColour(s), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.round(s)}</span>
                         : <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
                     </div>
                     {s != null && <div style={{ marginTop: 4 }}><ScoreBar score={s} h={2} /></div>}
@@ -2075,7 +2093,7 @@ export default function App() {
                 <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", marginLeft: 6 }}>No data</span>
               </div>
             ))}
-            {procResults.map(pr => {
+            {[...procResults].sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)).map(pr => {
               const active = selProc === pr.process;
               return (
                 <button key={pr.process} onClick={() => { setActiveProc(pr.process); setActiveView("client"); }}
@@ -2085,7 +2103,7 @@ export default function App() {
                     borderLeft: `3px solid ${active ? C.teal : "transparent"}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
                     <span style={{ fontSize: 11, color: active ? C.navy : C.textSecond, fontWeight: active ? 600 : 400, lineHeight: 1.3, flex: 1 }}>{pr.process}</span>
-                    {pr.score != null && <span style={{ fontSize: 11, color: gradeOf(pr.score).color, fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.round(pr.score)}</span>}
+                    {pr.score != null && <span style={{ fontSize: 11, color: procColour(pr.score), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.round(pr.score)}</span>}
                   </div>
                   {pr.score == null && <div style={{ fontSize: 9, color: C.textFaint, marginTop: 2, fontStyle: "italic" }}>No data</div>}
                 </button>
@@ -2146,7 +2164,7 @@ export default function App() {
                 {tab === "weights-proc" && <ProcWeightsTab system={system} procResults={procResults} procWeights={procWeights} setProcWeights={setProcWeights} sysScore={sysScore} selProc={selProc} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
                 {tab === "weights-bio"  && <BioWeightsTab activeProcResult={activeProcResult} selProc={selProc} bioWeights={bioWeights} setBioWeights={setBioWeights} greenPct={greenPct} yellowWeight={yellowWeight} setYellowWeight={setYellowWeight} redWeight={redWeight} setRedWeight={setRedWeight} card={card} />}
                 {tab === "curves"       && <CurvesTab activeProcResult={activeProcResult} selProc={selProc} cutoff={cutoff} setCutoff={setCutoff} greenPct={greenPct} setGreenPct={setGreenPct} curve={curve} setCurve={setCurve} card={card} />}
-                {tab === "flags"        && <FlagsTab oorFlags={oorFlags} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
+                {tab === "flags"        && <FlagsTab oorFlags={oorFlags} setActiveProc={setActiveProc} setTab={setTab} card={card} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} />}
                 {tab === "adjustments"  && <AdjustmentsTab bioWeights={bioWeights} procWeights={procWeights} setBioWeights={setBioWeights} setProcWeights={setProcWeights} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
               </div>
             </>
@@ -2206,7 +2224,7 @@ function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysS
     <div>
       {/* System summary box — mirrors the biomarker weights header */}
       <div style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18,
-        background: `${C.iceLight}`, borderLeft: `4px solid ${sysScore != null ? gradeOf(sysScore).color : C.border}` }}>
+        background: `${C.iceLight}`, borderLeft: `4px solid ${sysScore != null ? procColour(sysScore) : C.border}` }}>
         <div>
           <div style={{ fontSize: 15, fontFamily: T.display, color: C.navy }}>{system.name}</div>
           <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>
@@ -2215,19 +2233,17 @@ function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysS
         </div>
         {sysScore != null && (
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 28, color: gradeOf(sysScore).color, fontWeight: 800, lineHeight: 1, fontFamily: T.mono }}>
+            <div style={{ fontSize: 28, color: procColour(sysScore), fontWeight: 800, lineHeight: 1, fontFamily: T.mono }}>
               {Math.round(sysScore)}
             </div>
-            <GradeChip score={sysScore} small />
           </div>
         )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(255px,1fr))", gap: 14 }}>
-        {procResults.map((pr, prIdx) => {
+        {[...procResults].sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)).map((pr, prIdx) => {
           const w = procWeights[pr.process] ?? { ...DEFAULT_PROC_ENTRY };
           const active = selProc === pr.process;
-          const g = gradeOf(pr.score);
           return (
             <div key={pr.process} {...(prIdx === 0 ? { "data-tutorial": "first-proc-card" } : {})} style={{ ...card, borderLeft: `3px solid ${active ? C.teal : C.border}`, cursor: "pointer" }}
               onClick={() => { setActiveProc(pr.process); setTab("weights-bio"); }}>
@@ -2237,8 +2253,7 @@ function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysS
                   <div style={{ fontSize: 10, color: C.textFaint }}>{pr.biomarkers.filter(b => !b.missing).length} biomarkers</div>
                 </div>
                 {pr.score != null && <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <div style={{ fontSize: 24, color: g.color, fontWeight: 700, lineHeight: 1 }}>{Math.round(pr.score)}</div>
-                  <GradeChip score={pr.score} small />
+                  <div style={{ fontSize: 24, color: procColour(pr.score), fontWeight: 700, lineHeight: 1 }}>{Math.round(pr.score)}</div>
                 </div>}
                 {pr.score == null && <div style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic" }}>No data</div>}
               </div>
@@ -2282,7 +2297,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
   return (
     <div>
       <div style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16,
-        background: `${C.iceLight}`, borderLeft: `4px solid ${activeProcResult?.score != null ? gradeOf(activeProcResult.score).color : C.border}` }}>
+        background: `${C.iceLight}`, borderLeft: `4px solid ${activeProcResult?.score != null ? procColour(activeProcResult.score) : C.border}` }}>
         <div>
           <div style={{ fontSize: 15, fontFamily: T.display, color: C.navy }}>{selProc}</div>
           <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
@@ -2295,8 +2310,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
           </div>
         </div>
         {activeProcResult.score != null && <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 26, color: gradeOf(activeProcResult.score).color, fontWeight: 700 }}>{Math.round(activeProcResult.score)}</div>
-          <GradeChip score={activeProcResult.score} small />
+          <div style={{ fontSize: 26, color: procColour(activeProcResult.score), fontWeight: 700 }}>{Math.round(activeProcResult.score)}</div>
         </div>}
       </div>
       {/* Zone weight sliders */}
@@ -2315,15 +2329,20 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))", gap: 12 }}>
-        {activeProcResult.biomarkers.map((bm, bmIdx) => {
-          const isFirstVisible = bmIdx === activeProcResult.biomarkers.findIndex(b => !b.missing);
+        {[...activeProcResult.biomarkers].sort((a, b) => {
+          if (a.missing && b.missing) return 0;
+          if (a.missing) return 1;
+          if (b.missing) return -1;
+          return a.score - b.score;
+        }).map((bm, bmIdx) => {
+          const isFirstVisible = bmIdx === 0 && !bm.missing;
           if (bm.missing) return (
             <div key={bm.name} style={{ ...card, opacity: 0.4, padding: 12 }}>
               <div style={{ fontSize: 11, color: C.textMuted }}>{bm.name}</div>
               <div style={{ fontSize: 10, color: C.textFaint, marginTop: 2 }}>Not in CSV</div>
             </div>
           );
-          const g = gradeOf(bm.score), zoneCol = bm.zone === "green" ? C.teal : bm.zone === "yellow" ? C.fair : C.critical;
+          const zoneCol = bm.zone === "green" ? C.teal : bm.zone === "yellow" ? C.fair : C.critical;
           const rng = bm.refHigh - bm.refLow;
           const pctOut = bm.zone === "red" ? (bm.status === "HIGH" ? (bm.value - bm.refHigh) / rng : (bm.refLow - bm.value) / rng) * 100 : 0;
           return (
@@ -2338,7 +2357,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                   </div>
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <div style={{ fontSize: 20, color: g.color, fontWeight: 700, lineHeight: 1 }}>{Math.round(bm.score)}</div>
+                  <div style={{ fontSize: 20, color: zoneCol, fontWeight: 700, lineHeight: 1 }}>{Math.round(bm.score)}</div>
                   <div style={{ fontSize: 9, color: C.textFaint }}>
                     eff. <span style={{ fontWeight: 700, color: zoneCol }}>{bm.effWeight.toFixed(1)}×</span>
                   </div>
@@ -2443,7 +2462,7 @@ function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, set
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(285px,1fr))", gap: 13 }}>
         {valid.map(bm => {
-          const g = gradeOf(bm.score), zoneCol = bm.zone === "green" ? C.teal : bm.zone === "yellow" ? C.fair : C.critical;
+          const zoneCol = bm.zone === "green" ? C.teal : bm.zone === "yellow" ? C.fair : C.critical;
           return (
             <div key={bm.name} style={{ ...card, borderTop: `3px solid ${zoneCol}`, padding: 13 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
@@ -2455,8 +2474,7 @@ function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, set
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 17, color: g.color, fontWeight: 700 }}>{Math.round(bm.score)}</div>
-                  <GradeChip score={bm.score} small />
+                  <div style={{ fontSize: 17, color: zoneCol, fontWeight: 700 }}>{Math.round(bm.score)}</div>
                 </div>
               </div>
               <ScoringCurve refLow={bm.refLow} refHigh={bm.refHigh} value={bm.value} cutoff={cutoff} greenPct={greenPct} curve={curve} />
@@ -2470,7 +2488,7 @@ function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, set
 }
 
 // ─── Biomarker Flags ──────────────────────────────────────────────────────────
-function FlagsTab({ oorFlags, setActiveProc, setTab, card }) {
+function FlagsTab({ oorFlags, setActiveProc, setTab, card, bioWeights, cutoff, greenPct, curve }) {
   const red = oorFlags.filter(f => f.zone === "red"), yellow = oorFlags.filter(f => f.zone === "yellow");
   if (!oorFlags.length) return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60%", gap: 10, textAlign: "center" }}>
@@ -2488,7 +2506,7 @@ function FlagsTab({ oorFlags, setActiveProc, setTab, card }) {
             <span style={{ fontSize: 11, color: C.textMuted }}>— outside reference + yellow zone</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 10 }}>
-            {red.map(bm => <FlagCard key={`${bm.process}-${bm.name}`} bm={bm} setActiveProc={setActiveProc} setTab={setTab} card={card} />)}
+            {red.map(bm => <FlagCard key={`${bm.process}-${bm.name}`} bm={bm} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} card={card} />)}
           </div>
         </div>
       )}
@@ -2500,7 +2518,7 @@ function FlagsTab({ oorFlags, setActiveProc, setTab, card }) {
             <span style={{ fontSize: 11, color: C.textMuted }}>— within yellow boundary</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 10 }}>
-            {yellow.map(bm => <FlagCard key={`${bm.process}-${bm.name}`} bm={bm} setActiveProc={setActiveProc} setTab={setTab} card={card} />)}
+            {yellow.map(bm => <FlagCard key={`${bm.process}-${bm.name}`} bm={bm} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} card={card} />)}
           </div>
         </div>
       )}
@@ -2515,9 +2533,8 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
   SYSTEMS.forEach(sys => {
     Object.entries(sys.processes).forEach(([proc, markers]) => {
       markers.forEach(name => {
-        const e = bioWeights[name] ?? { weight: 1, color: "red", level: "high", ref: "" };
-        const isModified = e.weight !== 1 || e.color !== "red" || e.level !== "high";
-        if (isModified) bioAdj.push({ sys: sys.name, sysId: sys.id, proc, name, entry: e });
+        const e = bioWeights[name];
+        if (e) bioAdj.push({ sys: sys.name, sysId: sys.id, proc, name, entry: e });
       });
     });
   });
@@ -2526,9 +2543,8 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
   const procAdj = [];
   SYSTEMS.forEach(sys => {
     Object.keys(sys.processes).forEach(proc => {
-      const e = procWeights[proc] ?? { weight: 1, color: "red", ref: "" };
-      const isModified = e.weight !== 1 || e.color !== "red";
-      if (isModified) procAdj.push({ sys: sys.name, sysId: sys.id, proc, entry: e });
+      const e = procWeights[proc];
+      if (e) procAdj.push({ sys: sys.name, sysId: sys.id, proc, entry: e });
     });
   });
 
@@ -2576,17 +2592,15 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
                     <div style={{ fontSize: 10, color: C.textFaint, marginTop: 2 }}>{sys}</div>
                   </div>
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    {entry.weight !== 1 && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: C.navy,
-                        background: C.iceLight, borderRadius: 4, padding: "2px 7px",
-                        border: `1px solid ${C.border}` }}>
-                        ×{entry.weight}
-                      </span>
-                    )}
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.navy,
+                      background: C.iceLight, borderRadius: 4, padding: "2px 7px",
+                      border: `1px solid ${C.border}` }}>
+                      ×{entry.weight}
+                    </span>
                     {["red","yellow","both"].map(c => (
                       <span key={c} style={pillStyle(entry.color === c, colorMap[c])}>{c}</span>
                     ))}
-                    <button onClick={ev => { ev.stopPropagation(); setProcWeights(prev => ({ ...prev, [proc]: { weight:1, color:"red", ref:"" } })); }}
+                    <button onClick={ev => { ev.stopPropagation(); setProcWeights(prev => { const n = { ...prev }; delete n[proc]; return n; }); }}
                       style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer",
                         fontSize: 15, lineHeight: 1, padding: "0 0 0 4px" }} title="Reset to default">×</button>
                   </div>
@@ -2619,20 +2633,18 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
                     <div style={{ fontSize: 10, color: C.textFaint, marginTop: 2 }}>{proc} · {sys}</div>
                   </div>
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    {entry.weight !== 1 && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: C.navy,
-                        background: C.iceLight, borderRadius: 4, padding: "2px 7px",
-                        border: `1px solid ${C.border}` }}>
-                        ×{entry.weight}
-                      </span>
-                    )}
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.navy,
+                      background: C.iceLight, borderRadius: 4, padding: "2px 7px",
+                      border: `1px solid ${C.border}` }}>
+                      ×{entry.weight}
+                    </span>
                     {["red","yellow","both"].map(c => (
                       <span key={c} style={pillStyle(entry.color === c, colorMap[c])}>{c}</span>
                     ))}
                     {["high","low","both"].map(l => (
                       <span key={l} style={pillStyle(entry.level === l, levelMap[l])}>{l}</span>
                     ))}
-                    <button onClick={ev => { ev.stopPropagation(); setBioWeights(prev => ({ ...prev, [name]: { weight:1, color:"red", level:"high", ref:"" } })); }}
+                    <button onClick={ev => { ev.stopPropagation(); setBioWeights(prev => { const n = { ...prev }; delete n[name]; return n; }); }}
                       style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer",
                         fontSize: 15, lineHeight: 1, padding: "0 0 0 4px" }} title="Reset to default">×</button>
                   </div>
@@ -2651,46 +2663,186 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
   );
 }
 
-function FlagCard({ bm, setActiveProc, setTab, card }) {
-  const g = gradeOf(bm.score), zoneCol = bm.zone === "green" ? C.teal : bm.zone === "yellow" ? C.fair : C.critical;
+function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose }) {
+  const colourCol = bm.zone === "green" ? C.teal : bm.zone === "yellow" ? C.fair : C.critical;
+  const colourLabel = bm.zone === "green" ? "Green" : bm.zone === "yellow" ? "Yellow" : "Red";
+
+  // All processes this biomarker belongs to (across all systems)
+  const memberships = [];
+  SYSTEMS.forEach(sys => {
+    Object.entries(sys.processes).forEach(([proc, markers]) => {
+      if (markers.includes(bm.name) || markers.includes(Object.keys(ALIASES).find(k => ALIASES[k] === bm.name))) {
+        const entry = bioWeights[bm.name] ?? { ...DEFAULT_BIO_ENTRY };
+        memberships.push({ sys: sys.name, proc, entry });
+      }
+    });
+  });
+
+  const pillStyle = (active, col) => ({
+    padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 600,
+    background: active ? col + "22" : C.iceLight,
+    color: active ? col : C.textFaint,
+    border: `1px solid ${active ? col + "55" : C.border}`,
+  });
+  const colorMap = { red: C.critical, yellow: C.fair, both: C.steel, green: C.teal };
+  const levelMap = { high: C.critical, low: C.atRisk, both: C.steel };
+
   return (
-    <div style={{ ...card, padding: 12, borderLeft: `3px solid ${zoneCol}`, cursor: "pointer" }}
-      onClick={() => { setActiveProc(bm.process); setTab("weights-bio"); }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-        <div>
-          <div style={{ fontSize: 11, color: C.textPrimary, fontWeight: 600 }}>{bm.name}</div>
-          <div style={{ fontSize: 10, color: C.textFaint, marginTop: 1 }}>{bm.process}</div>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 500,
+      display: "flex", alignItems: "center", justifyContent: "center" }}
+      onClick={onClose}>
+      <div style={{ background: C.surface, borderRadius: 14, width: 440, maxHeight: "88vh",
+        overflowY: "auto", boxShadow: "0 12px 48px rgba(24,55,75,0.3)",
+        display: "flex", flexDirection: "column" }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ background: C.navy, padding: "14px 18px", borderRadius: "14px 14px 0 0",
+          display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div style={{ fontSize: 15, fontFamily: T.display, color: C.iceLight, lineHeight: 1.3 }}>{bm.name}</div>
+            <div style={{ fontSize: 10, color: C.teal, marginTop: 4 }}>
+              {memberships.map(m => m.proc).join(" · ")}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: C.iceMid,
+            fontSize: 20, cursor: "pointer", lineHeight: 1, padding: "0 0 0 12px", flexShrink: 0 }}>×</button>
         </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 17, color: g.color, fontWeight: 700 }}>{Math.round(bm.score)}</div>
-          <ZoneDot zone={bm.zone} />
+
+        <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 18 }}>
+
+          {/* Score + colour row */}
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ flex: 1, background: C.iceLight, borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>Score</div>
+              <div style={{ fontSize: 32, fontWeight: 800, color: colourCol, fontFamily: T.mono, lineHeight: 1 }}>
+                {Math.round(bm.score)}
+              </div>
+            </div>
+            <div style={{ flex: 1, background: C.iceLight, borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>Colour</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: colourCol, lineHeight: 1.2 }}>{colourLabel}</div>
+              <div style={{ fontSize: 10, color: C.textFaint, marginTop: 4 }}>
+                {bm.status === "HIGH" ? "Above range" : bm.status === "LOW" ? "Below range" : "Within range"}
+              </div>
+            </div>
+            <div style={{ flex: 1, background: C.iceLight, borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>Concentration</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: C.textPrimary, fontFamily: T.mono, lineHeight: 1.2 }}>
+                {bm.value.toFixed(1)}
+              </div>
+              <div style={{ fontSize: 10, color: C.textFaint, marginTop: 4 }}>
+                ref {bm.refLow.toFixed(1)}–{bm.refHigh.toFixed(1)}
+              </div>
+            </div>
+          </div>
+
+          {/* Scoring curve visual */}
+          <div>
+            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8, fontWeight: 600 }}>Score curve</div>
+            <ScoringCurve refLow={bm.refLow} refHigh={bm.refHigh} value={bm.value}
+              cutoff={cutoff} greenPct={greenPct} curve={curve} />
+            <div style={{ fontSize: 9, color: C.textFaint, marginTop: 4 }}>
+              Teal band = green zone · grey bands = yellow · dot = measured value
+            </div>
+          </div>
+
+          {/* System + process memberships */}
+          <div>
+            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8, fontWeight: 600 }}>Health systems</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {memberships.map(({ sys, proc }, i) => (
+                <div key={i} style={{ fontSize: 11, color: C.textSecond, background: C.iceLight,
+                  borderRadius: 7, padding: "7px 11px" }}>
+                  <span style={{ color: C.textMuted }}>{sys}</span>
+                  <span style={{ color: C.iceMid }}> › </span>
+                  <span style={{ fontWeight: 600 }}>{proc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Weight settings per process */}
+          <div>
+            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8, fontWeight: 600 }}>Weight settings</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {memberships.map(({ proc, entry }, i) => (
+                <div key={i} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 10, color: C.textFaint, marginBottom: 7 }}>{proc}</div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.navy,
+                      background: C.iceLight, borderRadius: 4, padding: "2px 8px",
+                      border: `1px solid ${C.border}` }}>×{entry.weight}</span>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {["red","yellow","both"].map(c => (
+                        <span key={c} style={pillStyle(entry.color === c, colorMap[c])}>{c}</span>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {["high","low","both"].map(l => (
+                        <span key={l} style={pillStyle(entry.level === l, levelMap[l])}>{l}</span>
+                      ))}
+                    </div>
+                  </div>
+                  {entry.ref && (
+                    <div style={{ fontSize: 10, color: C.textFaint, marginTop: 6 }}>PubMed: {entry.ref}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       </div>
-      <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 5 }}>
-        <span style={{ fontFamily: T.mono, color: C.textSecond }}>{bm.value.toFixed(3)}</span>
-        {" · ref "}<span style={{ fontFamily: T.mono, color: C.textSecond }}>{bm.refLow.toFixed(2)}–{bm.refHigh.toFixed(2)}</span>
-        {" "}<span style={{ color: bm.status === "HIGH" ? C.critical : C.atRisk, fontWeight: 600 }}>({bm.status})</span>
-      </div>
-      <ScoreBar score={bm.score} h={3} />
     </div>
+  );
+}
+
+function FlagCard({ bm, bioWeights, cutoff, greenPct, curve, card }) {
+  const [showModal, setShowModal] = useState(false);
+  const colourCol = bm.zone === "green" ? C.teal : bm.zone === "yellow" ? C.fair : C.critical;
+  return (
+    <>
+      <div style={{ ...card, padding: 12, borderLeft: `3px solid ${colourCol}`, cursor: "pointer" }}
+        onClick={() => setShowModal(true)}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+          <div>
+            <div style={{ fontSize: 11, color: C.textPrimary, fontWeight: 600 }}>{bm.name}</div>
+            <div style={{ fontSize: 10, color: C.textFaint, marginTop: 1 }}>{bm.process}</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 17, color: colourCol, fontWeight: 700 }}>{Math.round(bm.score)}</div>
+            <ZoneDot zone={bm.zone} />
+          </div>
+        </div>
+        <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 5 }}>
+          <span style={{ fontFamily: T.mono, color: C.textSecond }}>{bm.value.toFixed(1)}</span>
+          {" · ref "}<span style={{ fontFamily: T.mono, color: C.textSecond }}>{bm.refLow.toFixed(1)}–{bm.refHigh.toFixed(1)}</span>
+          {" "}<span style={{ color: bm.status === "HIGH" ? C.critical : C.atRisk, fontWeight: 600 }}>({bm.status})</span>
+        </div>
+        <ScoreBar score={bm.score} h={3} colour={colourCol} />
+      </div>
+      {showModal && (
+        <BiomarkerDetailModal bm={bm} bioWeights={bioWeights} cutoff={cutoff}
+          greenPct={greenPct} curve={curve} onClose={() => setShowModal(false)} />
+      )}
+    </>
   );
 }
 
 // ─── Aggregate Statistics ─────────────────────────────────────────────────────
 function ScoreDot({ score }) {
-  const g = gradeOf(score);
   return score != null ? (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-      <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: g.color }}>{Math.round(score)}</span>
+      <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: procColour(score) }}>{Math.round(score)}</span>
     </span>
   ) : <span style={{ color: C.textFaint }}>—</span>;
 }
 
-// Colour-coded cell background by grade
+// Colour-coded cell background by score
 function gradeBg(score) {
   if (score == null) return "transparent";
-  const g = gradeOf(score);
-  return `${g.color}18`;
+  return `${procColour(score)}18`;
 }
 
 // Profile colour palette for multi-profile comparison
@@ -2898,11 +3050,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
               {SYSTEMS.map((sys, si) => {
                 const allStats = aggregateData.map(pd => sysStatsForProfile(pd, sys.id));
                 const baseStats = allStats[0];
-                const g = gradeOf(baseStats?.mean);
+                const procC = procColour(baseStats?.mean);
                 return (
                   <tr key={sys.id} style={{ borderTop: `1px solid ${C.border}`, background: si % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
                     <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap",
-                      borderLeft: `3px solid ${baseStats ? g.color : C.border}` }}>
+                      borderLeft: `3px solid ${baseStats ? procC : C.border}` }}>
                       {sys.name}
                     </td>
                     {aggregateData.map(({ profile }, pi) => {
@@ -2913,10 +3065,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                         <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center",
                           borderLeft: `2px solid ${col}30`,
                           background: st ? gradeBg(st.mean) : "transparent" }}>
-                          {st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: gradeOf(st.mean).color, fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}
+                          {st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: procColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}
                         </td>,
                         <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>
-                          {st ? <span style={{ fontFamily: T.mono, color: gradeOf(st.median).color, fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}
+                          {st ? <span style={{ fontFamily: T.mono, color: procColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}
                         </td>,
                         <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>
                           {st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}
