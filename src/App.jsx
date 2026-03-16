@@ -1262,10 +1262,37 @@ function makeProfile(id, name, params) {
   return { id, name, bioWeights: makeDefaultBioWeights(), procWeights: makeDefaultProcWeights(), ...DEFAULT_PARAMS, ...(params || {}) };
 }
 
+// ─── localStorage persistence ────────────────────────────────────────────────
+const LS_KEY = "myco_workbench_v1";
+const DEMO_IDS_SET = new Set(["DEMO-healthy", "DEMO-typical", "DEMO-unhealthy"]);
+
+function saveToStorage(profiles, activeProfileId, clients, concOverrides, clientId) {
+  try {
+    const nonDemoClients = Object.fromEntries(
+      Object.entries(clients).filter(([id]) => !DEMO_IDS_SET.has(id))
+    );
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      profiles, activeProfileId, clients: nonDemoClients, concOverrides, clientId
+    }));
+  } catch (e) { console.warn("localStorage save failed:", e); }
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [clients,         setClients]         = useState({ "DEMO-healthy": DEMO_HEALTHY, "DEMO-typical": DEMO_TYPICAL, "DEMO-unhealthy": DEMO_UNHEALTHY });
-  const [clientId,        setClientId]        = useState(DEMO_CLIENT_ID);
+  const _saved = loadFromStorage();
+  const [clients,         setClients]         = useState(() => ({
+    "DEMO-healthy": DEMO_HEALTHY, "DEMO-typical": DEMO_TYPICAL, "DEMO-unhealthy": DEMO_UNHEALTHY,
+    ...(_saved?.clients ?? {})
+  }));
+  const [clientId,        setClientId]        = useState(() => _saved?.clientId ?? DEMO_CLIENT_ID);
   const [demoLoaded,      setDemoLoaded]      = useState(false);
   const [activeView,      setActiveView]      = useState("aggregate");
   const [systemId,        setSystemId]        = useState("bfvh");
@@ -1275,13 +1302,15 @@ export default function App() {
   const [dragOver,        setDragOver]        = useState(false);
   const [col1Open,        setCol1Open]        = useState(true);
   const [col2Open,        setCol2Open]        = useState(true);
-  const [concOverrides,   setConcOverrides]   = useState({});      // { [clientId]: { [markerName]: value } }
+  const [concOverrides,   setConcOverrides]   = useState(() => _saved?.concOverrides ?? {});  // { [clientId]: { [markerName]: value } }
   const [editConc,        setEditConc]        = useState(false);   // unlock toggle
   const [concWarnModal,   setConcWarnModal]   = useState(false);   // warning popup
   const fileRef = useRef();
+  const weightFileRef = useRef();
+  const [uploadModal, setUploadModal] = useState(false);
 
-  const [profiles,        setProfiles]        = useState([makeProfile("default", "Default")]);
-  const [activeProfileId, setActiveProfileId] = useState("default");
+  const [profiles,        setProfiles]        = useState(() => _saved?.profiles ?? [makeProfile("default", "Default")]);
+  const [activeProfileId, setActiveProfileId] = useState(() => _saved?.activeProfileId ?? "default");
   const [compareIds,      setCompareIds]      = useState([]);
   const [saveModal,       setSaveModal]       = useState(false);
   const [profileModal,    setProfileModal]    = useState(false);
@@ -1433,6 +1462,11 @@ export default function App() {
     setProfiles(prev => prev.map(p => p.id === id ? { ...p, name: name.trim() || p.name } : p));
   }, []);
 
+  // Persist to localStorage whenever relevant state changes
+  useEffect(() => {
+    saveToStorage(profiles, activeProfileId, clients, concOverrides, clientId);
+  }, [profiles, activeProfileId, clients, concOverrides, clientId]);
+
   const exportProfile = useCallback((p) => {
     const rows = [];
     const header = ["MYCO_ID","CATEGORY","HEALTH_AREA_TYPE","HEALTH_AREA_ID","HEALTH_AREA_NAME","MEASURE_ID","ITEM_NAME","COLOR","LEVEL","VALUE","REFERENCES"];
@@ -1507,6 +1541,45 @@ export default function App() {
         // Tutorial: advance past "upload" step when data loads
         setTutorialStep(prev => prev === 0 ? 1 : prev);
       } catch (err) { setUploadErr("Parse error: " + err.message); }
+    };
+    r.readAsText(file);
+  }, []);
+
+  const handleWeightFile = useCallback(file => {
+    if (!file) return;
+    const profileName = file.name.replace(/\.csv$/i, "").replace(/_/g, " ").trim() || "Imported Profile";
+    const r = new FileReader();
+    r.onload = e => {
+      try {
+        const rows = parseCSV(e.target.result);
+        const newBioWeights = {};
+        const newProcWeights = {};
+        rows.forEach(row => {
+          const cat   = (row["CATEGORY"] ?? "").trim().toLowerCase();
+          const name  = (row["ITEM_NAME"] ?? "").trim();
+          const color = (row["COLOR"]     ?? "red").trim().toLowerCase();
+          const level = (row["LEVEL"]     ?? "high").trim().toLowerCase();
+          const val   = parseFloat(row["VALUE"] ?? "1");
+          const ref   = (row["REFERENCES"] ?? "").trim();
+          if (!name || isNaN(val)) return;
+          if (cat === "biomarker_weight") {
+            newBioWeights[name] = { weight: val, color, level, ref };
+          } else if (cat === "process_weight") {
+            newProcWeights[name] = { weight: val, color: color || "red", ref };
+          }
+        });
+        if (!Object.keys(newBioWeights).length && !Object.keys(newProcWeights).length)
+          throw new Error("No valid weight rows found.");
+        const id = `p_${Date.now()}`;
+        setProfiles(prev => [...prev, {
+          ...makeProfile(id, profileName),
+          bioWeights: newBioWeights,
+          procWeights: newProcWeights,
+        }]);
+        setActiveProfileId(id);
+        setUploadModal(false);
+        setUploadErr("");
+      } catch (err) { setUploadErr("Weight import error: " + err.message); }
     };
     r.readAsText(file);
   }, []);
@@ -1642,12 +1715,51 @@ export default function App() {
               return <option key={pid} value={pid}>{label}</option>;
             })}
           </select>}
-          <button onClick={() => fileRef.current?.click()} style={{ background: C.teal, border: "none", color: C.navy, padding: "5px 14px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>
+          <button onClick={() => setUploadModal(true)} style={{ background: C.teal, border: "none", color: C.navy, padding: "5px 14px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>
             {hasData ? "+ Data" : "Upload Data"}
           </button>
-          <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
+          <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={e => { handleFile(e.target.files[0]); setUploadModal(false); e.target.value = ""; }} />
+          <input ref={weightFileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={e => { handleWeightFile(e.target.files[0]); e.target.value = ""; }} />
         </div>
       </div>
+
+      {/* ── Upload chooser modal ── */}
+      {uploadModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 600,
+          display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setUploadModal(false)}>
+          <div style={{ background: C.surface, borderRadius: 14, width: 400, overflow: "hidden",
+            boxShadow: "0 12px 48px rgba(24,55,75,0.3)" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>Upload</span>
+              <button onClick={() => setUploadModal(false)} style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+              <button onClick={() => fileRef.current?.click()}
+                style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 16px", borderRadius: 10,
+                  border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left" }}>
+                <span style={{ fontSize: 22, lineHeight: 1 }}>📋</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Client data</div>
+                  <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>Upload a biomarker CSV with client concentration values and reference ranges.</div>
+                </div>
+              </button>
+              <button onClick={() => weightFileRef.current?.click()}
+                style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 16px", borderRadius: 10,
+                  border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left" }}>
+                <span style={{ fontSize: 22, lineHeight: 1 }}>⚖️</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Weight profile</div>
+                  <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>Import a previously exported weight profile CSV. Creates a new profile from the file.</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Upload chooser modal ── */}
 
       {/* ── Concentration edit warning modal ── */}
       {concWarnModal && (
