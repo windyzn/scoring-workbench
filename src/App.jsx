@@ -2355,47 +2355,73 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
   if (!activeProcResult) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>Select a process from the left panel.</div>;
   return (
     <div>
-      <div style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22,
+      <div style={{ ...card, marginBottom: 14,
         background: `${C.iceLight}`, borderLeft: `4px solid ${activeProcResult?.score != null ? procColour(activeProcResult.score) : C.border}` }}>
-        <div>
-          <div style={{ fontSize: 15, fontFamily: T.display, color: C.navy }}>{selProc}</div>
-          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>
-            {activeProcResult.biomarkers.filter(b => !b.missing).length} markers · green zone ±{(greenPct * 100).toFixed(0)}% inside ref
+        {/* Top row: name + score */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 15, fontFamily: T.display, color: C.navy }}>{selProc}</div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>
+              {activeProcResult.biomarkers.filter(b => !b.missing).length} markers · green zone ±{(greenPct * 100).toFixed(0)}% inside ref
+            </div>
           </div>
-          <div style={{ fontSize: 10, color: C.textFaint, marginTop: 3 }}>
+          {activeProcResult.score != null &&
+            <div style={{ fontSize: 26, color: procColour(activeProcResult.score), fontWeight: 700 }}>{Math.round(activeProcResult.score)}</div>}
+        </div>
+        {/* Subtext + global weights */}
+        <div style={{ paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 10, color: C.textFaint, marginBottom: 8 }}>
             Manual weight overrides global zone multiplier when color+level conditions match.
             Global fallback: <span style={{ color: C.fair }}>yellow {yellowWeight.toFixed(1)}×</span>,{" "}
             <span style={{ color: C.critical }}>red {redWeight.toFixed(1)}×</span>
           </div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-          {activeProcResult.score != null &&
-            <div style={{ fontSize: 26, color: procColour(activeProcResult.score), fontWeight: 700 }}>{Math.round(activeProcResult.score)}</div>}
-          <button
-            onClick={() => { if (editConc) { setEditConc(false); } else { setConcWarnModal(true); } }}
-            title={editConc ? "Lock concentration editing" : "Unlock concentration editing"}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6,
-              fontSize: 10, cursor: "pointer", fontWeight: 600,
-              border: `1px solid ${editConc ? C.fair : C.border}`,
-              background: editConc ? `${C.fair}18` : "transparent",
-              color: editConc ? C.fair : C.textFaint }}>
-            {editConc ? "🔓 Editing concentrations" : "🔒 Edit concentrations"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>Global weights</span>
+            {[
+              { label: "Yellow", col: C.fair,     val: yellowWeight, set: setYellowWeight, min: 1.0, max: 5.0,  def: DEFAULT_PARAMS.yellowWeight },
+              { label: "Red",    col: C.critical, val: redWeight,    set: setRedWeight,    min: 1.0, max: 10.0, def: DEFAULT_PARAMS.redWeight },
+            ].map(({ label, col, val, set, min, max, def }) => (
+              <div key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 11, color: col, fontWeight: 600 }}>{label}</span>
+                <div style={{ display: "flex", alignItems: "center", border: `1px solid ${C.border}`, borderRadius: 6, overflow: "hidden" }}>
+                  <button onClick={() => set(parseFloat(Math.max(min, val - 1).toFixed(1)))}
+                    style={{ padding: "3px 9px", background: "transparent", border: "none", cursor: "pointer",
+                      color: C.textMuted, fontSize: 14, lineHeight: 1 }}>−</button>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: col, fontFamily: T.mono,
+                    padding: "3px 6px", minWidth: 36, textAlign: "center",
+                    borderLeft: `1px solid ${C.border}`, borderRight: `1px solid ${C.border}` }}>
+                    {val.toFixed(1)}×
+                  </span>
+                  <button onClick={() => set(parseFloat(Math.min(max, val + 1).toFixed(1)))}
+                    style={{ padding: "3px 9px", background: "transparent", border: "none", cursor: "pointer",
+                      color: C.textMuted, fontSize: 14, lineHeight: 1 }}>+</button>
+                </div>
+                {val !== def && (
+                  <button onClick={() => set(def)}
+                    style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, border: `1px solid ${C.border}`,
+                      background: "transparent", color: C.textFaint, cursor: "pointer" }}>↺</button>
+                )}
+              </div>
+            ))}
+            <Tooltip text={"Global multipliers applied to out-of-range biomarkers when no manual weight override is active.\n\nYellow (default 2×): applied to biomarkers just outside the reference range.\nRed (default 4×): applied to biomarkers well outside the reference range.\n\nHigher values give flagged markers stronger influence on the process score."}>
+              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: 14, height: 14, borderRadius: "50%", background: C.iceMid,
+                color: C.navy, fontSize: 9, fontWeight: 700, cursor: "default", userSelect: "none" }}>?</span>
+            </Tooltip>
+          </div>
         </div>
       </div>
-      {/* Zone weight sliders */}
-      <div style={{ ...card, marginBottom: 16, padding: "14px 16px",
-        background: `${C.iceLight}60`, borderLeft: `3px solid ${C.steel}`, marginBottom: 20 }}>
-        <div style={{ fontSize: 11, color: C.textSecond, fontWeight: 600, marginBottom: 10 }}>
-          Global Biomarker Weights
-          <span style={{ fontSize: 10, color: C.textFaint, fontWeight: 400, marginLeft: 8 }}>Amplify out-of-range markers in process scores</span>
-        </div>
-        <Slider label="Yellow global weight" value={yellowWeight} min={1.0} max={5.0} step={0.1}
-          onChange={setYellowWeight} color={C.fair} fmt={v => `${v.toFixed(1)}×`}
-          tooltip={"Multiplier applied to biomarkers just outside the reference range.\nHigher values amplify their influence on the process score. Default: 2×."} />
-        <Slider label="Red global weight" value={redWeight} min={1.0} max={10.0} step={0.5}
-          onChange={setRedWeight} color={C.critical} fmt={v => `${v.toFixed(1)}×`}
-          tooltip={"Multiplier applied to biomarkers well outside the reference range.\nHigher values give flagged markers stronger pull on the score. Default: 4×."} />
+      {/* Edit concentrations button — standalone below header card */}
+      <div style={{ marginBottom: 22 }}>
+        <button
+          onClick={() => { if (editConc) { setEditConc(false); } else { setConcWarnModal(true); } }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 6,
+            fontSize: 11, cursor: "pointer", fontWeight: 600,
+            border: `1px solid ${editConc ? C.fair : C.border}`,
+            background: editConc ? `${C.fair}18` : "transparent",
+            color: editConc ? C.fair : C.textFaint }}>
+          {editConc ? "🔓 Editing concentrations" : "🔒 Edit concentrations"}
+        </button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(330px,1fr))", gap: 18 }}>
