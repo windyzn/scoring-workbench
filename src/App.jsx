@@ -1242,11 +1242,11 @@ function Slider({ label, value, min, max, step, onChange, color, fmt, tooltip })
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3, alignItems: "center" }}>
-        <span style={{ fontSize: 11, color: C.textSecond, display: "flex", alignItems: "center" }}>
+        <span style={{ fontSize: 12, color: C.textSecond, display: "flex", alignItems: "center" }}>
           {label}
           {tooltip && <InfoIcon tooltip={tooltip} />}
         </span>
-        <span style={{ fontSize: 11, color: c, fontWeight: 700, fontFamily: T.mono }}>{fmt ? fmt(value) : value.toFixed(2)}</span>
+        <span style={{ fontSize: 12, color: c, fontWeight: 700, fontFamily: T.mono }}>{fmt ? fmt(value) : value.toFixed(2)}</span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
@@ -1592,7 +1592,7 @@ export default function App() {
   ];
 
   const hasData = demoLoaded || Object.keys(clients).some(k => !DEMO_IDS.includes(k));
-  const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, boxShadow: "0 1px 4px rgba(24,55,75,0.04)" };
+  const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 20, boxShadow: "0 1px 4px rgba(24,55,75,0.04)" };
 
   return (
     <div style={{ minHeight: "100vh", background: C.white, fontFamily: T.body, color: C.textPrimary, display: "flex", flexDirection: "column" }}>
@@ -2156,7 +2156,7 @@ export default function App() {
               const active = selProc === pr.process;
               return (
                 <button key={pr.process} onClick={() => { setActiveProc(pr.process); setActiveView("client"); }}
-                  style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px",
+                  style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 16px",
                     border: "none", cursor: "pointer", transition: "all 0.12s",
                     background: active ? `${C.teal}22` : "transparent",
                     borderLeft: `3px solid ${active ? C.teal : "transparent"}` }}>
@@ -2219,7 +2219,7 @@ export default function App() {
                 })}
               </div>
 
-              <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px" }}>
+              <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px" }}>
                 {tab === "weights-proc" && <ProcWeightsTab system={system} procResults={procResults} procWeights={procWeights} setProcWeights={setProcWeights} sysScore={sysScore} selProc={selProc} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
                 {tab === "weights-bio"  && <BioWeightsTab activeProcResult={activeProcResult} selProc={selProc} bioWeights={bioWeights} setBioWeights={setBioWeights} greenPct={greenPct} yellowWeight={yellowWeight} setYellowWeight={setYellowWeight} redWeight={redWeight} setRedWeight={setRedWeight} card={card} editConc={editConc} setEditConc={setEditConc} setConcWarnModal={setConcWarnModal} concOverrides={concOverrides[clientId] ?? {}} setConcOverrides={v => setConcOverrides(prev => ({ ...prev, [clientId]: v }))} clientMarkers={clients[clientId]?.markers ?? {}} />}
                 {tab === "curves"       && <CurvesTab activeProcResult={activeProcResult} selProc={selProc} cutoff={cutoff} setCutoff={setCutoff} greenPct={greenPct} setGreenPct={setGreenPct} curve={curve} setCurve={setCurve} card={card} />}
@@ -2299,7 +2299,7 @@ function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysS
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(255px,1fr))", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))", gap: 18 }}>
         {[...procResults].sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)).map((pr, prIdx) => {
           const w = procWeights[pr.process] ?? { ...DEFAULT_PROC_ENTRY };
           const active = selProc === pr.process;
@@ -2308,11 +2308,11 @@ function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysS
               onClick={() => { setActiveProc(pr.process); setTab("weights-bio"); }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div style={{ flex: 1, paddingRight: 10 }}>
-                  <div style={{ fontSize: 12, color: C.textPrimary, fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>{pr.process}</div>
+                  <div style={{ fontSize: 13, color: C.textPrimary, fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>{pr.process}</div>
                   <div style={{ fontSize: 10, color: C.textFaint }}>{pr.biomarkers.filter(b => !b.missing).length} biomarkers</div>
                 </div>
                 {pr.score != null && <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <div style={{ fontSize: 24, color: procColour(pr.score), fontWeight: 700, lineHeight: 1 }}>{Math.round(pr.score)}</div>
+                  <div style={{ fontSize: 26, color: procColour(pr.score), fontWeight: 700, lineHeight: 1 }}>{Math.round(pr.score)}</div>
                 </div>}
                 {pr.score == null && <div style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic" }}>No data</div>}
               </div>
@@ -2355,11 +2355,11 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
   if (!activeProcResult) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>Select a process from the left panel.</div>;
   return (
     <div>
-      <div style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16,
+      <div style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22,
         background: `${C.iceLight}`, borderLeft: `4px solid ${activeProcResult?.score != null ? procColour(activeProcResult.score) : C.border}` }}>
         <div>
           <div style={{ fontSize: 15, fontFamily: T.display, color: C.navy }}>{selProc}</div>
-          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>
             {activeProcResult.biomarkers.filter(b => !b.missing).length} markers · green zone ±{(greenPct * 100).toFixed(0)}% inside ref
           </div>
           <div style={{ fontSize: 10, color: C.textFaint, marginTop: 3 }}>
@@ -2385,7 +2385,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
       </div>
       {/* Zone weight sliders */}
       <div style={{ ...card, marginBottom: 16, padding: "14px 16px",
-        background: `${C.iceLight}60`, borderLeft: `3px solid ${C.steel}` }}>
+        background: `${C.iceLight}60`, borderLeft: `3px solid ${C.steel}`, marginBottom: 20 }}>
         <div style={{ fontSize: 11, color: C.textSecond, fontWeight: 600, marginBottom: 10 }}>
           Global Biomarker Weights
           <span style={{ fontSize: 10, color: C.textFaint, fontWeight: 400, marginLeft: 8 }}>Amplify out-of-range markers in process scores</span>
@@ -2398,7 +2398,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
           tooltip={"Multiplier applied to biomarkers well outside the reference range.\nHigher values give flagged markers stronger pull on the score. Default: 4×."} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(330px,1fr))", gap: 18 }}>
         {(editConc
           ? activeProcResult.biomarkers
           : [...activeProcResult.biomarkers].sort((a, b) => {
@@ -2426,23 +2426,23 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                 <div style={{ flex: 1, paddingRight: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
-                    <span style={{ fontSize: 11, color: C.textPrimary, fontWeight: 600 }}>{bm.name}</span>
+                    <span style={{ fontSize: 12, color: C.textPrimary, fontWeight: 600 }}>{bm.name}</span>
                     {isOverridden && <span title="Concentration edited" style={{ fontSize: 11, color: C.fair, lineHeight: 1 }}>✎</span>}
                   </div>
                   <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
                     <ZoneDot zone={bm.zone} />
-                    <span style={{ fontSize: 10, color: zoneCol, fontWeight: 600, textTransform: "uppercase" }}>{bm.zone}</span>
+                    <span style={{ fontSize: 11, color: zoneCol, fontWeight: 600, textTransform: "uppercase" }}>{bm.zone}</span>
                     {pctOut > 0 && <span style={{ fontSize: 10, color: C.critical, fontFamily: T.mono }}>{bm.status === "HIGH" ? "+" : "-"}{pctOut.toFixed(1)}% out</span>}
                   </div>
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <div style={{ fontSize: 20, color: zoneCol, fontWeight: 700, lineHeight: 1 }}>{Math.round(bm.score)}</div>
+                  <div style={{ fontSize: 22, color: zoneCol, fontWeight: 700, lineHeight: 1 }}>{Math.round(bm.score)}</div>
                   <div style={{ fontSize: 9, color: C.textFaint }}>
                     eff. <span style={{ fontWeight: 700, color: zoneCol }}>{bm.effWeight.toFixed(1)}×</span>
                   </div>
                 </div>
               </div>
-              <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4 }}>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>
                 <span style={{ fontFamily: T.mono, color: isOverridden ? C.fair : C.textSecond }}>{bm.value.toFixed(1)}</span>
                 {isOverridden && <span style={{ fontFamily: T.mono, color: C.textFaint }}> (orig {origValue.toFixed(1)})</span>}
                 {" · ref "}<span style={{ fontFamily: T.mono, color: C.textSecond }}>{bm.refLow.toFixed(1)}–{bm.refHigh.toFixed(1)}</span>
@@ -2509,7 +2509,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                 {/* Color + Level selectors */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 4 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 10, color: C.textFaint, minWidth: 52 }}>Apply on</span>
+                    <span style={{ fontSize: 11, color: C.textFaint, minWidth: 60 }}>Apply on</span>
                     {["red","yellow","both"].map(opt => {
                       const col = opt === "red" ? C.critical : opt === "yellow" ? C.fair : C.textMuted;
                       const sel = (bm.entry?.color ?? "red") === opt;
@@ -2522,7 +2522,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                     })}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 10, color: C.textFaint, minWidth: 52 }}>When</span>
+                    <span style={{ fontSize: 11, color: C.textFaint, minWidth: 60 }}>When</span>
                     {["high","low","both"].map(opt => {
                       const col = opt === "high" ? C.critical : opt === "low" ? C.steel : C.textMuted;
                       const sel = (bm.entry?.level ?? "high") === opt;
@@ -2595,14 +2595,14 @@ function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, set
         Scoring curves for <strong style={{ color: C.textSecond }}>{selProc}</strong>.
         Teal band = green zone · grey bands = yellow · dot = client value.
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(285px,1fr))", gap: 13 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(330px,1fr))", gap: 18 }}>
         {valid.map(bm => {
           const zoneCol = bm.zone === "green" ? C.teal : bm.zone === "yellow" ? C.fair : C.critical;
           return (
             <div key={bm.name} style={{ ...card, borderTop: `3px solid ${zoneCol}`, padding: 13 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                 <div>
-                  <div style={{ fontSize: 11, color: C.textPrimary, fontWeight: 600 }}>{bm.name}</div>
+                  <div style={{ fontSize: 12, color: C.textPrimary, fontWeight: 600 }}>{bm.name}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
                     <ZoneDot zone={bm.zone} />
                     <span style={{ fontSize: 10, color: zoneCol, fontWeight: 600 }}>{bm.zone}</span>
@@ -2640,7 +2640,7 @@ function FlagsTab({ oorFlags, setActiveProc, setTab, card, bioWeights, cutoff, g
             <span style={{ fontSize: 13, fontWeight: 700, color: C.critical }}>{red.length} Red Flag{red.length !== 1 ? "s" : ""}</span>
             <span style={{ fontSize: 11, color: C.textMuted }}>— outside reference + yellow zone</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
             {red.map(bm => <FlagCard key={`${bm.process}-${bm.name}`} bm={bm} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} card={card} />)}
           </div>
         </div>
@@ -2652,7 +2652,7 @@ function FlagsTab({ oorFlags, setActiveProc, setTab, card, bioWeights, cutoff, g
             <span style={{ fontSize: 13, fontWeight: 700, color: C.fair }}>{yellow.length} Yellow Flag{yellow.length !== 1 ? "s" : ""}</span>
             <span style={{ fontSize: 11, color: C.textMuted }}>— within yellow boundary</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
             {yellow.map(bm => <FlagCard key={`${bm.process}-${bm.name}`} bm={bm} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} card={card} />)}
           </div>
         </div>
@@ -2942,7 +2942,7 @@ function FlagCard({ bm, bioWeights, cutoff, greenPct, curve, card }) {
         onClick={() => setShowModal(true)}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
           <div>
-            <div style={{ fontSize: 11, color: C.textPrimary, fontWeight: 600 }}>{bm.name}</div>
+            <div style={{ fontSize: 12, color: C.textPrimary, fontWeight: 600 }}>{bm.name}</div>
             <div style={{ fontSize: 10, color: C.textFaint, marginTop: 1 }}>{bm.process}</div>
           </div>
           <div style={{ textAlign: "right" }}>
