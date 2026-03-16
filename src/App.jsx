@@ -1275,6 +1275,9 @@ export default function App() {
   const [dragOver,        setDragOver]        = useState(false);
   const [col1Open,        setCol1Open]        = useState(true);
   const [col2Open,        setCol2Open]        = useState(true);
+  const [concOverrides,   setConcOverrides]   = useState({});      // { [clientId]: { [markerName]: value } }
+  const [editConc,        setEditConc]        = useState(false);   // unlock toggle
+  const [concWarnModal,   setConcWarnModal]   = useState(false);   // warning popup
   const fileRef = useRef();
 
   const [profiles,        setProfiles]        = useState([makeProfile("default", "Default")]);
@@ -1380,7 +1383,14 @@ export default function App() {
     setProfiles(prev => prev.map(p => p.id === activeProfileId ? { ...p, procWeights: fn(p.procWeights) } : p));
     setTutorialDone(prev => ({ ...prev, procWeightChanged: true }));
   }, [activeProfileId]);
-  const resetWeights   = useCallback(() => { setProfiles(prev => prev.map(p => p.id === activeProfileId ? { ...p, bioWeights: makeDefaultBioWeights(), procWeights: makeDefaultProcWeights(), ...DEFAULT_PARAMS } : p)); }, [activeProfileId]);
+  const resetWeights   = useCallback(() => {
+    if (!window.confirm("Reset all weights and concentration overrides for this profile and client? This cannot be undone.")) return;
+    setProfiles(prev => prev.map(p => p.id === activeProfileId
+      ? { ...p, bioWeights: makeDefaultBioWeights(), procWeights: makeDefaultProcWeights(), ...DEFAULT_PARAMS }
+      : p));
+    setConcOverrides(prev => { const n = { ...prev }; delete n[clientId]; return n; });
+    setEditConc(false);
+  }, [activeProfileId, clientId]);
 
   const saveProfile = useCallback(() => {
     const id = `p_${Date.now()}`, name = newName.trim() || `Profile ${profiles.length + 1}`;
@@ -1502,7 +1512,17 @@ export default function App() {
   }, []);
 
   const system  = SYSTEMS.find(s => s.id === systemId) || SYSTEMS[0];
-  const markers = useMemo(() => clientId && clients[clientId] ? clients[clientId].markers : {}, [clientId, clients]);
+  const markers = useMemo(() => {
+    if (!clientId || !clients[clientId]) return {};
+    const base = clients[clientId].markers;
+    const overrides = concOverrides[clientId] ?? {};
+    if (!Object.keys(overrides).length) return base;
+    const merged = { ...base };
+    Object.entries(overrides).forEach(([name, val]) => {
+      if (merged[name]) merged[name] = { ...merged[name], value: val };
+    });
+    return merged;
+  }, [clientId, clients, concOverrides]);
   const selProc = activeProc || Object.keys(system.processes)[0];
 
   const { procResults, sysScore } = useMemo(() => {
@@ -1628,6 +1648,45 @@ export default function App() {
           <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
         </div>
       </div>
+
+      {/* ── Concentration edit warning modal ── */}
+      {concWarnModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(24,55,75,0.6)", zIndex: 600,
+          display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setConcWarnModal(false)}>
+          <div style={{ background: C.surface, borderRadius: 14, width: 420, padding: 0,
+            boxShadow: "0 12px 48px rgba(24,55,75,0.35)", overflow: "hidden" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ background: C.navy, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 20 }}>⚠️</span>
+              <span style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>Edit Concentrations</span>
+            </div>
+            <div style={{ padding: "20px 24px 24px" }}>
+              <p style={{ fontSize: 13, color: C.textSecond, lineHeight: 1.7, marginBottom: 20 }}>
+                You are about to unlock concentration editing. This lets you test how different
+                values affect scoring, but <strong>these are not real measurements</strong> — they
+                are for manual testing only and will not be included in any export.
+              </p>
+              <p style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6, marginBottom: 24 }}>
+                Modified concentrations persist per client and are cleared when you use the ↺ Reset button.
+              </p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button onClick={() => setConcWarnModal(false)}
+                  style={{ padding: "8px 18px", borderRadius: 7, border: `1px solid ${C.border}`,
+                    background: "transparent", color: C.textMuted, fontSize: 12, cursor: "pointer" }}>
+                  Cancel
+                </button>
+                <button onClick={() => { setEditConc(true); setConcWarnModal(false); }}
+                  style={{ padding: "8px 18px", borderRadius: 7, border: "none",
+                    background: C.navy, color: C.iceLight, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+                  Unlock editing
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* ── Profile Manager modal ── */}
       {profileModal && (
@@ -2162,7 +2221,7 @@ export default function App() {
 
               <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px" }}>
                 {tab === "weights-proc" && <ProcWeightsTab system={system} procResults={procResults} procWeights={procWeights} setProcWeights={setProcWeights} sysScore={sysScore} selProc={selProc} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
-                {tab === "weights-bio"  && <BioWeightsTab activeProcResult={activeProcResult} selProc={selProc} bioWeights={bioWeights} setBioWeights={setBioWeights} greenPct={greenPct} yellowWeight={yellowWeight} setYellowWeight={setYellowWeight} redWeight={redWeight} setRedWeight={setRedWeight} card={card} />}
+                {tab === "weights-bio"  && <BioWeightsTab activeProcResult={activeProcResult} selProc={selProc} bioWeights={bioWeights} setBioWeights={setBioWeights} greenPct={greenPct} yellowWeight={yellowWeight} setYellowWeight={setYellowWeight} redWeight={redWeight} setRedWeight={setRedWeight} card={card} editConc={editConc} setEditConc={setEditConc} setConcWarnModal={setConcWarnModal} concOverrides={concOverrides[clientId] ?? {}} setConcOverrides={v => setConcOverrides(prev => ({ ...prev, [clientId]: v }))} clientMarkers={clients[clientId]?.markers ?? {}} />}
                 {tab === "curves"       && <CurvesTab activeProcResult={activeProcResult} selProc={selProc} cutoff={cutoff} setCutoff={setCutoff} greenPct={greenPct} setGreenPct={setGreenPct} curve={curve} setCurve={setCurve} card={card} />}
                 {tab === "flags"        && <FlagsTab oorFlags={oorFlags} setActiveProc={setActiveProc} setTab={setTab} card={card} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} />}
                 {tab === "adjustments"  && <AdjustmentsTab bioWeights={bioWeights} procWeights={procWeights} setBioWeights={setBioWeights} setProcWeights={setProcWeights} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
@@ -2292,7 +2351,7 @@ function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysS
 }
 
 // ─── Biomarker Weights ────────────────────────────────────────────────────────
-function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, greenPct, yellowWeight, setYellowWeight, redWeight, setRedWeight, card }) {
+function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, greenPct, yellowWeight, setYellowWeight, redWeight, setRedWeight, card, editConc, setEditConc, setConcWarnModal, concOverrides, setConcOverrides, clientMarkers }) {
   if (!activeProcResult) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>Select a process from the left panel.</div>;
   return (
     <div>
@@ -2309,9 +2368,20 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
             <span style={{ color: C.critical }}>red {redWeight.toFixed(1)}×</span>
           </div>
         </div>
-        {activeProcResult.score != null && <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 26, color: procColour(activeProcResult.score), fontWeight: 700 }}>{Math.round(activeProcResult.score)}</div>
-        </div>}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+          {activeProcResult.score != null &&
+            <div style={{ fontSize: 26, color: procColour(activeProcResult.score), fontWeight: 700 }}>{Math.round(activeProcResult.score)}</div>}
+          <button
+            onClick={() => { if (editConc) { setEditConc(false); } else { setConcWarnModal(true); } }}
+            title={editConc ? "Lock concentration editing" : "Unlock concentration editing"}
+            style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6,
+              fontSize: 10, cursor: "pointer", fontWeight: 600,
+              border: `1px solid ${editConc ? C.fair : C.border}`,
+              background: editConc ? `${C.fair}18` : "transparent",
+              color: editConc ? C.fair : C.textFaint }}>
+            {editConc ? "🔓 Editing concentrations" : "🔒 Edit concentrations"}
+          </button>
+        </div>
       </div>
       {/* Zone weight sliders */}
       <div style={{ ...card, marginBottom: 16, padding: "14px 16px",
@@ -2329,12 +2399,15 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))", gap: 12 }}>
-        {[...activeProcResult.biomarkers].sort((a, b) => {
-          if (a.missing && b.missing) return 0;
-          if (a.missing) return 1;
-          if (b.missing) return -1;
-          return a.score - b.score;
-        }).map((bm, bmIdx) => {
+        {(editConc
+          ? activeProcResult.biomarkers
+          : [...activeProcResult.biomarkers].sort((a, b) => {
+              if (a.missing && b.missing) return 0;
+              if (a.missing) return 1;
+              if (b.missing) return -1;
+              return a.score - b.score;
+            })
+        ).map((bm, bmIdx) => {
           const isFirstVisible = bmIdx === 0 && !bm.missing;
           if (bm.missing) return (
             <div key={bm.name} style={{ ...card, opacity: 0.4, padding: 12 }}>
@@ -2345,11 +2418,17 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
           const zoneCol = bm.zone === "green" ? C.teal : bm.zone === "yellow" ? C.fair : C.critical;
           const rng = bm.refHigh - bm.refLow;
           const pctOut = bm.zone === "red" ? (bm.status === "HIGH" ? (bm.value - bm.refHigh) / rng : (bm.refLow - bm.value) / rng) * 100 : 0;
+          const origValue = clientMarkers[bm.name]?.value ?? bm.value;
+          const isOverridden = concOverrides[bm.name] !== undefined;
           return (
-            <div key={bm.name} {...(isFirstVisible ? { "data-tutorial": "first-bio-card" } : {})} style={{ ...card, borderLeft: `3px solid ${zoneCol}`, padding: 13 }}>
+            <div key={bm.name} {...(isFirstVisible ? { "data-tutorial": "first-bio-card" } : {})} style={{ ...card, borderLeft: `3px solid ${zoneCol}`, padding: 13,
+              background: isOverridden ? `${C.fair}08` : card.background }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                 <div style={{ flex: 1, paddingRight: 8 }}>
-                  <div style={{ fontSize: 11, color: C.textPrimary, fontWeight: 600, marginBottom: 3 }}>{bm.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
+                    <span style={{ fontSize: 11, color: C.textPrimary, fontWeight: 600 }}>{bm.name}</span>
+                    {isOverridden && <span title="Concentration edited" style={{ fontSize: 11, color: C.fair, lineHeight: 1 }}>✎</span>}
+                  </div>
                   <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
                     <ZoneDot zone={bm.zone} />
                     <span style={{ fontSize: 10, color: zoneCol, fontWeight: 600, textTransform: "uppercase" }}>{bm.zone}</span>
@@ -2364,10 +2443,65 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                 </div>
               </div>
               <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4 }}>
-                <span style={{ fontFamily: T.mono, color: C.textSecond }}>{bm.value.toFixed(3)}</span>
-                {" · ref "}<span style={{ fontFamily: T.mono, color: C.textSecond }}>{bm.refLow.toFixed(2)}–{bm.refHigh.toFixed(2)}</span>
+                <span style={{ fontFamily: T.mono, color: isOverridden ? C.fair : C.textSecond }}>{bm.value.toFixed(1)}</span>
+                {isOverridden && <span style={{ fontFamily: T.mono, color: C.textFaint }}> (orig {origValue.toFixed(1)})</span>}
+                {" · ref "}<span style={{ fontFamily: T.mono, color: C.textSecond }}>{bm.refLow.toFixed(1)}–{bm.refHigh.toFixed(1)}</span>
               </div>
               <RangeBar value={bm.value} refLow={bm.refLow} refHigh={bm.refHigh} greenPct={greenPct} />
+              {editConc && (() => {
+                const bmRng = bm.refHigh - bm.refLow;
+                const gL = bm.refLow + greenPct * bmRng, gH = bm.refHigh - greenPct * bmRng;
+                // Representative midpoint values for each zone
+                const zonePresets = [
+                  { label: "Red Low",    col: C.critical, value: parseFloat(Math.max(0, bm.refLow - bmRng * 0.5).toFixed(1)) },
+                  { label: "Yellow Low", col: C.fair,     value: parseFloat(((bm.refLow + gL) / 2).toFixed(1)) },
+                  { label: "Normal",     col: C.teal,     value: parseFloat(((bm.refLow + bm.refHigh) / 2).toFixed(1)) },
+                  { label: "Yellow High",col: C.fair,     value: parseFloat(((gH + bm.refHigh) / 2).toFixed(1)) },
+                  { label: "Red High",   col: C.critical, value: parseFloat((bm.refHigh + bmRng * 0.5).toFixed(1)) },
+                ];
+                const setConc = v => setConcOverrides({ ...concOverrides, [bm.name]: parseFloat(parseFloat(v).toFixed(1)) });
+                return (
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.border}` }}
+                    onClick={e => e.stopPropagation()}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <span style={{ fontSize: 9, color: C.fair, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Manual concentration</span>
+                      {isOverridden && (
+                        <button onClick={() => { const next = { ...concOverrides }; delete next[bm.name]; setConcOverrides(next); }}
+                          style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, border: `1px solid ${C.border}`,
+                            background: "transparent", color: C.textFaint, cursor: "pointer" }}>↺ restore</button>
+                      )}
+                    </div>
+                    {/* Zone preset buttons */}
+                    <div style={{ display: "flex", gap: 3, marginBottom: 7, flexWrap: "wrap" }}>
+                      {zonePresets.map(({ label, col, value: pv }) => {
+                        const active = bm.value === pv;
+                        return (
+                          <button key={label} onClick={() => setConc(pv)}
+                            style={{ flex: 1, minWidth: 0, fontSize: 9, padding: "4px 2px", borderRadius: 4,
+                              border: `1px solid ${active ? col : C.border}`,
+                              background: active ? `${col}22` : "transparent",
+                              color: active ? col : C.textFaint,
+                              cursor: "pointer", fontWeight: active ? 700 : 400,
+                              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {/* Manual number input */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 10, color: C.textFaint, flexShrink: 0 }}>Or enter value:</span>
+                      <input
+                        type="number" min={0} step={0.1}
+                        value={bm.value}
+                        onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) setConc(v); }}
+                        style={{ width: 72, fontSize: 11, padding: "3px 7px", border: `1px solid ${C.fair}66`,
+                          borderRadius: 5, color: C.textPrimary, background: "transparent",
+                          outline: "none", fontFamily: T.mono }} />
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{ marginTop: 10 }} onClick={e => e.stopPropagation()}>
                 <Slider label="Manual weight" value={bm.entry?.weight ?? 1} min={1} max={10} step={1}
                   onChange={v => setBioWeights(prev => ({ ...prev, [bm.name]: { ...(prev[bm.name] ?? {}), weight: v } }))}
@@ -2408,6 +2542,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                     style={{ width: "100%", fontSize: 10, padding: "3px 8px", border: `1px solid ${C.border}`, borderRadius: 5,
                       color: C.textMuted, background: "transparent", outline: "none", boxSizing: "border-box" }} />
                 </div>
+
               </div>
             </div>
           );
