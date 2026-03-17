@@ -1390,17 +1390,19 @@ export default function App() {
       "view-toggle",         // 12 go to aggregate
       "profile-pills",       // 13 select profiles
       "client-tab-second",   // 14 switch to tutorial profile tab
-      "client-scores-table", // 15 score deltas explanation
+      "client-scores-table", // 15 score deltas
       "agg-tab-histograms",  // 16 click histograms tab
-      null,                  // 17 histograms description
+      "client-scores-table", // 17 reading histograms (spotlight system scores)
       "agg-tab-flowchart",   // 18 click flowchart tab
-      null,                  // 19 flowchart description
-      "manage-profiles-btn", // 20 open manage profiles
-      null,                  // 21 clean up info
-      "export-btn",          // 22 export
-      null,                  // 23 complete
+      null,                  // 19 reading flowchart
+      "agg-tab-export",      // 20 click export tab
+      null,                  // 21 about export
+      "manage-profiles-btn", // 22 open manage profiles
+      null,                  // 23 clean up
+      "export-btn",          // 24 export a profile
+      null,                  // 25 complete
     ];
-    const targetId = STEP_TARGETS[tutorialStep];
+        const targetId = STEP_TARGETS[tutorialStep];
     if (!targetId) { setSpotlightRect(null); return; }
 
     const measure = () => {
@@ -1735,7 +1737,7 @@ export default function App() {
       {/* ── Top bar ── */}
       <div style={{ background: C.navy, height: 50, display: "flex", alignItems: "center",
         padding: "0 22px", gap: 14, flexShrink: 0, zIndex: 20, boxShadow: "0 2px 10px rgba(24,55,75,0.2)" }}>
-        <span style={{ fontSize: 20, color: C.teal, fontFamily: T.display, fontStyle: "italic" }}>my</span>
+        <span onClick={() => { setClients({ "DEMO-healthy": DEMO_HEALTHY, "DEMO-typical": DEMO_TYPICAL, "DEMO-unhealthy": DEMO_UNHEALTHY }); setDemoLoaded(false); setActiveView("aggregate"); }} style={{ fontSize: 20, color: C.teal, fontFamily: T.display, fontStyle: "italic", cursor: "pointer" }} title="Back to home">my</span>
         <div style={{ width: 1, height: 20, background: "#ffffff22" }} />
         <span style={{ fontSize: 10, color: C.iceLight, letterSpacing: "0.18em", textTransform: "uppercase" }}>Scoring Workbench</span>
         <div data-tutorial="view-toggle" style={{ display: "flex", background: "#1a3e55", borderRadius: 6, padding: 2, marginLeft: 8 }}>
@@ -1767,7 +1769,7 @@ export default function App() {
             {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <button data-tutorial="save-profile-btn" onClick={() => { setSaveModal(true); setTutorialStep(prev => prev === 10 ? 11 : prev); }} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Save Profile</button>
-          <button data-tutorial="manage-profiles-btn" onClick={() => { setEditingId(null); setProfileModal(true); setTutorialStep(prev => prev === 20 ? 21 : prev); }} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Manage Profiles</button>
+          <button data-tutorial="manage-profiles-btn" onClick={() => { setEditingId(null); setProfileModal(true); setTutorialStep(prev => prev === 22 ? 23 : prev); }} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Manage Profiles</button>
           <button onClick={resetWeights} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>↺ Reset</button>
           <button onClick={() => { setTutorialStep(0); setShowTutorial(true); }} title="Show tutorial"
             style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>?</button>
@@ -1966,115 +1968,124 @@ export default function App() {
         // advance: "auto" = fired by action hook in code; "next" = manual Next; "action" = Next appears when doneKey set; "done" = final dismiss
         const STEPS = [
           // 0
-          { title: "Step 1 of 20 · Upload Data",
+          { title: "Step 1 of 26 · Upload Data",
             body: "Drop a CSV file onto the box, or click it to browse. No data? Use the demo data below.",
             cta: "📂 Upload a CSV — or click Load Demo Data to explore immediately",
             spotlight: "upload-dropzone", advance: "auto" },
           // 1
-          { title: "Step 2 of 20 · Aggregate Statistics",
+          { title: "Step 2 of 26 · Aggregate Statistics",
             body: "This is the Aggregate view. You'll compare profiles here after setting weights.",
             spotlight: null, advance: "next" },
           // 2
-          { title: "Step 3 of 20 · Go to Client Report",
+          { title: "Step 3 of 26 · Go to Client Report",
             body: "Switch to the Client Report to adjust weights.",
             cta: "👆 Click 'Client Report' in the toggle above",
             spotlight: "view-toggle", advance: "auto" },
           // 3
-          { title: "Step 4 of 20 · Health Systems",
+          { title: "Step 4 of 26 · Health Systems",
             body: "Select a health system here to explore its processes and biomarkers.",
             spotlight: "systems-panel", advance: "next" },
           // 4
-          { title: "Step 5 of 20 · Processes",
+          { title: "Step 5 of 26 · Processes",
             body: "Each system contains several processes. Select one to adjust its weights.",
             spotlight: "processes-panel", advance: "next" },
           // 5
-          { title: "Step 6 of 20 · Process Weights",
+          { title: "Step 6 of 26 · Process Weights",
             body: "Drag the slider to adjust this process's weight.",
             cta: "🎚 Move the weight slider on the first process card",
             spotlight: "first-proc-card", advance: "action", doneKey: "procWeightChanged" },
           // 6
-          { title: "Step 7 of 20 · Open Biomarker Weights",
+          { title: "Step 7 of 26 · Open Biomarker Weights",
             body: "Open the Biomarker Weights tab.",
             cta: "👆 Click the 'Biomarker Weights' tab",
             spotlight: "tab-bio-weights", advance: "auto" },
           // 7
-          { title: "Step 8 of 20 · Adjust a Biomarker Weight",
+          { title: "Step 8 of 26 · Adjust a Biomarker Weight",
             body: "Drag the slider to set a manual weight for this biomarker.",
             cta: "🎚 Move the weight slider on the first biomarker card",
             spotlight: "first-bio-card", advance: "action", doneKey: "bioWeightChanged" },
           // 8
-          { title: "Step 9 of 20 · Open Biomarker Curves",
+          { title: "Step 9 of 26 · Open Biomarker Curves",
             body: "Open the Biomarker Curves tab.",
             cta: "👆 Click the 'Biomarker Curves' tab",
             spotlight: "tab-curves", advance: "auto" },
           // 9
-          { title: "Step 10 of 20 · Change Curve Shape",
+          { title: "Step 10 of 26 · Change Curve Shape",
             body: "Switch the curve shape to change how scores decay out of range.",
             cta: "👆 Click a different curve shape button",
             spotlight: "curve-shape-btns", advance: "action", doneKey: "curveChanged" },
           // 10
-          { title: "Step 11 of 20 · Save a Profile",
+          { title: "Step 11 of 26 · Save a Profile",
             body: "Click Save Profile to save your adjustments.",
             cta: "👆 Click 'Save Profile'",
             spotlight: "save-profile-btn", advance: "auto" },
           // 11
-          { title: "Step 12 of 20 · Name Your Profile",
+          { title: "Step 12 of 26 · Name Your Profile",
             body: "Name your profile and click Save.",
             cta: "✏️ Type a name (e.g. 'Tutorial') and click Save",
             spotlight: "save-modal-box", advance: "action", doneKey: "profileSaved" },
           // 12
-          { title: "Step 13 of 20 · Back to Aggregate",
+          { title: "Step 13 of 26 · Back to Aggregate",
             body: "Switch back to Aggregate Statistics.",
             cta: "👆 Click 'Aggregate Statistics'",
             spotlight: "view-toggle", advance: "auto" },
           // 13
-          { title: "Step 14 of 20 · Select Profiles to Compare",
+          { title: "Step 14 of 26 · Select Profiles to Compare",
             body: "Click two profiles to compare. The first selected becomes the baseline.",
             cta: "👆 Click two profile pills",
             spotlight: "profile-pills", advance: "action", doneKey: "profilesSelected" },
           // 14
-          { title: "Step 15 of 20 · Switch Profile Tab",
+          { title: "Step 15 of 26 · Switch Profile Tab",
             body: "Switch to your new profile tab to see score differences.",
             cta: "👆 Switch the active profile using the tab",
             spotlight: "client-tab-second", advance: "auto" },
           // 15
-          { title: "Step 16 of 24 · Score Deltas",
+          { title: "Step 16 of 26 · Score Deltas",
             body: "▲▼ deltas show how scores changed vs. the baseline.",
             spotlight: "client-scores-table", advance: "next" },
           // 16
-          { title: "Step 17 of 24 · Histograms",
+          { title: "Step 17 of 26 · Histograms",
             body: "Click the Histograms tab to see score distributions across all clients.",
             cta: "👆 Click the Histograms tab — or click Next",
             spotlight: "agg-tab-histograms", advance: "next" },
           // 17
-          { title: "Step 18 of 24 · Reading Histograms",
+          { title: "Step 18 of 26 · Reading Histograms",
             body: "Each bar shows how many clients scored in that range. Drag the cut-off sliders to adjust red/yellow/green thresholds.",
-            spotlight: null, advance: "next" },
+            spotlight: "client-scores-table", advance: "next" },
           // 18
-          { title: "Step 19 of 24 · Flowchart",
+          { title: "Step 19 of 26 · Flowchart",
             body: "Click the Flowchart tab to see how systems, processes, and biomarkers connect.",
             cta: "👆 Click the Flowchart tab — or click Next",
             spotlight: "agg-tab-flowchart", advance: "next" },
           // 19
-          { title: "Step 24 of 24 · Reading the Flowchart",
+          { title: "Step 20 of 26 · Reading the Flowchart",
             body: "The flowchart shows the full hierarchy for each health system. Teal borders mean non-default weights are set.",
             spotlight: null, advance: "next" },
           // 20
-          { title: "Step 21 of 24 · Manage Profiles",
+          { title: "Step 21 of 26 · Export Tab",
+            body: "Click the Export tab to download weight profiles.",
+            cta: "👆 Click the Export tab — or click Next",
+            spotlight: "agg-tab-export", advance: "next" },
+          // 21
+          { title: "Step 22 of 26 · About Export",
+            body: "Download a human-friendly or database-format CSV of your weight adjustments. You can also re-import a profile later.",
+            spotlight: null, advance: "next" },
+          // 22
+          { title: "Step 23 of 26 · Manage Profiles",
             body: "Open the Profile Manager to rename, duplicate, or delete profiles.",
             cta: "👆 Click 'Manage Profiles' in the top bar",
             spotlight: "manage-profiles-btn", advance: "auto" },
-          // 21
-          { title: "Step 22 of 24 · Clean Up",
+          // 23
+          { title: "Step 24 of 26 · Clean Up",
             body: "Delete or keep the Tutorial profile.",
             spotlight: null, advance: "next" },
-          // 22
-          { title: "Step 23 of 24 · Export",
-            body: "Use ⬇ Export to download weights as a CSV.",
+          // 24
+          { title: "Step 25 of 26 · Export a Profile",
+            body: "Use ⬇ Export to also download weights as a CSV from here.",
             cta: "👆 Click ⬇ Export on any profile",
             spotlight: "export-btn", advance: "next" },
-          // 19
-          { title: "Step 20 of 20 · You're Ready! 🎉",
+          // 25
+          { title: "Step 26 of 26 · You're Ready! 🎉",
             body: "You're all set. Happy scoring!",
             spotlight: null, advance: "done" },
         ];
@@ -3285,10 +3296,12 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
           <button key={key}
             {...(key === "histograms" ? { "data-tutorial": "agg-tab-histograms" } : {})}
             {...(key === "flowchart"  ? { "data-tutorial": "agg-tab-flowchart"  } : {})}
+            {...(key === "export"     ? { "data-tutorial": "agg-tab-export"      } : {})}
             onClick={() => {
               setAggTab(key);
               if (key === "histograms") setTutorialStep(prev => prev === 16 ? 17 : prev);
               if (key === "flowchart")  setTutorialStep(prev => prev === 18 ? 19 : prev);
+              if (key === "export")     setTutorialStep(prev => prev === 20 ? 21 : prev);
             }}
             style={{ padding: "10px 18px", fontSize: 12, border: "none", cursor: "pointer",
               background: "transparent", color: aggTab === key ? C.steel : C.textFaint,
