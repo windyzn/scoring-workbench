@@ -2403,8 +2403,8 @@ export default function App() {
 
 // ─── Upload ───────────────────────────────────────────────────────────────────
 function SpinnerDots() {
-  const [frame, setFrame] = React.useState(0);
-  React.useEffect(() => {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
     const t = setInterval(() => setFrame(f => (f + 1) % 8), 120);
     return () => clearInterval(t);
   }, []);
