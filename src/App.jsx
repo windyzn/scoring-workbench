@@ -987,8 +987,9 @@ function calcZone(v, lo, hi, gp = 0.05) {
 
 function procZone(score) {
   if (score === null) return null;
-  if (score >= 91) return "green";
-  if (score >= 70) return "yellow";
+  const f = Math.floor(score);
+  if (f >= 91) return "green";
+  if (f >= 70) return "yellow";
   return "red";
 }
 
@@ -1008,8 +1009,9 @@ function scoreBM(v, lo, hi, cutoff = 0.5, gp = 0.05, curve = "linear") {
 // Colour for process/system scores using the defined zone thresholds
 function procColour(s) {
   if (s == null) return C.textFaint;
-  if (s >= 91) return C.teal;
-  if (s >= 70) return C.fair;
+  const f = Math.floor(s);
+  if (f >= 91) return C.teal;
+  if (f >= 70) return C.fair;
   return C.critical;
 }
 
@@ -2325,7 +2327,7 @@ export default function App() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
                       <span style={{ fontSize: 12, color: active ? C.navy : C.textSecond, fontWeight: active ? 700 : 400, lineHeight: 1.3, flex: 1 }}>{sys.name}</span>
                       {s != null
-                        ? <span style={{ fontSize: 12, color: procColour(s), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.round(s)}</span>
+                        ? <span style={{ fontSize: 12, color: procColour(Math.floor(s)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(s)}</span>
                         : <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
                     </div>
                     {s != null && <div style={{ marginTop: 4 }}><ScoreBar score={s} h={2} /></div>}
@@ -3241,7 +3243,7 @@ function FlagCard({ bm, bioWeights, cutoff, greenPct, curve, card }) {
 function ScoreDot({ score }) {
   return score != null ? (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-      <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: procColour(score) }}>{Math.round(score)}</span>
+      <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: procColour(Math.floor(score)) }}>{Math.floor(score)}</span>
     </span>
   ) : <span style={{ color: C.textFaint }}>—</span>;
 }
@@ -3249,7 +3251,7 @@ function ScoreDot({ score }) {
 // Colour-coded cell background by score
 function gradeBg(score) {
   if (score == null) return "transparent";
-  return `${procColour(score)}18`;
+  return `${procColour(Math.floor(score))}18`;
 }
 
 // Profile colour palette for multi-profile comparison
@@ -3258,6 +3260,11 @@ const PROF_COLORS = [C.steel, C.teal, C.fair, C.atRisk, "#8B6FAB"];
 function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, exportProfile, activeProfile }) {
   const [aggTab, setAggTab] = useState("overview");
   const [clientTab, setClientTab] = useState(0);
+  const [editOverviewCutoff, setEditOverviewCutoff] = useState(false);
+  const [overviewGreen, setOverviewGreen] = useState(91);
+  const [overviewYellow, setOverviewYellow] = useState(70);
+  const overviewColour = s => s == null ? C.textFaint : Math.floor(s) >= overviewGreen ? C.teal : Math.floor(s) >= overviewYellow ? C.fair : C.critical;
+  const overviewBg = s => s == null ? "transparent" : `${overviewColour(s)}18`;
   const [histSysId, setHistSysId] = useState(SYSTEMS[0].id);
   const [histProcName, setHistProcName] = useState(Object.keys(SYSTEMS[0].processes)[0]);
   const [flowSysId, setFlowSysId] = useState(SYSTEMS[0].id);
@@ -3283,10 +3290,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
   }
   const nonDemoClients = aggregateData[0]?.clients.filter(r => !DEMO_IDS.includes(r.pid)) ?? [];
   const AGG_TABS = [
-    { key: "overview",   label: "Overview"   },
-    { key: "histograms", label: "Histograms" },
-    { key: "flowchart",  label: "Flowchart"  },
-    { key: "export",     label: "Export"     },
+    { key: "overview",         label: "System Summary"  },
+    { key: "process-summary",  label: "Process Summary" },
+    { key: "histograms",       label: "Histograms"      },
+    { key: "flowchart",        label: "Flowchart"       },
+    { key: "export",           label: "Export"          },
   ];
 
   return (
@@ -3380,6 +3388,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                       <thead>
                         <tr style={{ background: C.navy }}>
                           <th style={{ padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Client</th>
+                          <th style={{ padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>⚠</th>
                           {SYSTEMS.map(s => <th key={s.id} style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600 }}><div style={{ maxWidth: 90, margin: "0 auto", lineHeight: 1.3 }}>{s.name}</div></th>)}
                         </tr>
                       </thead>
@@ -3389,13 +3398,25 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                           return (
                             <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
                               <td style={{ padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>{row.label ?? row.pid}</td>
+                              {(() => {
+                                const scores = row.systems.map(s => s.score).filter(x => x != null);
+                                const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
+                                const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
+                                return (
+                                  <td style={{ padding: "6px 8px", textAlign: "center", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20`, whiteSpace: "nowrap" }}>
+                                    {nR > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.critical, marginRight: 2 }}>{nR}R</span>}
+                                    {nY > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.fair }}>{nY}Y</span>}
+                                    {nR === 0 && nY === 0 && <span style={{ fontSize: 9, color: C.teal }}>✓</span>}
+                                  </td>
+                                );
+                              })()}
                               {row.systems.map(s => {
                                 const baseScore = baseRow?.systems.find(bs => bs.id === s.id)?.score ?? null;
                                 const d = s.score != null && baseScore != null ? s.score - baseScore : null;
                                 return (
-                                  <td key={s.id} style={{ padding: "6px 8px", textAlign: "center", background: gradeBg(s.score) }}>
+                                  <td key={s.id} style={{ padding: "6px 8px", textAlign: "center", background: overviewBg(s.score) }}>
                                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                                      <ScoreDot score={s.score} />
+                                      {s.score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: overviewColour(s.score) }}>{Math.floor(s.score)}</span> : <span style={{ color: C.textFaint }}>—</span>}
                                       {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, lineHeight: 1, color: d > 0 ? C.green : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
                                     </div>
                                   </td>
@@ -3409,8 +3430,34 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                   </div>
                 );
               })()}
+              {/* Cutoff editor */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+                <button onClick={() => setEditOverviewCutoff(o => !o)}
+                  style={{ fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                    border: `1px solid ${editOverviewCutoff ? C.teal : C.border}`,
+                    background: editOverviewCutoff ? `${C.teal}12` : "transparent",
+                    color: editOverviewCutoff ? C.teal : C.textFaint }}>
+                  {editOverviewCutoff ? "🔓" : "🔒"} Colour cut-offs
+                </button>
+                {editOverviewCutoff && <>
+                  <span style={{ fontSize: 10, color: C.teal }}>Green ≥</span>
+                  <input type="number" min={overviewYellow + 1} max={100} value={overviewGreen}
+                    onChange={e => { const v = Math.round(Number(e.target.value)); if (v > overviewYellow && v <= 100) setOverviewGreen(v); }}
+                    style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.teal}`, borderRadius: 4, textAlign: "center", color: C.teal, fontWeight: 700 }} />
+                  <span style={{ fontSize: 10, color: C.fair }}>Yellow ≥</span>
+                  <input type="number" min={1} max={overviewGreen - 1} value={overviewYellow}
+                    onChange={e => { const v = Math.round(Number(e.target.value)); if (v >= 1 && v < overviewGreen) setOverviewYellow(v); }}
+                    style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.fair}`, borderRadius: 4, textAlign: "center", color: C.fair, fontWeight: 700 }} />
+                  {(overviewGreen !== 91 || overviewYellow !== 70) && (
+                    <button onClick={() => { setOverviewGreen(91); setOverviewYellow(70); }}
+                      style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer",
+                        border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint }}>↺ reset</button>
+                  )}
+                </>}
+              </div>
+
             </div>
-            <div>
+            <div style={{ marginTop: 24 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Population Summary</div>
               <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
                 {isComparing ? <>Systems as rows, profiles as column groups. Δ Mean vs. baseline <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong>.</> : "Summary statistics per system across all clients."}
@@ -3442,7 +3489,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                     {SYSTEMS.map((sys, si) => {
                       const allStats = aggregateData.map(pd => sysStatsForProfile(pd, sys.id));
                       const baseStats = allStats[0];
-                      const procC = procColour(baseStats?.mean);
+                      const procC = overviewColour(baseStats?.mean);
                       return (
                         <tr key={sys.id} style={{ borderTop: `1px solid ${C.border}`, background: si % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
                           <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}` }}>{sys.name}</td>
@@ -3451,10 +3498,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             const col = PROF_COLORS[pi % PROF_COLORS.length];
                             const deltaMean = pi > 0 && st && baseStats ? st.mean - baseStats.mean : null;
                             return [
-                              <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center", borderLeft: `2px solid ${col}30`, background: st ? gradeBg(st.mean) : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: procColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
-                              <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: procColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                              <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center", borderLeft: `2px solid ${col}30`, background: st ? overviewBg(st.mean) : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: overviewColour(st.mean), fontSize: 13 }}>{Math.floor(st.mean * 10) / 10}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                              <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{Math.floor(st.median * 10) / 10}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                               <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
-                              <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.round(st.min)}–{Math.round(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                              <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                               ...(pi > 0 ? [<td key={`${profile.id}-delta`} style={{ padding: "9px 8px", textAlign: "center" }}>{deltaMean != null ? <span style={{ fontFamily: T.mono, fontSize: 12, fontWeight: 700, color: deltaMean > 0 ? C.green : deltaMean < 0 ? C.critical : C.textFaint }}>{deltaMean > 0 ? "+" : ""}{deltaMean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>] : [])
                             ];
                           })}
@@ -3467,6 +3514,150 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
             </div>
           </div>
         )}
+
+        {aggTab === "process-summary" && (() => {
+          const procNames = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))];
+          function procStatsForProfile(profData, procName) {
+            const scores = profData.clients.flatMap(r =>
+              r.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))
+            ).filter(x => x != null);
+            return stats(scores);
+          }
+          return (
+            <div>
+              {/* Profile selector */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>
+                  {isComparing
+                    ? <><strong>{aggregateData.length}</strong> profiles selected. <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> is the baseline.</>
+                    : "Select profiles to compare side-by-side."}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {profiles.map((p) => {
+                    const active = compareIds.includes(p.id);
+                    const idx = compareIds.indexOf(p.id);
+                    const col = active ? PROF_COLORS[idx % PROF_COLORS.length] : C.textFaint;
+                    return (
+                      <button key={p.id} onClick={() => toggleCompare(p.id)} style={{ padding: "5px 14px", fontSize: 11, borderRadius: 20, cursor: "pointer",
+                        border: `1.5px solid ${active ? col : C.border}`, background: active ? `${col}18` : "transparent",
+                        color: active ? col : C.textMuted, fontWeight: active ? 700 : 400, transition: "all 0.15s",
+                        display: "flex", alignItems: "center", gap: 5 }}>
+                        {active && <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, display: "inline-block" }} />}
+                        {p.name}
+                      </button>
+                    );
+                  })}
+                  {compareIds.length > 0 && (
+                    <button onClick={() => setCompareIds([])} style={{ padding: "5px 14px", fontSize: 11, borderRadius: 20,
+                      border: `1px solid ${C.border}`, cursor: "pointer", background: "transparent", color: C.textMuted }}>Clear</button>
+                  )}
+                </div>
+              </div>
+              {isComparing && (
+                <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, marginBottom: 16 }}>
+                  {aggregateData.map(({ profile }, pi) => {
+                    const col = PROF_COLORS[pi % PROF_COLORS.length];
+                    return (
+                      <button key={profile.id}
+                        onClick={() => setClientTab(pi)}
+                        style={{ padding: "7px 16px", fontSize: 11, border: "none", cursor: "pointer",
+                          background: clientTab === pi ? C.surface : "transparent",
+                          color: clientTab === pi ? col : C.textMuted, fontWeight: clientTab === pi ? 700 : 400,
+                          borderBottom: `2px solid ${clientTab === pi ? col : "transparent"}`, transition: "all 0.15s" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, display: "inline-block" }} />
+                          {profile.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div data-tutorial="client-scores-table" style={{ marginBottom: 32 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Client Process Scores</div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Each cell shows the process score for that client.</div>
+                {(() => {
+                  const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
+                  const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))];
+                  return (
+                    <div style={{ ...card, padding: 0, overflow: "auto" }}>
+                      <table style={{ borderCollapse: "collapse", fontSize: 11, tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
+                        <colgroup>
+                          <col style={{ width: 160 }} />
+                          <col style={{ width: 44 }} />
+                          {allProcs.map(p => <col key={p} style={{ width: 120 }} />)}
+                        </colgroup>
+                        <thead>
+                          <tr style={{ background: C.navy }}>
+                            <th style={{ padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Client</th>
+                            <th style={{ padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>⚠</th>
+                            {allProcs.map(p => <th key={p} style={{ padding: "8px 6px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, overflow: "hidden" }}><div style={{ lineHeight: 1.3, whiteSpace: "normal", wordBreak: "break-word" }}>{p}</div></th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((row, ri) => (
+                            <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
+                              <td style={{ padding: "7px 16px", fontFamily: T.mono, fontSize: 10, color: C.textSecond, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>{row.label ?? row.pid}</td>
+                              {(() => {
+                                const scores = allProcs.map(procName => row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null).filter(x => x != null);
+                                const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
+                                const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
+                                return (
+                                  <td style={{ padding: "5px 6px", textAlign: "center", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20`, whiteSpace: "nowrap" }}>
+                                    {nR > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.critical, marginRight: 2 }}>{nR}R</span>}
+                                    {nY > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.fair }}>{nY}Y</span>}
+                                    {nR === 0 && nY === 0 && <span style={{ fontSize: 9, color: C.teal }}>✓</span>}
+                                  </td>
+                                );
+                              })()}
+                              {allProcs.map(procName => {
+                                const score = row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null;
+                                return (
+                                  <td key={procName} style={{ padding: "5px 4px", textAlign: "center", background: overviewBg(score) }}>
+                                    {score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 11, color: overviewColour(score) }}>{Math.floor(score)}</span> : <span style={{ color: C.textFaint, fontSize: 10 }}>—</span>}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Process Population Summary</div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Summary statistics per process across all clients.</div>
+                <div style={{ ...card, padding: 0, overflow: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: C.navy }}>
+                        <th style={{ padding: "9px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Process</th>
+                        {STAT_COLS.map(s => <th key={s} style={{ padding: "9px 10px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600 }}>{s}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {procNames.map((procName, pi) => {
+                        const st = procStatsForProfile(aggregateData[isComparing ? clientTab : 0], procName);
+                        const procC = overviewColour(st?.mean);
+                        return (
+                          <tr key={procName} style={{ borderTop: `1px solid ${C.border}`, background: pi % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
+                            <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${st ? procC : C.border}` }}>{procName}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", background: st ? overviewBg(st.mean) : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: overviewColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {aggTab === "histograms" && (
           <HistogramsTab nonDemoClients={nonDemoClients} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} histSysId={histSysId} setHistSysId={setHistSysId} histProcName={histProcName} setHistProcName={setHistProcName} card={card} />
@@ -3486,10 +3677,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
 }
 
 // ─── HistogramsTab ─────────────────────────────────────────────────────────────
-function CutoffControl({ redCutoff, setRedCutoff, yellowCutoff, setYellowCutoff, onReset, defaultRed, defaultYellow }) {
+function CutoffControl({ redCutoff, setRedCutoff, yellowCutoff, setYellowCutoff, onReset, defaultRed, defaultYellow, onSuggest }) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
   return (
-    <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap", marginTop: 24 }}>
+    <div style={{ display: "flex", gap: 24, alignItems: "flex-end", flexWrap: "wrap", marginTop: 24 }}>
       <div>
         <div style={{ fontSize: 10, color: C.critical, fontWeight: 600, marginBottom: 4 }}>
           Red: 0 – {redCutoff - 1}
@@ -3520,13 +3711,22 @@ function CutoffControl({ redCutoff, setRedCutoff, yellowCutoff, setYellowCutoff,
               borderRadius: 5, textAlign: "center", fontFamily: T.mono, color: C.fair, fontWeight: 700 }} />
         </div>
       </div>
-      {(redCutoff !== defaultRed || yellowCutoff !== defaultYellow) && (
-        <button onClick={onReset}
-          style={{ padding: "4px 10px", fontSize: 10, borderRadius: 5, cursor: "pointer",
-            border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint, alignSelf: "center" }}>
-          ↺ reset
-        </button>
-      )}
+      <div style={{ display: "flex", gap: 8, paddingBottom: 2 }}>
+        {(redCutoff !== defaultRed || yellowCutoff !== defaultYellow) && (
+          <button onClick={onReset}
+            style={{ padding: "4px 10px", fontSize: 10, borderRadius: 5, cursor: "pointer",
+              border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint }}>
+            ↺ reset
+          </button>
+        )}
+        {onSuggest && (
+          <button onClick={onSuggest} title="Suggest cut-offs for equal thirds distribution"
+            style={{ padding: "4px 10px", fontSize: 10, borderRadius: 5, cursor: "pointer",
+              border: `1px solid ${C.teal}55`, background: "transparent", color: C.teal }}>
+            ✦ suggest
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -3550,13 +3750,13 @@ function Histogram({ scores, title, redCutoff, yellowCutoff }) {
         <rect x={x(redCutoff)} y={padT} width={((yellowCutoff - redCutoff) / 100) * iW} height={iH} fill={`${C.fair}12`} />
         <rect x={x(yellowCutoff)} y={padT} width={((100 - yellowCutoff) / 100) * iW} height={iH} fill={`${C.teal}12`} />
         {bins.map((b, i) => {
-          const mid = b.lo + 5;
+          const mid = b.lo + BIN_SIZE / 2;
           const col = mid < redCutoff ? C.critical : mid < yellowCutoff ? C.fair : C.teal;
           const bh = padT + iH - yBar(b.count);
           return b.count > 0 ? (
             <g key={i}>
               <rect x={padL + i * binW + 1} y={yBar(b.count)} width={binW - 2} height={bh} fill={`${col}90`} rx="2" />
-              {b.count > 0 && maxCount <= 10 ? <text x={padL + i * binW + binW / 2} y={yBar(b.count) - 3} textAnchor="middle" fontSize="6" fill={C.textMuted}>{b.count}</text> : null}
+
             </g>
           ) : null;
         })}
@@ -3624,10 +3824,6 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-      <div style={{ fontSize: 11, color: C.textMuted }}>
-        Each bar shows the number of clients with a score in that 10-point range. Adjust cut-offs independently for system and process scores.
-      </div>
-
       {/* System histograms */}
       <div data-tutorial="first-sys-histogram" style={{ ...card, padding: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>System Scores</div>
@@ -3648,7 +3844,15 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
           redCutoff={sysRedCutoff} setRedCutoff={setSysRedCutoff}
           yellowCutoff={sysYellowCutoff} setYellowCutoff={setSysYellowCutoff}
           defaultRed={DEFAULT_SYS_RED} defaultYellow={DEFAULT_SYS_YELLOW}
-          onReset={() => { setSysRedCutoff(DEFAULT_SYS_RED); setSysYellowCutoff(DEFAULT_SYS_YELLOW); }} />
+          onReset={() => { setSysRedCutoff(DEFAULT_SYS_RED); setSysYellowCutoff(DEFAULT_SYS_YELLOW); }}
+          onSuggest={() => {
+            const allSysScores = nonDemoClients.flatMap(r => r.systems.map(s => s.score).filter(x => x != null));
+            if (!allSysScores.length) return;
+            const sorted = [...allSysScores].sort((a, b) => a - b);
+            const r = Math.floor(sorted[Math.floor(sorted.length / 3)]);
+            const y = Math.floor(sorted[Math.floor(sorted.length * 2 / 3)]);
+            if (r >= 1 && y > r && y <= 100) { setSysRedCutoff(r); setSysYellowCutoff(y); }
+          }} />
       </div>
 
       {/* Process histograms */}
@@ -3671,7 +3875,15 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
           redCutoff={procRedCutoff} setRedCutoff={setProcRedCutoff}
           yellowCutoff={procYellowCutoff} setYellowCutoff={setProcYellowCutoff}
           defaultRed={DEFAULT_PROC_RED} defaultYellow={DEFAULT_PROC_YELLOW}
-          onReset={() => { setProcRedCutoff(DEFAULT_PROC_RED); setProcYellowCutoff(DEFAULT_PROC_YELLOW); }} />
+          onReset={() => { setProcRedCutoff(DEFAULT_PROC_RED); setProcYellowCutoff(DEFAULT_PROC_YELLOW); }}
+          onSuggest={() => {
+            const allProcScores = nonDemoClients.flatMap(r => r.systems.flatMap(s => (s.procs ?? []).map(p => p.score).filter(x => x != null)));
+            if (!allProcScores.length) return;
+            const sorted = [...allProcScores].sort((a, b) => a - b);
+            const r = Math.floor(sorted[Math.floor(sorted.length / 3)]);
+            const y = Math.floor(sorted[Math.floor(sorted.length * 2 / 3)]);
+            if (r >= 1 && y > r && y <= 100) { setProcRedCutoff(r); setProcYellowCutoff(y); }
+          }} />
       </div>
     </div>
   );
