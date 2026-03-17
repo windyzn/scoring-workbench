@@ -3585,7 +3585,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                         <colgroup>
                           <col style={{ width: 160 }} />
                           <col style={{ width: 44 }} />
-                          {allProcs.map(p => <col key={p} style={{ width: 120 }} />)}
+                          {allProcs.map(p => <col key={p} style={{ width: 80 }} />)}
                         </colgroup>
                         <thead>
                           <tr style={{ background: C.navy }}>
