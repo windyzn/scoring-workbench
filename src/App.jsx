@@ -1084,24 +1084,66 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
 
 // ─── CSV parsing ──────────────────────────────────────────────────────────────
 function parseCSV(text) {
-  const lines = text.trim().split("\n"), headers = lines[0].split(",").map(h => h.trim());
-  return lines.slice(1).map(line => {
-    const vals = line.split(",");
-    return Object.fromEntries(headers.map((h, i) => [h, vals[i]?.trim() ?? ""]));
+  const lines = text.trim().replace(/\r/g, "").split("\n");
+  function parseLine(line) {
+    const vals = [];
+    let cur = "", inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; }
+      else if (c === "," && !inQ) { vals.push(cur.trim()); cur = ""; }
+      else cur += c;
+    }
+    vals.push(cur.trim());
+    return vals;
+  }
+  const headers = parseLine(lines[0]).map(h => h.replace(/^"|"$/g, "").trim().toLowerCase());
+  return lines.slice(1).filter(l => l.trim()).map(line => {
+    const vals = parseLine(line);
+    return Object.fromEntries(headers.map((h, i) => [h, (vals[i] ?? "").replace(/^"|"$/g, "").trim()]));
   });
 }
 function buildClients(rows) {
   const pts = {};
+  let skippedReported = 0, skippedBlq = 0, skippedBadNums = 0;
   for (const row of rows) {
-    const pid = row["my_id"]; if (!pid) continue;
-    if (!pts[pid]) pts[pid] = { id: pid, markers: {} };
-    const name = row["measure_name"]?.trim();
-    const conc = parseFloat(row["lab_concentration"]);
-    const lo = parseFloat(row["lower_reference_range"]);
-    const hi = parseFloat(row["upper_reference_range"]);
-    if (name && !isNaN(conc) && !isNaN(lo) && !isNaN(hi))
+    // Only include is_reported = TRUE rows
+    const reported = (row["is_reported"] ?? "").toLowerCase();
+    if (reported !== "true") { skippedReported++; continue; }
+
+    const myId    = row["my_id"]    ?? "";
+    const barcode = row["barcode"]  ?? "";
+    const testId  = row["test_id"]  ?? "";
+
+    // Key: barcode > test_id > my_id
+    const pid = (barcode || testId || myId).trim();
+    if (!pid) continue;
+
+    const label = myId && pid !== myId ? `${myId} — ${pid}` : pid;
+    if (!pts[pid]) pts[pid] = { id: pid, label, markers: {} };
+
+    const name = (row["measure_name"] ?? "").trim();
+    const concRaw = row["lab_concentration"] ?? "";
+
+    // Skip undetected / BLQ values
+    if (!name || !concRaw || /blq|<|>/i.test(concRaw)) { skippedBlq++; continue; }
+
+    const conc = parseFloat(concRaw);
+    const lo   = parseFloat(row["lower_reference_range"] ?? "");
+    const hi   = parseFloat(row["upper_reference_range"] ?? "");
+
+    if (!isNaN(conc) && !isNaN(lo) && !isNaN(hi)) {
       pts[pid].markers[name] = { value: conc, refLow: lo, refHigh: hi };
+    } else {
+      skippedBadNums++;
+    }
   }
+  console.log("[buildClients] clients:", Object.keys(pts).length,
+    "| rows:", rows.length,
+    "| skipped_reported:", skippedReported,
+    "| skipped_blq:", skippedBlq,
+    "| skipped_bad_nums:", skippedBadNums,
+    "| pids:", Object.keys(pts));
   return pts;
 }
 
@@ -1262,37 +1304,10 @@ function makeProfile(id, name, params) {
   return { id, name, bioWeights: makeDefaultBioWeights(), procWeights: makeDefaultProcWeights(), ...DEFAULT_PARAMS, ...(params || {}) };
 }
 
-// ─── localStorage persistence ────────────────────────────────────────────────
-const LS_KEY = "myco_workbench_v1";
-const DEMO_IDS_SET = new Set(["DEMO-healthy", "DEMO-typical", "DEMO-unhealthy"]);
-
-function saveToStorage(profiles, activeProfileId, clients, concOverrides, clientId) {
-  try {
-    const nonDemoClients = Object.fromEntries(
-      Object.entries(clients).filter(([id]) => !DEMO_IDS_SET.has(id))
-    );
-    localStorage.setItem(LS_KEY, JSON.stringify({
-      profiles, activeProfileId, clients: nonDemoClients, concOverrides, clientId
-    }));
-  } catch (e) { console.warn("localStorage save failed:", e); }
-}
-
-function loadFromStorage() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch (e) { return null; }
-}
-
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const _saved = loadFromStorage();
-  const [clients,         setClients]         = useState(() => ({
-    "DEMO-healthy": DEMO_HEALTHY, "DEMO-typical": DEMO_TYPICAL, "DEMO-unhealthy": DEMO_UNHEALTHY,
-    ...(_saved?.clients ?? {})
-  }));
-  const [clientId,        setClientId]        = useState(() => _saved?.clientId ?? DEMO_CLIENT_ID);
+  const [clients,         setClients]         = useState({ "DEMO-healthy": DEMO_HEALTHY, "DEMO-typical": DEMO_TYPICAL, "DEMO-unhealthy": DEMO_UNHEALTHY });
+  const [clientId,        setClientId]        = useState(DEMO_CLIENT_ID);
   const [demoLoaded,      setDemoLoaded]      = useState(false);
   const [activeView,      setActiveView]      = useState("aggregate");
   const [systemId,        setSystemId]        = useState("bfvh");
@@ -1302,15 +1317,17 @@ export default function App() {
   const [dragOver,        setDragOver]        = useState(false);
   const [col1Open,        setCol1Open]        = useState(true);
   const [col2Open,        setCol2Open]        = useState(true);
-  const [concOverrides,   setConcOverrides]   = useState(() => _saved?.concOverrides ?? {});  // { [clientId]: { [markerName]: value } }
+  const [concOverrides,   setConcOverrides]   = useState({});  // { [clientId]: { [markerName]: value } }
+  const [yellowCutoff,    setYellowCutoff]    = useState(91);
+  const [redCutoff,       setRedCutoff]       = useState(70);
   const [editConc,        setEditConc]        = useState(false);   // unlock toggle
   const [concWarnModal,   setConcWarnModal]   = useState(false);   // warning popup
   const fileRef = useRef();
   const weightFileRef = useRef();
   const [uploadModal, setUploadModal] = useState(false);
 
-  const [profiles,        setProfiles]        = useState(() => _saved?.profiles ?? [makeProfile("default", "Default")]);
-  const [activeProfileId, setActiveProfileId] = useState(() => _saved?.activeProfileId ?? "default");
+  const [profiles,        setProfiles]        = useState([makeProfile("default", "Default")]);
+  const [activeProfileId, setActiveProfileId] = useState("default");
   const [compareIds,      setCompareIds]      = useState([]);
   const [saveModal,       setSaveModal]       = useState(false);
   const [profileModal,    setProfileModal]    = useState(false);
@@ -1462,11 +1479,6 @@ export default function App() {
     setProfiles(prev => prev.map(p => p.id === id ? { ...p, name: name.trim() || p.name } : p));
   }, []);
 
-  // Persist to localStorage whenever relevant state changes
-  useEffect(() => {
-    saveToStorage(profiles, activeProfileId, clients, concOverrides, clientId);
-  }, [profiles, activeProfileId, clients, concOverrides, clientId]);
-
   const exportProfile = useCallback((p) => {
     const rows = [];
     const header = ["MYCO_ID","CATEGORY","HEALTH_AREA_TYPE","HEALTH_AREA_ID","HEALTH_AREA_NAME","MEASURE_ID","ITEM_NAME","COLOR","LEVEL","VALUE","REFERENCES"];
@@ -1535,9 +1547,12 @@ export default function App() {
       try {
         const d = buildClients(parseCSV(e.target.result));
         if (!Object.keys(d).length) throw new Error("No valid rows.");
-        setClients(prev => ({ "DEMO-healthy": DEMO_HEALTHY, "DEMO-typical": DEMO_TYPICAL, "DEMO-unhealthy": DEMO_UNHEALTHY, ...prev, ...d }));
+        // Real data uploaded — remove demo clients entirely
+        setClients(d);
+        setDemoLoaded(false);
         setClientId(Object.keys(d)[0]);
         setUploadErr("");
+        setActiveView("aggregate");
         // Tutorial: advance past "upload" step when data loads
         setTutorialStep(prev => prev === 0 ? 1 : prev);
       } catch (err) { setUploadErr("Parse error: " + err.message); }
@@ -1627,9 +1642,10 @@ export default function App() {
             prof.curve ?? DEFAULT_PARAMS.curve,
             prof.yellowWeight ?? DEFAULT_PARAMS.yellowWeight,
             prof.redWeight ?? DEFAULT_PARAMS.redWeight);
-          return { id: s.id, name: s.name, score: res.sysScore };
+          const procs = res.procResults.map(pr => ({ name: pr.process, score: pr.score }));
+          return { id: s.id, name: s.name, score: res.sysScore, procs };
         });
-        return { pid, systems: syss };
+        return { pid, label: clients[pid]?.label ?? pid, systems: syss };
       })
     }));
   }, [clients, profiles, compareIds, activeProfile]);
@@ -1711,7 +1727,7 @@ export default function App() {
             style={{ background: "#1e4560", border: `1px solid #2d607e`, color: C.iceLight, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>
             {Object.keys(clients).map(pid => {
               const persona = DEMO_PERSONAS.find(p => p.id === pid);
-              const label = persona ? persona.label.replace("✦ ", "") : pid;
+              const label = persona ? persona.label.replace("✦ ", "") : (clients[pid]?.label ?? pid);
               return <option key={pid} value={pid}>{label}</option>;
             })}
           </select>}
@@ -2288,7 +2304,7 @@ export default function App() {
           {!hasData ? (
             <UploadPrompt fileRef={fileRef} dragOver={dragOver} setDragOver={setDragOver} handleFile={handleFile} uploadErr={uploadErr} loadDemo={loadDemo} personas={DEMO_PERSONAS} />
           ) : activeView === "aggregate" ? (
-            <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} />
+            <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} yellowCutoff={yellowCutoff} setYellowCutoff={setYellowCutoff} redCutoff={redCutoff} setRedCutoff={setRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} />
           ) : (
             <>
               {/* Header: system name + breadcrumb + dual gauges */}
@@ -2362,7 +2378,7 @@ function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, l
             textAlign: "center", cursor: "pointer", background: dragOver ? `${C.teal}0A` : C.white, transition: "all 0.2s", width: "100%" }}>
           <div style={{ fontSize: 26, color: C.teal, marginBottom: 8 }}>↑</div>
           <div style={{ fontSize: 13, color: C.textSecond, fontWeight: 600, marginBottom: 4 }}>Drop CSV or click to upload</div>
-          <div style={{ fontSize: 11, color: C.textFaint }}>Columns: my_id · measure_name · lab_concentration · lower/upper_reference_range</div>
+          <div style={{ fontSize: 11, color: C.textFaint }}>Columns: my_id · barcode · measure_name · lab_concentration · lower/upper_reference_range · is_reported</div>
           {uploadErr && <div style={{ marginTop: 8, fontSize: 11, color: C.critical }}>{uploadErr}</div>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, width: "100%" }}>
@@ -3121,14 +3137,19 @@ function gradeBg(score) {
 // Profile colour palette for multi-profile comparison
 const PROF_COLORS = [C.steel, C.teal, C.fair, C.atRisk, "#8B6FAB"];
 
-function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial }) {
+function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, yellowCutoff, setYellowCutoff, redCutoff, setRedCutoff, exportProfile, activeProfile }) {
+  const [aggTab, setAggTab] = useState("overview");
   const [clientTab, setClientTab] = useState(0);
+  const [histSysId, setHistSysId] = useState(SYSTEMS[0].id);
+  const [histProcName, setHistProcName] = useState(Object.keys(SYSTEMS[0].processes)[0]);
+  const [flowSysId, setFlowSysId] = useState(SYSTEMS[0].id);
 
   if (!aggregateData || !aggregateData.length) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
       <div style={{ textAlign: "center", color: C.textMuted, fontSize: 13 }}>Upload client data to view aggregate statistics.</div>
     </div>
   );
+
   const toggleCompare = id => {
     setCompareIds(prev => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
@@ -3137,238 +3158,556 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     });
   };
   const isComparing = aggregateData.length > 1;
-
-  // Build a unified stats table: rows = systems, col groups = profiles
-  // Each cell: mean / median / SD / range
   const STAT_COLS = ["Mean", "Median", "SD", "Range"];
-
   function sysStatsForProfile(profData, sysId) {
     const scores = profData.clients.map(r => r.systems.find(s => s.id === sysId)?.score).filter(x => x != null);
     return stats(scores);
   }
+  const nonDemoClients = aggregateData[0]?.clients.filter(r => !DEMO_IDS.includes(r.pid)) ?? [];
+  const AGG_TABS = [
+    { key: "overview",   label: "Overview"   },
+    { key: "histograms", label: "Histograms" },
+    { key: "flowchart",  label: "Flowchart"  },
+    { key: "export",     label: "Export"     },
+  ];
 
   return (
-    <div style={{ padding: "20px 24px" }}>
-
-      {/* Profile selector */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>
-          {isComparing
-            ? <>Comparing <strong>{aggregateData.length}</strong> profiles. <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> is the baseline — deltas are calculated relative to it. First selected profile = baseline.</>
-            : "Select profiles to compare side-by-side. The first selected profile becomes the baseline for delta calculations."}
-        </div>
-        <div data-tutorial="profile-pills" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {profiles.map((p) => {
-            const active = compareIds.includes(p.id);
-            const compareIdx = compareIds.indexOf(p.id);
-            const col = active ? PROF_COLORS[compareIdx % PROF_COLORS.length] : C.textFaint;
-            return (
-              <button key={p.id} onClick={() => toggleCompare(p.id)} style={{ padding: "5px 14px", fontSize: 11, borderRadius: 20, cursor: "pointer",
-                border: `1.5px solid ${active ? col : C.border}`,
-                background: active ? `${col}18` : "transparent",
-                color: active ? col : C.textMuted, fontWeight: active ? 700 : 400,
-                transition: "all 0.15s", display: "flex", alignItems: "center", gap: 5 }}>
-                {active && <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, display: "inline-block" }} />}
-                {p.name}
-              </button>
-            );
-          })}
-          {compareIds.length > 0 && (
-            <button onClick={() => setCompareIds([])} style={{ padding: "5px 14px", fontSize: 11, borderRadius: 20,
-              border: `1px solid ${C.border}`, cursor: "pointer", background: "transparent", color: C.textMuted }}>Clear</button>
-          )}
-        </div>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, paddingLeft: 4 }}>
+        {AGG_TABS.map(({ key, label }) => (
+          <button key={key} onClick={() => setAggTab(key)}
+            style={{ padding: "10px 18px", fontSize: 12, border: "none", cursor: "pointer",
+              background: "transparent", color: aggTab === key ? C.steel : C.textFaint,
+              fontWeight: aggTab === key ? 700 : 400,
+              borderBottom: `2px solid ${aggTab === key ? C.steel : "transparent"}`,
+              transition: "all 0.15s" }}>
+            {label}
+          </button>
+        ))}
       </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px" }}>
 
-      {/* ── Section 1: Per-client heatmap ── */}
-      <div data-tutorial="client-scores-table" style={{ marginBottom: 32 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Client Scores</div>
-        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
-          Each cell shows the system score for that client.
-          {isComparing && clientTab === 0 && (
-            <span> Viewing <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> (baseline). Switch tabs to see other profiles with deltas vs. this baseline.</span>
-          )}
-          {isComparing && clientTab > 0 && (
-            <span> Viewing <strong style={{ color: PROF_COLORS[clientTab] }}>{aggregateData[clientTab].profile.name}</strong>. ▲▼ deltas are vs. baseline <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong>.</span>
-          )}
-        </div>
-
-        {/* Profile tabs for client table */}
-        {isComparing && (
-          <div style={{ display: "flex", gap: 0, marginBottom: 0, borderBottom: `1px solid ${C.border}` }}>
-            {aggregateData.map(({ profile }, pi) => {
-              const col = PROF_COLORS[pi % PROF_COLORS.length];
+        {/* Profile selector */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>
+            {isComparing
+              ? <><strong>{aggregateData.length}</strong> profiles selected. <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> is the baseline.</>
+              : "Select profiles to compare side-by-side."}
+          </div>
+          <div data-tutorial="profile-pills" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {profiles.map((p) => {
+              const active = compareIds.includes(p.id);
+              const idx = compareIds.indexOf(p.id);
+              const col = active ? PROF_COLORS[idx % PROF_COLORS.length] : C.textFaint;
               return (
-                <button key={profile.id}
-                  {...(pi === 1 ? { "data-tutorial": "client-tab-second" } : {})}
-                  onClick={() => { setClientTab(pi); if (pi === 1) setTutorialStep(prev => prev === 12 ? 13 : prev); }}
-                  style={{ padding: "7px 16px", fontSize: 11, border: "none", cursor: "pointer",
-                    background: clientTab === pi ? C.surface : "transparent",
-                    color: clientTab === pi ? col : C.textMuted,
-                    fontWeight: clientTab === pi ? 700 : 400,
-                    borderBottom: `2px solid ${clientTab === pi ? col : "transparent"}`,
-                    transition: "all 0.15s" }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, display: "inline-block" }} />
-                    {profile.name}
-                  </span>
+                <button key={p.id} onClick={() => toggleCompare(p.id)} style={{ padding: "5px 14px", fontSize: 11, borderRadius: 20, cursor: "pointer",
+                  border: `1.5px solid ${active ? col : C.border}`, background: active ? `${col}18` : "transparent",
+                  color: active ? col : C.textMuted, fontWeight: active ? 700 : 400, transition: "all 0.15s",
+                  display: "flex", alignItems: "center", gap: 5 }}>
+                  {active && <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, display: "inline-block" }} />}
+                  {p.name}
                 </button>
               );
             })}
+            {compareIds.length > 0 && (
+              <button onClick={() => setCompareIds([])} style={{ padding: "5px 14px", fontSize: 11, borderRadius: 20,
+                border: `1px solid ${C.border}`, cursor: "pointer", background: "transparent", color: C.textMuted }}>Clear</button>
+            )}
           </div>
-        )}
-
-        {/* Client × System heatmap table */}
-        {(() => {
-          const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-          return (
-            <div style={{ ...card, padding: 0, overflow: "auto", borderTopLeftRadius: isComparing ? 0 : undefined, borderTopRightRadius: isComparing ? 0 : undefined }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 700 }}>
-                <thead>
-                  <tr style={{ background: C.navy }}>
-                    <th style={{ padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Client</th>
-                    {SYSTEMS.map(s => (
-                      <th key={s.id} style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600 }}>
-                        <div style={{ maxWidth: 90, margin: "0 auto", lineHeight: 1.3 }}>{s.name}</div>
-                      </th>
-                    ))}
-
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, ri) => {
-                    const baseRow = isComparing && clientTab > 0 ? aggregateData[0].clients.find(r => r.pid === row.pid) : null;
-                    return (
-                      <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
-                        <td style={{ padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>{row.pid}</td>
-                        {row.systems.map(s => {
-                          const baseScore = baseRow?.systems.find(bs => bs.id === s.id)?.score ?? null;
-                          const d = s.score != null && baseScore != null ? s.score - baseScore : null;
-                          return (
-                            <td key={s.id} style={{ padding: "6px 8px", textAlign: "center", background: gradeBg(s.score) }}>
-                              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                                <ScoreDot score={s.score} />
-                                {d != null && Math.abs(d) > 0.05 && (
-                                  <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, lineHeight: 1,
-                                    color: d > 0 ? C.green : C.critical }}>
-                                    {d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* ── Section 2: Summary stats table ── */}
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Population Summary</div>
-        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
-          {isComparing
-            ? <>Systems as rows, profiles as column groups. Δ Mean is vs. baseline <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong>.</>
-            : "Summary statistics per system across all clients."}
         </div>
 
-        <div style={{ ...card, padding: 0, overflow: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              {/* Profile group headers — only shown when comparing */}
+        {aggTab === "overview" && (
+          <div>
+            <div data-tutorial="client-scores-table" style={{ marginBottom: 32 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Client Scores</div>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
+                Each cell shows the system score for that client.
+                {isComparing && clientTab === 0 && <span> Viewing <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> (baseline).</span>}
+                {isComparing && clientTab > 0 && <span> Viewing <strong style={{ color: PROF_COLORS[clientTab] }}>{aggregateData[clientTab].profile.name}</strong>. ▲▼ deltas vs. baseline.</span>}
+              </div>
               {isComparing && (
-                <tr style={{ background: `${C.navy}08`, borderBottom: `1px solid ${C.border}` }}>
-                  <th style={{ padding: "8px 16px", textAlign: "left", width: 180 }} />
+                <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
                   {aggregateData.map(({ profile }, pi) => {
                     const col = PROF_COLORS[pi % PROF_COLORS.length];
                     return (
-                      <th key={profile.id} colSpan={pi > 0 ? STAT_COLS.length + 1 : STAT_COLS.length}
-                        style={{ padding: "8px 10px", textAlign: "center", borderLeft: `2px solid ${col}`, color: col, fontSize: 11, fontWeight: 700 }}>
+                      <button key={profile.id} {...(pi === 1 ? { "data-tutorial": "client-tab-second" } : {})}
+                        onClick={() => { setClientTab(pi); if (pi === 1) setTutorialStep(prev => prev === 12 ? 13 : prev); }}
+                        style={{ padding: "7px 16px", fontSize: 11, border: "none", cursor: "pointer",
+                          background: clientTab === pi ? C.surface : "transparent",
+                          color: clientTab === pi ? col : C.textMuted, fontWeight: clientTab === pi ? 700 : 400,
+                          borderBottom: `2px solid ${clientTab === pi ? col : "transparent"}`, transition: "all 0.15s" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                           <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, display: "inline-block" }} />
                           {profile.name}
                         </span>
-                      </th>
+                      </button>
                     );
                   })}
-                </tr>
+                </div>
               )}
-              {/* Stat column headers */}
-              <tr style={{ background: C.navy }}>
-                <th style={{ padding: "9px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>System</th>
-                {aggregateData.map(({ profile }, pi) => {
-                  const col = PROF_COLORS[pi % PROF_COLORS.length];
-                  return [
-                    ...STAT_COLS.map(stat => (
-                      <th key={`${profile.id}-${stat}`} style={{ padding: "9px 10px", textAlign: "center", color: C.iceLight,
-                        fontSize: 10, fontWeight: 600, whiteSpace: "nowrap",
-                        borderLeft: stat === "Mean" ? `2px solid ${col}40` : undefined }}>
-                        {stat}
-                      </th>
-                    )),
-                    ...(pi > 0 ? [
-                      <th key={`${profile.id}-delta`} style={{ padding: "9px 8px", textAlign: "center",
-                        color: `${C.teal}cc`, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>Δ Mean</th>
-                    ] : [])
-                  ];
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {SYSTEMS.map((sys, si) => {
-                const allStats = aggregateData.map(pd => sysStatsForProfile(pd, sys.id));
-                const baseStats = allStats[0];
-                const procC = procColour(baseStats?.mean);
+              {(() => {
+                const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
                 return (
-                  <tr key={sys.id} style={{ borderTop: `1px solid ${C.border}`, background: si % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
-                    <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap",
-                      borderLeft: `3px solid ${baseStats ? procC : C.border}` }}>
-                      {sys.name}
-                    </td>
-                    {aggregateData.map(({ profile }, pi) => {
-                      const st = allStats[pi];
-                      const col = PROF_COLORS[pi % PROF_COLORS.length];
-                      const deltaMean = pi > 0 && st && baseStats ? st.mean - baseStats.mean : null;
-                      return [
-                        <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center",
-                          borderLeft: `2px solid ${col}30`,
-                          background: st ? gradeBg(st.mean) : "transparent" }}>
-                          {st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: procColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}
-                        </td>,
-                        <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>
-                          {st ? <span style={{ fontFamily: T.mono, color: procColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}
-                        </td>,
-                        <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>
-                          {st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}
-                        </td>,
-                        <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>
-                          {st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.round(st.min)}–{Math.round(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}
-                        </td>,
-                        ...(pi > 0 ? [
-                          <td key={`${profile.id}-delta`} style={{ padding: "9px 8px", textAlign: "center" }}>
-                            {deltaMean != null ? (
-                              <span style={{ fontFamily: T.mono, fontSize: 12, fontWeight: 700,
-                                color: deltaMean > 0 ? C.green : deltaMean < 0 ? C.critical : C.textFaint }}>
-                                {deltaMean > 0 ? "+" : ""}{deltaMean.toFixed(1)}
-                              </span>
-                            ) : <span style={{ color: C.textFaint }}>—</span>}
-                          </td>
-                        ] : [])
-                      ];
-                    })}
-                  </tr>
+                  <div style={{ ...card, padding: 0, overflow: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 700 }}>
+                      <thead>
+                        <tr style={{ background: C.navy }}>
+                          <th style={{ padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Client</th>
+                          {SYSTEMS.map(s => <th key={s.id} style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600 }}><div style={{ maxWidth: 90, margin: "0 auto", lineHeight: 1.3 }}>{s.name}</div></th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row, ri) => {
+                          const baseRow = isComparing && clientTab > 0 ? aggregateData[0].clients.find(r => r.pid === row.pid) : null;
+                          return (
+                            <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
+                              <td style={{ padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>{row.label ?? row.pid}</td>
+                              {row.systems.map(s => {
+                                const baseScore = baseRow?.systems.find(bs => bs.id === s.id)?.score ?? null;
+                                const d = s.score != null && baseScore != null ? s.score - baseScore : null;
+                                return (
+                                  <td key={s.id} style={{ padding: "6px 8px", textAlign: "center", background: gradeBg(s.score) }}>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                                      <ScoreDot score={s.score} />
+                                      {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, lineHeight: 1, color: d > 0 ? C.green : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 );
-              })}
-            </tbody>
-          </table>
+              })()}
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Population Summary</div>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
+                {isComparing ? <>Systems as rows, profiles as column groups. Δ Mean vs. baseline <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong>.</> : "Summary statistics per system across all clients."}
+              </div>
+              <div style={{ ...card, padding: 0, overflow: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    {isComparing && (
+                      <tr style={{ background: `${C.navy}08`, borderBottom: `1px solid ${C.border}` }}>
+                        <th style={{ padding: "8px 16px", textAlign: "left", width: 180 }} />
+                        {aggregateData.map(({ profile }, pi) => {
+                          const col = PROF_COLORS[pi % PROF_COLORS.length];
+                          return <th key={profile.id} colSpan={pi > 0 ? STAT_COLS.length + 1 : STAT_COLS.length} style={{ padding: "8px 10px", textAlign: "center", borderLeft: `2px solid ${col}`, color: col, fontSize: 11, fontWeight: 700 }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: col, display: "inline-block" }} />{profile.name}</span></th>;
+                        })}
+                      </tr>
+                    )}
+                    <tr style={{ background: C.navy }}>
+                      <th style={{ padding: "9px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>System</th>
+                      {aggregateData.map(({ profile }, pi) => {
+                        const col = PROF_COLORS[pi % PROF_COLORS.length];
+                        return [
+                          ...STAT_COLS.map(stat => <th key={`${profile.id}-${stat}`} style={{ padding: "9px 10px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", borderLeft: stat === "Mean" ? `2px solid ${col}40` : undefined }}>{stat}</th>),
+                          ...(pi > 0 ? [<th key={`${profile.id}-delta`} style={{ padding: "9px 8px", textAlign: "center", color: `${C.teal}cc`, fontSize: 10, fontWeight: 700 }}>Δ Mean</th>] : [])
+                        ];
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {SYSTEMS.map((sys, si) => {
+                      const allStats = aggregateData.map(pd => sysStatsForProfile(pd, sys.id));
+                      const baseStats = allStats[0];
+                      const procC = procColour(baseStats?.mean);
+                      return (
+                        <tr key={sys.id} style={{ borderTop: `1px solid ${C.border}`, background: si % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
+                          <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}` }}>{sys.name}</td>
+                          {aggregateData.map(({ profile }, pi) => {
+                            const st = allStats[pi];
+                            const col = PROF_COLORS[pi % PROF_COLORS.length];
+                            const deltaMean = pi > 0 && st && baseStats ? st.mean - baseStats.mean : null;
+                            return [
+                              <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center", borderLeft: `2px solid ${col}30`, background: st ? gradeBg(st.mean) : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: procColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                              <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: procColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                              <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                              <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.round(st.min)}–{Math.round(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                              ...(pi > 0 ? [<td key={`${profile.id}-delta`} style={{ padding: "9px 8px", textAlign: "center" }}>{deltaMean != null ? <span style={{ fontFamily: T.mono, fontSize: 12, fontWeight: 700, color: deltaMean > 0 ? C.green : deltaMean < 0 ? C.critical : C.textFaint }}>{deltaMean > 0 ? "+" : ""}{deltaMean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>] : [])
+                            ];
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {aggTab === "histograms" && (
+          <HistogramsTab nonDemoClients={nonDemoClients} yellowCutoff={yellowCutoff} setYellowCutoff={setYellowCutoff} redCutoff={redCutoff} setRedCutoff={setRedCutoff} histSysId={histSysId} setHistSysId={setHistSysId} histProcName={histProcName} setHistProcName={setHistProcName} card={card} />
+        )}
+
+        {aggTab === "flowchart" && (
+          <FlowchartTab flowSysId={flowSysId} setFlowSysId={setFlowSysId} bioWeights={bioWeights} procWeights={procWeights} card={card} />
+        )}
+
+        {aggTab === "export" && (
+          <ExportTab profiles={profiles} activeProfile={activeProfile} exportProfile={exportProfile} card={card} />
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+// ─── HistogramsTab ────────────────────────────────────────────────────────────
+function HistogramsTab({ nonDemoClients, yellowCutoff, setYellowCutoff, redCutoff, setRedCutoff, histSysId, setHistSysId, histProcName, setHistProcName, card }) {
+  const selSys = SYSTEMS.find(s => s.id === histSysId) || SYSTEMS[0];
+  const procs = Object.keys(selSys.processes);
+
+  // Ensure histProcName stays valid when system changes
+  const validProc = procs.includes(histProcName) ? histProcName : procs[0];
+
+  // System-level: collect process scores per client
+  const sysScores = nonDemoClients.flatMap(r =>
+    (r.systems.find(s => s.id === histSysId)?.procs ?? []).map(p => p.score).filter(x => x != null)
+  );
+
+  // Process-level: collect biomarker scores per client
+  const procScores = nonDemoClients.flatMap(r => {
+    const sys = r.systems.find(s => s.id === histSysId);
+    const proc = sys?.procs?.find(p => p.name === validProc);
+    return proc?.score != null ? [proc.score] : [];
+  });
+
+  function Histogram({ scores, title, subtitle, yellowCutoff, setYellowCutoff, redCutoff, setRedCutoff }) {
+    if (!scores.length) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>No data</div>;
+    const bins = Array.from({ length: 10 }, (_, i) => ({ lo: i * 10, hi: (i + 1) * 10, count: 0 }));
+    scores.forEach(s => { const i = Math.min(9, Math.floor(s / 10)); bins[i].count++; });
+    const maxCount = Math.max(...bins.map(b => b.count), 1);
+    const W = 480, H = 160, padL = 28, padB = 28, padT = 12, padR = 12;
+    const iW = W - padL - padR, iH = H - padT - padB;
+    const binW = iW / 10;
+    const x = val => padL + (val / 100) * iW;
+    const yBar = count => padT + iH - (count / maxCount) * iH;
+
+    return (
+      <div style={{ ...card, padding: 16, marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 2 }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>{subtitle}</div>}
+        <div style={{ position: "relative" }}>
+          <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible", display: "block" }}>
+            {/* Colour bands */}
+            <rect x={padL} y={padT} width={(redCutoff / 100) * iW} height={iH} fill={`${C.critical}10`} />
+            <rect x={x(redCutoff)} y={padT} width={((yellowCutoff - redCutoff) / 100) * iW} height={iH} fill={`${C.fair}10`} />
+            <rect x={x(yellowCutoff)} y={padT} width={((100 - yellowCutoff) / 100) * iW} height={iH} fill={`${C.teal}10`} />
+            {/* Bars */}
+            {bins.map((b, i) => {
+              const bx = padL + i * binW + 1;
+              const by = yBar(b.count);
+              const bh = padT + iH - by;
+              const mid = b.lo + 5;
+              const col = mid < redCutoff ? C.critical : mid < yellowCutoff ? C.fair : C.teal;
+              return b.count > 0 ? <rect key={i} x={bx} y={by} width={binW - 2} height={bh} fill={`${col}80`} rx="2" /> : null;
+            })}
+            {/* Count labels */}
+            {bins.map((b, i) => b.count > 0 ? (
+              <text key={i} x={padL + i * binW + binW / 2} y={yBar(b.count) - 3} textAnchor="middle" fontSize="8" fill={C.textMuted}>{b.count}</text>
+            ) : null)}
+            {/* Y gridlines */}
+            {[0, 0.5, 1].map(f => {
+              const y = padT + iH * (1 - f);
+              return <g key={f}><line x1={padL} x2={W - padR} y1={y} y2={y} stroke={C.iceLight} strokeWidth="0.7" /><text x={padL - 4} y={y + 3} fontSize="7" fill={C.textFaint} textAnchor="end">{Math.round(f * maxCount)}</text></g>;
+            })}
+            {/* X axis labels */}
+            {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(v => (
+              <text key={v} x={x(v)} y={H - 4} textAnchor="middle" fontSize="8" fill={C.textFaint}>{v}</text>
+            ))}
+            {/* Cut-off lines */}
+            <line x1={x(yellowCutoff)} y1={padT} x2={x(yellowCutoff)} y2={padT + iH} stroke={C.fair} strokeWidth="1.5" strokeDasharray="4,3" />
+            <line x1={x(redCutoff)} y1={padT} x2={x(redCutoff)} y2={padT + iH} stroke={C.critical} strokeWidth="1.5" strokeDasharray="4,3" />
+            <text x={x(yellowCutoff) + 3} y={padT + 9} fontSize="8" fill={C.fair} fontWeight="700">Y {yellowCutoff}</text>
+            <text x={x(redCutoff) + 3} y={padT + 9} fontSize="8" fill={C.critical} fontWeight="700">R {redCutoff}</text>
+          </svg>
+        </div>
+        {/* Cut-off sliders */}
+        <div style={{ display: "flex", gap: 24, marginTop: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: C.critical, fontWeight: 600, marginBottom: 3 }}>Red: 0 – {redCutoff - 1}</div>
+            <input type="range" min={0} max={yellowCutoff - 1} step={1} value={redCutoff}
+              onChange={e => setRedCutoff(Number(e.target.value))}
+              style={{ width: "100%", accentColor: C.critical, cursor: "pointer" }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: C.fair, fontWeight: 600, marginBottom: 3 }}>Yellow: {redCutoff} – {yellowCutoff - 1} · Green: {yellowCutoff}+</div>
+            <input type="range" min={redCutoff + 1} max={100} step={1} value={yellowCutoff}
+              onChange={e => setYellowCutoff(Number(e.target.value))}
+              style={{ width: "100%", accentColor: C.fair, cursor: "pointer" }} />
+          </div>
+        </div>
+        <div style={{ fontSize: 10, color: C.textFaint, marginTop: 6 }}>
+          n = {scores.length} scores · Red 0–{redCutoff - 1} · Yellow {redCutoff}–{yellowCutoff - 1} · Green {yellowCutoff}–100
         </div>
       </div>
+    );
+  }
 
+  if (!nonDemoClients.length) return (
+    <div style={{ fontSize: 13, color: C.textMuted, fontStyle: "italic" }}>Upload non-demo client data to view histograms.</div>
+  );
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>
+        Histograms show score distributions across non-demo clients. Drag the cut-off sliders to explore different red/yellow thresholds.
+      </div>
+      {/* System selector */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        {SYSTEMS.map(s => (
+          <button key={s.id} onClick={() => { setHistSysId(s.id); setHistProcName(Object.keys(s.processes)[0]); }}
+            style={{ padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+              border: `1px solid ${histSysId === s.id ? C.steel : C.border}`,
+              background: histSysId === s.id ? `${C.steel}18` : "transparent",
+              color: histSysId === s.id ? C.steel : C.textMuted, fontWeight: histSysId === s.id ? 700 : 400 }}>
+            {s.name}
+          </button>
+        ))}
+      </div>
+      {/* System histogram */}
+      <Histogram scores={sysScores} title={`${selSys.name} — Process Score Distribution`}
+        subtitle={`All process scores from ${nonDemoClients.length} clients`}
+        yellowCutoff={yellowCutoff} setYellowCutoff={setYellowCutoff}
+        redCutoff={redCutoff} setRedCutoff={setRedCutoff} />
+      {/* Process selector */}
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecond, marginBottom: 10 }}>Process breakdown</div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+        {procs.map(p => (
+          <button key={p} onClick={() => setHistProcName(p)}
+            style={{ padding: "4px 10px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+              border: `1px solid ${validProc === p ? C.teal : C.border}`,
+              background: validProc === p ? `${C.teal}18` : "transparent",
+              color: validProc === p ? C.teal : C.textMuted, fontWeight: validProc === p ? 700 : 400 }}>
+            {p}
+          </button>
+        ))}
+      </div>
+      <Histogram scores={procScores} title={`${validProc} — Score Distribution`}
+        subtitle={`Process scores across ${nonDemoClients.length} clients`}
+        yellowCutoff={yellowCutoff} setYellowCutoff={setYellowCutoff}
+        redCutoff={redCutoff} setRedCutoff={setRedCutoff} />
+    </div>
+  );
+}
+
+// ─── FlowchartTab ─────────────────────────────────────────────────────────────
+function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }) {
+  const sys = SYSTEMS.find(s => s.id === flowSysId) || SYSTEMS[0];
+  const procs = Object.entries(sys.processes);
+  const DEFAULT_BIO  = { weight: 1, color: "red", level: "high" };
+  const DEFAULT_PROC = { weight: 1, color: "red" };
+
+  // Deduplicate biomarkers across processes
+  const allBiomarkers = [...new Set(procs.flatMap(([, bms]) => bms))];
+
+  // Layout constants
+  const COL1_X = 20,  COL1_W = 140;  // System
+  const COL2_X = 220, COL2_W = 150;  // Processes
+  const COL3_X = 430, COL3_W = 140;  // Biomarkers
+  const ROW_H  = 44,  PAD_Y  = 20;
+  const procGap = 14, bioGap = 10;
+
+  const nProcs = procs.length;
+  const nBios  = allBiomarkers.length;
+
+  const procH  = nProcs  * ROW_H + (nProcs  - 1) * procGap;
+  const bioH   = nBios   * ROW_H + (nBios   - 1) * bioGap;
+  const sysH   = 52;
+
+  const totalH = Math.max(procH, bioH, sysH) + PAD_Y * 2;
+  const totalW = COL3_X + COL3_W + COL1_X;
+
+  // Vertical centre of a proc row
+  const procY  = (i) => PAD_Y + (totalH - PAD_Y*2 - procH) / 2 + i * (ROW_H + procGap) + ROW_H / 2;
+  const bioY   = (i) => PAD_Y + (totalH - PAD_Y*2 - bioH)  / 2 + i * (ROW_H + bioGap)  + ROW_H / 2;
+  const sysY   = totalH / 2;
+
+  const pillStyle = col => ({
+    fontSize: 8, padding: "1px 4px", borderRadius: 3,
+    background: `${col}22`, color: col, border: `1px solid ${col}44`, fontWeight: 700,
+  });
+
+  return (
+    <div>
+      {/* System selector */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        {SYSTEMS.map(s => (
+          <button key={s.id} onClick={() => setFlowSysId(s.id)}
+            style={{ padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+              border: `1px solid ${flowSysId === s.id ? C.steel : C.border}`,
+              background: flowSysId === s.id ? `${C.steel}18` : "transparent",
+              color: flowSysId === s.id ? C.steel : C.textMuted, fontWeight: flowSysId === s.id ? 700 : 400 }}>
+            {s.name}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ overflowX: "auto" }}>
+        <svg width={totalW} height={totalH} style={{ fontFamily: T.body, display: "block" }}>
+
+          {/* ── Connector lines ── */}
+          {/* System → each process */}
+          {procs.map(([procName], pi) => {
+            const x1 = COL1_X + COL1_W, y1 = sysY;
+            const x2 = COL2_X, y2 = procY(pi);
+            const mx = (x1 + x2) / 2;
+            return <path key={`sp-${pi}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
+              fill="none" stroke={C.steel} strokeWidth="1" opacity="0.5" />;
+          })}
+          {/* Each process → its biomarkers */}
+          {procs.map(([procName, bms], pi) => bms.map(bmName => {
+            const bi = allBiomarkers.indexOf(bmName);
+            if (bi === -1) return null;
+            const x1 = COL2_X + COL2_W, y1 = procY(pi);
+            const x2 = COL3_X, y2 = bioY(bi);
+            const mx = (x1 + x2) / 2;
+            return <path key={`pb-${pi}-${bmName}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
+              fill="none" stroke={C.border} strokeWidth="1" />;
+          }))}
+
+          {/* ── System node ── */}
+          <g>
+            <rect x={COL1_X} y={sysY - sysH/2} width={COL1_W} height={sysH} rx="8"
+              fill={`${C.navy}14`} stroke={C.navy} strokeWidth="1.5" />
+            <text x={COL1_X + COL1_W/2} y={sysY - 6} textAnchor="middle"
+              fontSize="12" fontWeight="700" fill={C.navy} fontFamily={T.display}>{sys.name}</text>
+            <text x={COL1_X + COL1_W/2} y={sysY + 10} textAnchor="middle"
+              fontSize="9" fill={C.textMuted}>Health System</text>
+          </g>
+
+          {/* ── Process nodes ── */}
+          {procs.map(([procName], pi) => {
+            const pe = procWeights[procName] ?? DEFAULT_PROC;
+            const isModified = pe.weight !== 1 || pe.color !== "red";
+            const cy = procY(pi);
+            const bCol = isModified ? C.teal : C.steel;
+            return (
+              <g key={procName}>
+                <rect x={COL2_X} y={cy - ROW_H/2 + 2} width={COL2_W} height={ROW_H - 4} rx="7"
+                  fill={`${C.steel}10`} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
+                <text x={COL2_X + 8} y={cy - 3} fontSize="10" fontWeight="600" fill={C.navy}
+                  dominantBaseline="middle">{procName}</text>
+                {isModified ? (
+                  <text x={COL2_X + 8} y={cy + 11} fontSize="8" fill={C.teal}>
+                    {pe.weight !== 1 ? `×${pe.weight}` : ""}{pe.color !== "red" ? ` ${pe.color}` : ""}
+                  </text>
+                ) : (
+                  <text x={COL2_X + 8} y={cy + 11} fontSize="8" fill={C.textFaint}>default</text>
+                )}
+              </g>
+            );
+          })}
+
+          {/* ── Biomarker nodes ── */}
+          {allBiomarkers.map((bmName, bi) => {
+            const be = bioWeights[bmName] ?? DEFAULT_BIO;
+            const isModified = be.weight !== 1 || be.color !== "red" || be.level !== "high";
+            const cy = bioY(bi);
+            const bCol = isModified ? C.teal : C.border;
+            return (
+              <g key={bmName}>
+                <rect x={COL3_X} y={cy - ROW_H/2 + 2} width={COL3_W} height={ROW_H - 4} rx="6"
+                  fill={C.surface} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
+                <text x={COL3_X + 7} y={cy - 3} fontSize="9" fill={C.textSecond}
+                  dominantBaseline="middle">{bmName}</text>
+                {isModified && (
+                  <text x={COL3_X + 7} y={cy + 10} fontSize="8" fill={C.teal}>
+                    {be.weight !== 1 ? `×${be.weight} ` : ""}{be.color !== "red" ? `${be.color} ` : ""}{be.level !== "high" ? be.level : ""}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+        </svg>
+      </div>
+      <div style={{ fontSize: 10, color: C.textFaint, marginTop: 12 }}>
+        Teal border = non-default weight settings · Shared biomarkers (appearing in multiple processes) are shown once with multiple connecting lines.
+      </div>
+    </div>
+  );
+}
+
+
+// ─── ExportTab ────────────────────────────────────────────────────────────────
+function ExportTab({ profiles, activeProfile, exportProfile, card }) {
+  const [selProfileId, setSelProfileId] = useState(activeProfile?.id ?? profiles[0]?.id);
+  const selProfile = profiles.find(p => p.id === selProfileId) ?? profiles[0];
+
+  function exportHumanFriendly(profile) {
+    const rows = [["System", "Process", "Biomarker", "Bio Weight", "Bio Color", "Bio Level", "Bio PubMed", "Proc Weight", "Proc Color", "Proc PubMed"]];
+    const DEFAULT_BIO = { weight: 1, color: "red", level: "high", ref: "" };
+    const DEFAULT_PROC = { weight: 1, color: "red", ref: "" };
+    SYSTEMS.forEach(sys => {
+      Object.entries(sys.processes).forEach(([proc, bms]) => {
+        const pe = profile.procWeights[proc] ?? DEFAULT_PROC;
+        bms.forEach(bmName => {
+          const be = profile.bioWeights[bmName] ?? DEFAULT_BIO;
+          rows.push([
+            sys.name, proc, bmName,
+            be.weight, be.color, be.level, be.ref ?? "",
+            pe.weight, pe.color, pe.ref ?? "",
+          ]);
+        });
+      });
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = profile.name.replace(/\s+/g, "_") + "_full_weights.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 20 }}>
+        Choose a profile to export. The human-friendly format includes all system–process–biomarker relationships with their current weight settings, even unchanged defaults. The database format is the compact CSV used for re-importing.
+      </div>
+      {/* Profile picker */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecond, marginBottom: 8 }}>Profile</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {profiles.map(p => (
+            <button key={p.id} onClick={() => setSelProfileId(p.id)}
+              style={{ padding: "6px 14px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+                border: `1px solid ${selProfileId === p.id ? C.steel : C.border}`,
+                background: selProfileId === p.id ? `${C.steel}18` : "transparent",
+                color: selProfileId === p.id ? C.steel : C.textMuted,
+                fontWeight: selProfileId === p.id ? 700 : 400 }}>
+              {p.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      {/* Export options */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, maxWidth: 640 }}>
+        <button onClick={() => exportHumanFriendly(selProfile)}
+          style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "16px 18px", borderRadius: 10,
+            border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left", width: "100%" }}>
+          <span style={{ fontSize: 24, lineHeight: 1 }}>📄</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Human-friendly</div>
+            <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>All system → process → biomarker relationships with weight columns. Includes unchanged defaults.</div>
+          </div>
+        </button>
+        <button onClick={() => exportProfile(selProfile)}
+          style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "16px 18px", borderRadius: 10,
+            border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left", width: "100%" }}>
+          <span style={{ fontSize: 24, lineHeight: 1 }}>🗄️</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Database format</div>
+            <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>Compact CSV with explicit overrides only. Can be re-imported as a weight profile.</div>
+          </div>
+        </button>
+      </div>
     </div>
   );
 }
