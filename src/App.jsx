@@ -3525,17 +3525,14 @@ function Histogram({ scores, title, redCutoff, yellowCutoff }) {
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ width: 10, height: 10, borderRadius: 2, background: C.critical, display: "inline-block" }} />
               <span style={{ fontSize: 10, color: C.critical, fontWeight: 700 }}>{pct(nRed)}%</span>
-              <span style={{ fontSize: 10, color: C.textFaint }}>Red ({nRed} of {n})</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ width: 10, height: 10, borderRadius: 2, background: C.fair, display: "inline-block" }} />
               <span style={{ fontSize: 10, color: C.fair, fontWeight: 700 }}>{pct(nYellow)}%</span>
-              <span style={{ fontSize: 10, color: C.textFaint }}>Yellow ({nYellow} of {n})</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ width: 10, height: 10, borderRadius: 2, background: C.teal, display: "inline-block" }} />
               <span style={{ fontSize: 10, color: C.teal, fontWeight: 700 }}>{pct(nGreen)}%</span>
-              <span style={{ fontSize: 10, color: C.textFaint }}>Green ({nGreen} of {n})</span>
             </div>
           </div>
         );
@@ -3574,7 +3571,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
       {/* System histograms */}
       <div style={{ ...card, padding: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>System Scores</div>
-        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>One score per client per system.</div>
+        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {sysScores.length} client report{sysScores.length !== 1 ? "s" : ""}.</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
           {SYSTEMS.map(s => (
             <button key={s.id} onClick={() => { setHistSysId(s.id); setHistProcName(Object.keys(s.processes)[0]); }}
@@ -3597,7 +3594,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
       {/* Process histograms */}
       <div style={{ ...card, padding: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Process Scores</div>
-        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>One score per client per process.</div>
+        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {procScores.length} client report{procScores.length !== 1 ? "s" : ""}.</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
           {procs.map(p => (
             <button key={p} onClick={() => setHistProcName(p)}
