@@ -1563,7 +1563,7 @@ export default function App() {
     setClientId(personaId);
     setDemoLoaded(true);
     setUploadErr("");
-    setActiveView("aggregate");
+    setActiveView("aggregate"); setCol1Open(false); setCol2Open(false);
     setTutorialStep(prev => prev === 0 ? 1 : prev);
   }, []);
 
@@ -1748,6 +1748,8 @@ export default function App() {
                 return;
               }
               setActiveView(v);
+              if (v === "aggregate") { setCol1Open(false); setCol2Open(false); }
+              if (v === "client")    { setCol1Open(true);  setCol2Open(true);  }
               // Tutorial: step 2 waits for user to click Client Report; step 5 waits for Aggregate
               if (v === "client")    setTutorialStep(prev => prev === 2 ? 3 : prev);
               if (v === "aggregate") setTutorialStep(prev => prev === 12 ? 13 : prev);
