@@ -1084,36 +1084,62 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
 
 // ─── CSV parsing ──────────────────────────────────────────────────────────────
 function parseCSV(text) {
-  const lines = text.trim().replace(/\r/g, "").split("\n");
+  // Split on any line ending without regex backslash issues
+  const lines = [];
+  let cur = "";
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const code = text.charCodeAt(i);
+    if (code === 13) { // CR
+      lines.push(cur); cur = "";
+      if (text.charCodeAt(i + 1) === 10) i++; // skip following LF
+    } else if (code === 10) { // LF
+      lines.push(cur); cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur.trim()) lines.push(cur);
+  const nonEmpty = lines.filter(l => l.trim());
+
   function parseLine(line) {
     const vals = [];
-    let cur = "", inQ = false;
+    let field = "", inQ = false;
     for (let i = 0; i < line.length; i++) {
       const c = line[i];
       if (c === '"') { inQ = !inQ; }
-      else if (c === "," && !inQ) { vals.push(cur.trim()); cur = ""; }
-      else cur += c;
+      else if (c === "," && !inQ) { vals.push(field.trim()); field = ""; }
+      else field += c;
     }
-    vals.push(cur.trim());
+    vals.push(field.trim());
     return vals;
   }
-  const headers = parseLine(lines[0]).map(h => h.replace(/^"|"$/g, "").trim().toLowerCase());
-  return lines.slice(1).filter(l => l.trim()).map(line => {
+  const headers = parseLine(nonEmpty[0]).map(h => h.replace(/^"|"$/g, "").trim().toLowerCase());
+  return nonEmpty.slice(1).map(line => {
     const vals = parseLine(line);
     return Object.fromEntries(headers.map((h, i) => [h, (vals[i] ?? "").replace(/^"|"$/g, "").trim()]));
   });
 }
 function buildClients(rows) {
-  const pts = {};
-  let skippedReported = 0, skippedBlq = 0, skippedBadNums = 0;
-  for (const row of rows) {
-    // Only include is_reported = TRUE rows
-    const reported = (row["is_reported"] ?? "").toLowerCase();
-    if (reported !== "true") { skippedReported++; continue; }
+  if (!rows.length) return {};
+  // Case/punctuation-insensitive column lookup
+  const keys = Object.keys(rows[0]);
+  function col(row, ...names) {
+    for (const name of names) {
+      const norm = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const k = keys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g, "") === norm);
+      if (k !== undefined) return (row[k] ?? "").trim();
+    }
+    return "";
+  }
 
-    const myId    = row["my_id"]    ?? "";
-    const barcode = row["barcode"]  ?? "";
-    const testId  = row["test_id"]  ?? "";
+  const pts = {};
+  for (const row of rows) {
+    if (col(row, "is_reported").toLowerCase() !== "true") continue;
+
+    const myId    = col(row, "my_id", "myid");
+    const barcode = col(row, "barcode");
+    const testId  = col(row, "test_id", "testid");
 
     // Key: barcode > test_id > my_id
     const pid = (barcode || testId || myId).trim();
@@ -1122,32 +1148,23 @@ function buildClients(rows) {
     const label = myId && pid !== myId ? `${myId} — ${pid}` : pid;
     if (!pts[pid]) pts[pid] = { id: pid, label, markers: {} };
 
-    const name = (row["measure_name"] ?? "").trim();
-    const concRaw = row["lab_concentration"] ?? "";
+    const name    = col(row, "measure_name", "measurename");
+    const concRaw = col(row, "lab_concentration", "labconcentration");
 
-    // Skip undetected / BLQ values
-    if (!name || !concRaw || /blq|<|>/i.test(concRaw)) { skippedBlq++; continue; }
+    // Skip missing, BLQ, NR, ND
+    if (!name || !concRaw) continue;
+    if (/blq|<|>|^nr$|^nd$/i.test(concRaw)) continue;
 
     const conc = parseFloat(concRaw);
-    const lo   = parseFloat(row["lower_reference_range"] ?? "");
-    const hi   = parseFloat(row["upper_reference_range"] ?? "");
+    const lo   = parseFloat(col(row, "lower_reference_range", "lowerreferencerange"));
+    const hi   = parseFloat(col(row, "upper_reference_range", "upperreferencerange"));
 
-    if (!isNaN(conc) && !isNaN(lo) && !isNaN(hi)) {
+    if (!isNaN(conc) && !isNaN(lo) && !isNaN(hi))
       pts[pid].markers[name] = { value: conc, refLow: lo, refHigh: hi };
-    } else {
-      skippedBadNums++;
-    }
   }
-  console.log("[buildClients] clients:", Object.keys(pts).length,
-    "| rows:", rows.length,
-    "| skipped_reported:", skippedReported,
-    "| skipped_blq:", skippedBlq,
-    "| skipped_bad_nums:", skippedBadNums,
-    "| pids:", Object.keys(pts));
   return pts;
 }
 
-// ─── Stats helpers ────────────────────────────────────────────────────────────
 function stats(arr) {
   const a = arr.filter(x => x != null).sort((a, b) => a - b);
   if (!a.length) return null;
