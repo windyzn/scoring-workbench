@@ -3808,15 +3808,16 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
             </button>
           ))}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 10, color: C.textFaint, marginRight: 2 }}>Download:</span>
           <button onClick={downloadPng}
             style={{ padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-              border: `1px solid ${C.teal}66`, background: "transparent", color: C.teal }}>
+              border: `1px solid ${C.border}`, background: "transparent", color: C.teal, fontWeight: 600 }}>
             ⬇ PNG
           </button>
           <button onClick={downloadMermaid}
             style={{ padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-              border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted }}>
+              border: `1px solid ${C.border}`, background: "transparent", color: C.teal, fontWeight: 600 }}>
             ⬇ Mermaid
           </button>
         </div>
