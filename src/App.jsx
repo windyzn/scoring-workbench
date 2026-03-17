@@ -1331,6 +1331,7 @@ export default function App() {
   const [activeProc,      setActiveProc]      = useState(null);
   const [tab,             setTab]             = useState("weights-proc");
   const [uploadErr,       setUploadErr]       = useState("");
+  const [isUploading,     setIsUploading]     = useState(false);
   const [dragOver,        setDragOver]        = useState(false);
   const [col1Open,        setCol1Open]        = useState(true);
   const [col2Open,        setCol2Open]        = useState(true);
@@ -1561,20 +1562,43 @@ export default function App() {
 
   const handleFile = useCallback(file => {
     if (!file) return;
+    setIsUploading(true);
+    setUploadErr("");
     const r = new FileReader();
     r.onload = e => {
-      try {
-        const d = buildClients(parseCSV(e.target.result));
-        if (!Object.keys(d).length) throw new Error("No valid rows.");
-        // Real data uploaded — remove demo clients entirely
-        setClients(d);
-        setDemoLoaded(false);
-        setClientId(Object.keys(d)[0]);
-        setUploadErr("");
-        setActiveView("aggregate");
-        // Tutorial: advance past "upload" step when data loads
-        setTutorialStep(prev => prev === 0 ? 1 : prev);
-      } catch (err) { setUploadErr("Parse error: " + err.message); }
+      // Defer to next tick so the loading indicator renders first
+      setTimeout(() => {
+        try {
+          const rows = parseCSV(e.target.result);
+          // Validate required columns exist
+          if (rows.length) {
+            const cols = Object.keys(rows[0]);
+            const norm = c => c.toLowerCase().replace(/[^a-z0-9]/g, "");
+            const required = ["myid", "measurename", "labconcentration", "lowerreferencerange", "upperreferencerange", "isreported"];
+            const missing = required.filter(r => !cols.some(c => norm(c) === r));
+            if (missing.length) {
+              const friendly = { myid: "my_id", measurename: "measure_name", labconcentration: "lab_concentration", lowerreferencerange: "lower_reference_range", upperreferencerange: "upper_reference_range", isreported: "is_reported" };
+              throw new Error(`Missing required columns: ${missing.map(m => friendly[m]).join(", ")}.
+
+Expected columns: my_id, barcode, test_id, measure_name, lab_concentration, lower_reference_range, upper_reference_range, is_reported`);
+            }
+          }
+          const d = buildClients(rows);
+          if (!Object.keys(d).length) throw new Error("No scoreable rows found after filtering.
+
+Make sure is_reported = True for at least some rows, and that lab_concentration values are numeric (not BLQ/NR/ND).");
+          setClients(d);
+          setDemoLoaded(false);
+          setClientId(Object.keys(d)[0]);
+          setUploadErr("");
+          setIsUploading(false);
+          setActiveView("aggregate");
+          setTutorialStep(prev => prev === 0 ? 1 : prev);
+        } catch (err) {
+          setUploadErr(err.message);
+          setIsUploading(false);
+        }
+      }, 0);
     };
     r.readAsText(file);
   }, []);
@@ -2321,7 +2345,7 @@ export default function App() {
         {/* ── Main area ── */}
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minWidth: 0 }}>
           {!hasData ? (
-            <UploadPrompt fileRef={fileRef} dragOver={dragOver} setDragOver={setDragOver} handleFile={handleFile} uploadErr={uploadErr} loadDemo={loadDemo} personas={DEMO_PERSONAS} />
+            <UploadPrompt fileRef={fileRef} dragOver={dragOver} setDragOver={setDragOver} handleFile={handleFile} uploadErr={uploadErr} isUploading={isUploading} loadDemo={loadDemo} personas={DEMO_PERSONAS} />
           ) : activeView === "aggregate" ? (
             <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} />
           ) : (
@@ -2382,7 +2406,7 @@ export default function App() {
 }
 
 // ─── Upload ───────────────────────────────────────────────────────────────────
-function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, loadDemo, personas }) {
+function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, isUploading, loadDemo, personas }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 24 }}>
       <div style={{ textAlign: "center" }}>
@@ -2390,15 +2414,35 @@ function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, l
         <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.8, maxWidth: 440 }}>Upload client lab data to score biomarkers across all seven health systems.</div>
       </div>
       <div data-tutorial="upload-dropzone" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: "100%", maxWidth: 520 }}>
-        <div onClick={() => fileRef.current?.click()}
-          onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
-          onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
-          style={{ border: `1.5px dashed ${dragOver ? C.teal : C.iceMid}`, borderRadius: 12, padding: "28px 48px",
-            textAlign: "center", cursor: "pointer", background: dragOver ? `${C.teal}0A` : C.white, transition: "all 0.2s", width: "100%" }}>
-          <div style={{ fontSize: 26, color: C.teal, marginBottom: 8 }}>↑</div>
-          <div style={{ fontSize: 13, color: C.textSecond, fontWeight: 600, marginBottom: 4 }}>Drop CSV or click to upload</div>
-          <div style={{ fontSize: 11, color: C.textFaint }}>Columns: my_id · barcode · measure_name · lab_concentration · lower/upper_reference_range · is_reported</div>
-          {uploadErr && <div style={{ marginTop: 8, fontSize: 11, color: C.critical }}>{uploadErr}</div>}
+        <div onClick={() => !isUploading && fileRef.current?.click()}
+          onDragOver={e => { e.preventDefault(); if (!isUploading) setDragOver(true); }} onDragLeave={() => setDragOver(false)}
+          onDrop={e => { e.preventDefault(); setDragOver(false); if (!isUploading) handleFile(e.dataTransfer.files[0]); }}
+          style={{ border: `1.5px dashed ${isUploading ? C.teal : dragOver ? C.teal : C.iceMid}`, borderRadius: 12, padding: "28px 48px",
+            textAlign: "center", cursor: isUploading ? "default" : "pointer",
+            background: isUploading ? `${C.teal}08` : dragOver ? `${C.teal}0A` : C.white, transition: "all 0.2s", width: "100%" }}>
+          {isUploading ? (
+            <>
+              <div style={{ fontSize: 22, color: C.teal, marginBottom: 8, animation: "spin 1s linear infinite",
+                display: "inline-block" }}>⟳</div>
+              <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+              <div style={{ fontSize: 13, color: C.teal, fontWeight: 600 }}>Processing data…</div>
+              <div style={{ fontSize: 11, color: C.textFaint, marginTop: 4 }}>Parsing and scoring, please wait</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 26, color: C.teal, marginBottom: 8 }}>↑</div>
+              <div style={{ fontSize: 13, color: C.textSecond, fontWeight: 600, marginBottom: 4 }}>Drop CSV or click to upload</div>
+              <div style={{ fontSize: 11, color: C.textFaint }}>Columns: my_id · barcode · measure_name · lab_concentration · lower/upper_reference_range · is_reported</div>
+            </>
+          )}
+          {uploadErr && !isUploading && (
+            <div style={{ marginTop: 12, fontSize: 11, color: C.critical, textAlign: "left",
+              background: `${C.critical}08`, border: `1px solid ${C.critical}30`,
+              borderRadius: 8, padding: "10px 14px", whiteSpace: "pre-line", lineHeight: 1.7 }}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>Upload failed</div>
+              {uploadErr}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, width: "100%" }}>
           <div style={{ flex: 1, height: 1, background: C.border }} />
@@ -3425,12 +3469,13 @@ function CutoffControl({ redCutoff, setRedCutoff, yellowCutoff, setYellowCutoff,
 
 function Histogram({ scores, title, redCutoff, yellowCutoff }) {
   if (!scores.length) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic", padding: "12px 0" }}>No data for this selection.</div>;
-  const bins = Array.from({ length: 10 }, (_, i) => ({ lo: i * 10, hi: (i + 1) * 10, count: 0 }));
-  scores.forEach(s => { const i = Math.min(9, Math.floor(s / 10)); bins[i].count++; });
+  const BIN_SIZE = 2, N_BINS = 100 / BIN_SIZE;
+  const bins = Array.from({ length: N_BINS }, (_, i) => ({ lo: i * BIN_SIZE, hi: (i + 1) * BIN_SIZE, count: 0 }));
+  scores.forEach(s => { const i = Math.min(N_BINS - 1, Math.floor(s / BIN_SIZE)); bins[i].count++; });
   const maxCount = Math.max(...bins.map(b => b.count), 1);
-  const W = 500, H = 160, padL = 30, padB = 24, padT = 14, padR = 10;
+  const W = 700, H = 160, padL = 30, padB = 24, padT = 14, padR = 10;
   const iW = W - padL - padR, iH = H - padT - padB;
-  const binW = iW / 10;
+  const binW = iW / N_BINS;
   const x = val => padL + (val / 100) * iW;
   const yBar = count => padT + iH - (count / maxCount) * iH;
   return (
@@ -3447,7 +3492,7 @@ function Histogram({ scores, title, redCutoff, yellowCutoff }) {
           return b.count > 0 ? (
             <g key={i}>
               <rect x={padL + i * binW + 1} y={yBar(b.count)} width={binW - 2} height={bh} fill={`${col}90`} rx="2" />
-              <text x={padL + i * binW + binW / 2} y={yBar(b.count) - 3} textAnchor="middle" fontSize="6" fill={C.textMuted}>{b.count}</text>
+              {b.count > 0 && maxCount <= 10 ? <text x={padL + i * binW + binW / 2} y={yBar(b.count) - 3} textAnchor="middle" fontSize="6" fill={C.textMuted}>{b.count}</text> : null}
             </g>
           ) : null;
         })}
