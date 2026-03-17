@@ -1335,8 +1335,10 @@ export default function App() {
   const [col1Open,        setCol1Open]        = useState(true);
   const [col2Open,        setCol2Open]        = useState(true);
   const [concOverrides,   setConcOverrides]   = useState({});  // { [clientId]: { [markerName]: value } }
-  const [yellowCutoff,    setYellowCutoff]    = useState(91);
-  const [redCutoff,       setRedCutoff]       = useState(70);
+  const [sysYellowCutoff, setSysYellowCutoff] = useState(91);
+  const [sysRedCutoff,   setSysRedCutoff]   = useState(70);
+  const [procYellowCutoff,setProcYellowCutoff]= useState(91);
+  const [procRedCutoff,  setProcRedCutoff]  = useState(70);
   const [editConc,        setEditConc]        = useState(false);   // unlock toggle
   const [concWarnModal,   setConcWarnModal]   = useState(false);   // warning popup
   const fileRef = useRef();
@@ -2321,7 +2323,7 @@ export default function App() {
           {!hasData ? (
             <UploadPrompt fileRef={fileRef} dragOver={dragOver} setDragOver={setDragOver} handleFile={handleFile} uploadErr={uploadErr} loadDemo={loadDemo} personas={DEMO_PERSONAS} />
           ) : activeView === "aggregate" ? (
-            <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} yellowCutoff={yellowCutoff} setYellowCutoff={setYellowCutoff} redCutoff={redCutoff} setRedCutoff={setRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} />
+            <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} />
           ) : (
             <>
               {/* Header: system name + breadcrumb + dual gauges */}
@@ -3154,7 +3156,7 @@ function gradeBg(score) {
 // Profile colour palette for multi-profile comparison
 const PROF_COLORS = [C.steel, C.teal, C.fair, C.atRisk, "#8B6FAB"];
 
-function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, yellowCutoff, setYellowCutoff, redCutoff, setRedCutoff, exportProfile, activeProfile }) {
+function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, exportProfile, activeProfile }) {
   const [aggTab, setAggTab] = useState("overview");
   const [clientTab, setClientTab] = useState(0);
   const [histSysId, setHistSysId] = useState(SYSTEMS[0].id);
@@ -3204,8 +3206,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px" }}>
 
-        {/* Profile selector */}
-        <div style={{ marginBottom: 24 }}>
+        {/* Profile selector — only shown on Overview tab */}
+        {aggTab === "overview" && <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>
             {isComparing
               ? <><strong>{aggregateData.length}</strong> profiles selected. <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> is the baseline.</>
@@ -3231,7 +3233,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                 border: `1px solid ${C.border}`, cursor: "pointer", background: "transparent", color: C.textMuted }}>Clear</button>
             )}
           </div>
-        </div>
+        </div>}
 
         {aggTab === "overview" && (
           <div>
@@ -3359,7 +3361,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
         )}
 
         {aggTab === "histograms" && (
-          <HistogramsTab nonDemoClients={nonDemoClients} yellowCutoff={yellowCutoff} setYellowCutoff={setYellowCutoff} redCutoff={redCutoff} setRedCutoff={setRedCutoff} histSysId={histSysId} setHistSysId={setHistSysId} histProcName={histProcName} setHistProcName={setHistProcName} card={card} />
+          <HistogramsTab nonDemoClients={nonDemoClients} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} histSysId={histSysId} setHistSysId={setHistSysId} histProcName={histProcName} setHistProcName={setHistProcName} card={card} />
         )}
 
         {aggTab === "flowchart" && (
@@ -3375,141 +3377,196 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
   );
 }
 
-// ─── HistogramsTab ────────────────────────────────────────────────────────────
-function HistogramsTab({ nonDemoClients, yellowCutoff, setYellowCutoff, redCutoff, setRedCutoff, histSysId, setHistSysId, histProcName, setHistProcName, card }) {
-  const selSys = SYSTEMS.find(s => s.id === histSysId) || SYSTEMS[0];
-  const procs = Object.keys(selSys.processes);
-
-  // Ensure histProcName stays valid when system changes
-  const validProc = procs.includes(histProcName) ? histProcName : procs[0];
-
-  // System-level: collect process scores per client
-  const sysScores = nonDemoClients.flatMap(r =>
-    (r.systems.find(s => s.id === histSysId)?.procs ?? []).map(p => p.score).filter(x => x != null)
-  );
-
-  // Process-level: collect biomarker scores per client
-  const procScores = nonDemoClients.flatMap(r => {
-    const sys = r.systems.find(s => s.id === histSysId);
-    const proc = sys?.procs?.find(p => p.name === validProc);
-    return proc?.score != null ? [proc.score] : [];
-  });
-
-  function Histogram({ scores, title, subtitle, yellowCutoff, setYellowCutoff, redCutoff, setRedCutoff }) {
-    if (!scores.length) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>No data</div>;
-    const bins = Array.from({ length: 10 }, (_, i) => ({ lo: i * 10, hi: (i + 1) * 10, count: 0 }));
-    scores.forEach(s => { const i = Math.min(9, Math.floor(s / 10)); bins[i].count++; });
-    const maxCount = Math.max(...bins.map(b => b.count), 1);
-    const W = 480, H = 160, padL = 28, padB = 28, padT = 12, padR = 12;
-    const iW = W - padL - padR, iH = H - padT - padB;
-    const binW = iW / 10;
-    const x = val => padL + (val / 100) * iW;
-    const yBar = count => padT + iH - (count / maxCount) * iH;
-
-    return (
-      <div style={{ ...card, padding: 16, marginBottom: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 2 }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>{subtitle}</div>}
-        <div style={{ position: "relative" }}>
-          <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible", display: "block" }}>
-            {/* Colour bands */}
-            <rect x={padL} y={padT} width={(redCutoff / 100) * iW} height={iH} fill={`${C.critical}10`} />
-            <rect x={x(redCutoff)} y={padT} width={((yellowCutoff - redCutoff) / 100) * iW} height={iH} fill={`${C.fair}10`} />
-            <rect x={x(yellowCutoff)} y={padT} width={((100 - yellowCutoff) / 100) * iW} height={iH} fill={`${C.teal}10`} />
-            {/* Bars */}
-            {bins.map((b, i) => {
-              const bx = padL + i * binW + 1;
-              const by = yBar(b.count);
-              const bh = padT + iH - by;
-              const mid = b.lo + 5;
-              const col = mid < redCutoff ? C.critical : mid < yellowCutoff ? C.fair : C.teal;
-              return b.count > 0 ? <rect key={i} x={bx} y={by} width={binW - 2} height={bh} fill={`${col}80`} rx="2" /> : null;
-            })}
-            {/* Count labels */}
-            {bins.map((b, i) => b.count > 0 ? (
-              <text key={i} x={padL + i * binW + binW / 2} y={yBar(b.count) - 3} textAnchor="middle" fontSize="8" fill={C.textMuted}>{b.count}</text>
-            ) : null)}
-            {/* Y gridlines */}
-            {[0, 0.5, 1].map(f => {
-              const y = padT + iH * (1 - f);
-              return <g key={f}><line x1={padL} x2={W - padR} y1={y} y2={y} stroke={C.iceLight} strokeWidth="0.7" /><text x={padL - 4} y={y + 3} fontSize="7" fill={C.textFaint} textAnchor="end">{Math.round(f * maxCount)}</text></g>;
-            })}
-            {/* X axis labels */}
-            {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(v => (
-              <text key={v} x={x(v)} y={H - 4} textAnchor="middle" fontSize="8" fill={C.textFaint}>{v}</text>
-            ))}
-            {/* Cut-off lines */}
-            <line x1={x(yellowCutoff)} y1={padT} x2={x(yellowCutoff)} y2={padT + iH} stroke={C.fair} strokeWidth="1.5" strokeDasharray="4,3" />
-            <line x1={x(redCutoff)} y1={padT} x2={x(redCutoff)} y2={padT + iH} stroke={C.critical} strokeWidth="1.5" strokeDasharray="4,3" />
-            <text x={x(yellowCutoff) + 3} y={padT + 9} fontSize="8" fill={C.fair} fontWeight="700">Y {yellowCutoff}</text>
-            <text x={x(redCutoff) + 3} y={padT + 9} fontSize="8" fill={C.critical} fontWeight="700">R {redCutoff}</text>
-          </svg>
+// ─── HistogramsTab ─────────────────────────────────────────────────────────────
+function CutoffControl({ redCutoff, setRedCutoff, yellowCutoff, setYellowCutoff, onReset, defaultRed, defaultYellow }) {
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
+  return (
+    <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap", marginTop: 12 }}>
+      <div>
+        <div style={{ fontSize: 10, color: C.critical, fontWeight: 600, marginBottom: 4 }}>
+          Red: 0 – {redCutoff - 1}
         </div>
-        {/* Cut-off sliders */}
-        <div style={{ display: "flex", gap: 24, marginTop: 10 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, color: C.critical, fontWeight: 600, marginBottom: 3 }}>Red: 0 – {redCutoff - 1}</div>
-            <input type="range" min={0} max={yellowCutoff - 1} step={1} value={redCutoff}
-              onChange={e => setRedCutoff(Number(e.target.value))}
-              style={{ width: "100%", accentColor: C.critical, cursor: "pointer" }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, color: C.fair, fontWeight: 600, marginBottom: 3 }}>Yellow: {redCutoff} – {yellowCutoff - 1} · Green: {yellowCutoff}+</div>
-            <input type="range" min={redCutoff + 1} max={100} step={1} value={yellowCutoff}
-              onChange={e => setYellowCutoff(Number(e.target.value))}
-              style={{ width: "100%", accentColor: C.fair, cursor: "pointer" }} />
-          </div>
-        </div>
-        <div style={{ fontSize: 10, color: C.textFaint, marginTop: 6 }}>
-          n = {scores.length} scores · Red 0–{redCutoff - 1} · Yellow {redCutoff}–{yellowCutoff - 1} · Green {yellowCutoff}–100
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <input type="range" min={1} max={yellowCutoff - 1} step={1} value={redCutoff}
+            onInput={e => setRedCutoff(clamp(Number(e.target.value), 1, yellowCutoff - 1))}
+            onChange={e => setRedCutoff(clamp(Number(e.target.value), 1, yellowCutoff - 1))}
+            style={{ width: 140, accentColor: C.critical, cursor: "pointer" }} />
+          <input type="number" min={1} max={yellowCutoff - 1} value={redCutoff}
+            onChange={e => { const v = clamp(Number(e.target.value), 1, yellowCutoff - 1); if (!isNaN(v)) setRedCutoff(v); }}
+            style={{ width: 52, fontSize: 11, padding: "3px 6px", border: `1px solid ${C.border}`,
+              borderRadius: 5, textAlign: "center", fontFamily: T.mono, color: C.critical, fontWeight: 700 }} />
         </div>
       </div>
-    );
-  }
+      <div>
+        <div style={{ fontSize: 10, color: C.fair, fontWeight: 600, marginBottom: 4 }}>
+          Yellow: {redCutoff} – {yellowCutoff - 1} · Green: {yellowCutoff}+
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <input type="range" min={redCutoff + 1} max={100} step={1} value={yellowCutoff}
+            onInput={e => setYellowCutoff(clamp(Number(e.target.value), redCutoff + 1, 100))}
+            onChange={e => setYellowCutoff(clamp(Number(e.target.value), redCutoff + 1, 100))}
+            style={{ width: 140, accentColor: C.fair, cursor: "pointer" }} />
+          <input type="number" min={redCutoff + 1} max={100} value={yellowCutoff}
+            onChange={e => { const v = clamp(Number(e.target.value), redCutoff + 1, 100); if (!isNaN(v)) setYellowCutoff(v); }}
+            style={{ width: 52, fontSize: 11, padding: "3px 6px", border: `1px solid ${C.border}`,
+              borderRadius: 5, textAlign: "center", fontFamily: T.mono, color: C.fair, fontWeight: 700 }} />
+        </div>
+      </div>
+      {(redCutoff !== defaultRed || yellowCutoff !== defaultYellow) && (
+        <button onClick={onReset}
+          style={{ padding: "4px 10px", fontSize: 10, borderRadius: 5, cursor: "pointer",
+            border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint, alignSelf: "center" }}>
+          ↺ reset
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Histogram({ scores, title, redCutoff, yellowCutoff }) {
+  if (!scores.length) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic", padding: "12px 0" }}>No data for this selection.</div>;
+  const bins = Array.from({ length: 10 }, (_, i) => ({ lo: i * 10, hi: (i + 1) * 10, count: 0 }));
+  scores.forEach(s => { const i = Math.min(9, Math.floor(s / 10)); bins[i].count++; });
+  const maxCount = Math.max(...bins.map(b => b.count), 1);
+  const W = 500, H = 160, padL = 30, padB = 24, padT = 14, padR = 10;
+  const iW = W - padL - padR, iH = H - padT - padB;
+  const binW = iW / 10;
+  const x = val => padL + (val / 100) * iW;
+  const yBar = count => padT + iH - (count / maxCount) * iH;
+  return (
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.navy, marginBottom: 6 }}>{title}</div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", overflow: "visible" }}>
+        <rect x={padL} y={padT} width={(redCutoff / 100) * iW} height={iH} fill={`${C.critical}12`} />
+        <rect x={x(redCutoff)} y={padT} width={((yellowCutoff - redCutoff) / 100) * iW} height={iH} fill={`${C.fair}12`} />
+        <rect x={x(yellowCutoff)} y={padT} width={((100 - yellowCutoff) / 100) * iW} height={iH} fill={`${C.teal}12`} />
+        {bins.map((b, i) => {
+          const mid = b.lo + 5;
+          const col = mid < redCutoff ? C.critical : mid < yellowCutoff ? C.fair : C.teal;
+          const bh = padT + iH - yBar(b.count);
+          return b.count > 0 ? (
+            <g key={i}>
+              <rect x={padL + i * binW + 1} y={yBar(b.count)} width={binW - 2} height={bh} fill={`${col}90`} rx="2" />
+              <text x={padL + i * binW + binW / 2} y={yBar(b.count) - 4} textAnchor="middle" fontSize="9" fill={C.textMuted}>{b.count}</text>
+            </g>
+          ) : null;
+        })}
+        {[0, 0.5, 1].map(f => {
+          const y = padT + iH * (1 - f);
+          return <g key={f}>
+            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke={C.iceLight} strokeWidth="0.7" />
+            <text x={padL - 4} y={y + 3} fontSize="8" fill={C.textFaint} textAnchor="end">{Math.round(f * maxCount)}</text>
+          </g>;
+        })}
+        {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(v => (
+          <text key={v} x={x(v)} y={H - 4} textAnchor="middle" fontSize="8" fill={C.textFaint}>{v}</text>
+        ))}
+        <line x1={x(redCutoff)}    y1={padT} x2={x(redCutoff)}    y2={padT + iH} stroke={C.critical} strokeWidth="1.5" strokeDasharray="4,3" />
+        <line x1={x(yellowCutoff)} y1={padT} x2={x(yellowCutoff)} y2={padT + iH} stroke={C.fair}     strokeWidth="1.5" strokeDasharray="4,3" />
+      </svg>
+      {/* % breakdown */}
+      {(() => {
+        const n = scores.length;
+        const nRed    = scores.filter(s => s < redCutoff).length;
+        const nYellow = scores.filter(s => s >= redCutoff && s < yellowCutoff).length;
+        const nGreen  = scores.filter(s => s >= yellowCutoff).length;
+        const pct = v => n > 0 ? (v / n * 100).toFixed(0) : 0;
+        return (
+          <div style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: C.critical, display: "inline-block" }} />
+              <span style={{ fontSize: 11, color: C.critical, fontWeight: 700 }}>{pct(nRed)}%</span>
+              <span style={{ fontSize: 10, color: C.textFaint }}>Red ({nRed} of {n})</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: C.fair, display: "inline-block" }} />
+              <span style={{ fontSize: 11, color: C.fair, fontWeight: 700 }}>{pct(nYellow)}%</span>
+              <span style={{ fontSize: 10, color: C.textFaint }}>Yellow ({nYellow} of {n})</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: C.teal, display: "inline-block" }} />
+              <span style={{ fontSize: 11, color: C.teal, fontWeight: 700 }}>{pct(nGreen)}%</span>
+              <span style={{ fontSize: 10, color: C.textFaint }}>Green ({nGreen} of {n})</span>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, histSysId, setHistSysId, histProcName, setHistProcName, card }) {
+  const DEFAULT_SYS_RED = 70, DEFAULT_SYS_YELLOW = 91;
+  const DEFAULT_PROC_RED = 70, DEFAULT_PROC_YELLOW = 91;
+  const selSys = SYSTEMS.find(s => s.id === histSysId) || SYSTEMS[0];
+  const procs = Object.keys(selSys.processes);
+  const validProc = procs.includes(histProcName) ? histProcName : procs[0];
+
+  // One system score per client
+  const sysScores = nonDemoClients
+    .map(r => r.systems.find(s => s.id === histSysId)?.score)
+    .filter(x => x != null);
+
+  // One process score per client for the selected process
+  const procScores = nonDemoClients
+    .map(r => r.systems.find(s => s.id === histSysId)?.procs?.find(p => p.name === validProc)?.score)
+    .filter(x => x != null);
 
   if (!nonDemoClients.length) return (
     <div style={{ fontSize: 13, color: C.textMuted, fontStyle: "italic" }}>Upload non-demo client data to view histograms.</div>
   );
 
   return (
-    <div>
-      <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>
-        Histograms show score distributions across non-demo clients. Drag the cut-off sliders to explore different red/yellow thresholds.
+    <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+      <div style={{ fontSize: 11, color: C.textMuted }}>
+        Each bar shows the number of clients with a score in that 10-point range. Adjust cut-offs independently for system and process scores.
       </div>
-      {/* System selector */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {SYSTEMS.map(s => (
-          <button key={s.id} onClick={() => { setHistSysId(s.id); setHistProcName(Object.keys(s.processes)[0]); }}
-            style={{ padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-              border: `1px solid ${histSysId === s.id ? C.steel : C.border}`,
-              background: histSysId === s.id ? `${C.steel}18` : "transparent",
-              color: histSysId === s.id ? C.steel : C.textMuted, fontWeight: histSysId === s.id ? 700 : 400 }}>
-            {s.name}
-          </button>
-        ))}
+
+      {/* System histograms */}
+      <div style={{ ...card, padding: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>System Scores</div>
+        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>One score per client per system.</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+          {SYSTEMS.map(s => (
+            <button key={s.id} onClick={() => { setHistSysId(s.id); setHistProcName(Object.keys(s.processes)[0]); }}
+              style={{ padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+                border: `1px solid ${histSysId === s.id ? C.steel : C.border}`,
+                background: histSysId === s.id ? `${C.steel}18` : "transparent",
+                color: histSysId === s.id ? C.steel : C.textMuted, fontWeight: histSysId === s.id ? 700 : 400 }}>
+              {s.name}
+            </button>
+          ))}
+        </div>
+        <Histogram scores={sysScores} title={selSys.name} redCutoff={sysRedCutoff} yellowCutoff={sysYellowCutoff} />
+        <CutoffControl
+          redCutoff={sysRedCutoff} setRedCutoff={setSysRedCutoff}
+          yellowCutoff={sysYellowCutoff} setYellowCutoff={setSysYellowCutoff}
+          defaultRed={DEFAULT_SYS_RED} defaultYellow={DEFAULT_SYS_YELLOW}
+          onReset={() => { setSysRedCutoff(DEFAULT_SYS_RED); setSysYellowCutoff(DEFAULT_SYS_YELLOW); }} />
       </div>
-      {/* System histogram */}
-      <Histogram scores={sysScores} title={`${selSys.name} — Process Score Distribution`}
-        subtitle={`All process scores from ${nonDemoClients.length} clients`}
-        yellowCutoff={yellowCutoff} setYellowCutoff={setYellowCutoff}
-        redCutoff={redCutoff} setRedCutoff={setRedCutoff} />
-      {/* Process selector */}
-      <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecond, marginBottom: 10 }}>Process breakdown</div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
-        {procs.map(p => (
-          <button key={p} onClick={() => setHistProcName(p)}
-            style={{ padding: "4px 10px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-              border: `1px solid ${validProc === p ? C.teal : C.border}`,
-              background: validProc === p ? `${C.teal}18` : "transparent",
-              color: validProc === p ? C.teal : C.textMuted, fontWeight: validProc === p ? 700 : 400 }}>
-            {p}
-          </button>
-        ))}
+
+      {/* Process histograms */}
+      <div style={{ ...card, padding: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Process Scores</div>
+        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>One score per client per process.</div>
+        <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
+          {procs.map(p => (
+            <button key={p} onClick={() => setHistProcName(p)}
+              style={{ padding: "4px 10px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+                border: `1px solid ${validProc === p ? C.teal : C.border}`,
+                background: validProc === p ? `${C.teal}18` : "transparent",
+                color: validProc === p ? C.teal : C.textMuted, fontWeight: validProc === p ? 700 : 400 }}>
+              {p}
+            </button>
+          ))}
+        </div>
+        <Histogram scores={procScores} title={validProc} redCutoff={procRedCutoff} yellowCutoff={procYellowCutoff} />
+        <CutoffControl
+          redCutoff={procRedCutoff} setRedCutoff={setProcRedCutoff}
+          yellowCutoff={procYellowCutoff} setYellowCutoff={setProcYellowCutoff}
+          defaultRed={DEFAULT_PROC_RED} defaultYellow={DEFAULT_PROC_YELLOW}
+          onReset={() => { setProcRedCutoff(DEFAULT_PROC_RED); setProcYellowCutoff(DEFAULT_PROC_YELLOW); }} />
       </div>
-      <Histogram scores={procScores} title={`${validProc} — Score Distribution`}
-        subtitle={`Process scores across ${nonDemoClients.length} clients`}
-        yellowCutoff={yellowCutoff} setYellowCutoff={setYellowCutoff}
-        redCutoff={redCutoff} setRedCutoff={setRedCutoff} />
     </div>
   );
 }
@@ -3520,41 +3577,81 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
   const procs = Object.entries(sys.processes);
   const DEFAULT_BIO  = { weight: 1, color: "red", level: "high" };
   const DEFAULT_PROC = { weight: 1, color: "red" };
-
-  // Deduplicate biomarkers across processes
   const allBiomarkers = [...new Set(procs.flatMap(([, bms]) => bms))];
 
-  // Layout constants
-  const COL1_X = 20,  COL1_W = 140;  // System
-  const COL2_X = 220, COL2_W = 150;  // Processes
-  const COL3_X = 430, COL3_W = 140;  // Biomarkers
-  const ROW_H  = 44,  PAD_Y  = 20;
-  const procGap = 14, bioGap = 10;
+  // Layout
+  const COL1_X = 16,  COL1_W = 150;
+  const COL2_X = 226, COL2_W = 170;
+  const COL3_X = 456, COL3_W = 160;
+  const PAD_V  = 24;
+  const PROC_GAP = 12, BIO_GAP = 8;
+  const PROC_H = 40,  BIO_H = 36;  // base row height — will expand for badges
+  const SYS_H  = 56;
 
-  const nProcs = procs.length;
-  const nBios  = allBiomarkers.length;
-
-  const procH  = nProcs  * ROW_H + (nProcs  - 1) * procGap;
-  const bioH   = nBios   * ROW_H + (nBios   - 1) * bioGap;
-  const sysH   = 52;
-
-  const totalH = Math.max(procH, bioH, sysH) + PAD_Y * 2;
-  const totalW = COL3_X + COL3_W + COL1_X;
-
-  // Vertical centre of a proc row
-  const procY  = (i) => PAD_Y + (totalH - PAD_Y*2 - procH) / 2 + i * (ROW_H + procGap) + ROW_H / 2;
-  const bioY   = (i) => PAD_Y + (totalH - PAD_Y*2 - bioH)  / 2 + i * (ROW_H + bioGap)  + ROW_H / 2;
-  const sysY   = totalH / 2;
-
-  const pillStyle = col => ({
-    fontSize: 8, padding: "1px 4px", borderRadius: 3,
-    background: `${col}22`, color: col, border: `1px solid ${col}44`, fontWeight: 700,
+  // Compute actual heights per node (taller when badges shown)
+  const procHeights = procs.map(([procName]) => {
+    const pe = procWeights[procName] ?? DEFAULT_PROC;
+    const isModified = (pe.weight ?? 1) !== 1 || (pe.color ?? "red") !== "red";
+    return isModified ? 58 : PROC_H;
   });
+  const bioHeights = allBiomarkers.map(bmName => {
+    const be = bioWeights[bmName] ?? DEFAULT_BIO;
+    const isModified = (be.weight ?? 1) !== 1 || (be.color ?? "red") !== "red" || (be.level ?? "high") !== "high";
+    return isModified ? 52 : BIO_H;
+  });
+
+  // Y centre of each node
+  const procCentres = procs.map((_, i) => {
+    let y = PAD_V;
+    for (let j = 0; j < i; j++) y += procHeights[j] + PROC_GAP;
+    return y + procHeights[i] / 2;
+  });
+  const bioCentres = allBiomarkers.map((_, i) => {
+    let y = PAD_V;
+    for (let j = 0; j < i; j++) y += bioHeights[j] + BIO_GAP;
+    return y + bioHeights[i] / 2;
+  });
+
+  const totalProcH = procHeights.reduce((s, h) => s + h, 0) + (procs.length - 1) * PROC_GAP;
+  const totalBioH  = bioHeights.reduce((s, h)  => s + h, 0)  + (allBiomarkers.length - 1) * BIO_GAP;
+  const totalH = Math.max(totalProcH, totalBioH, SYS_H) + PAD_V * 2;
+  const totalW = COL3_X + COL3_W + COL1_X;
+  const sysY = totalH / 2;
+
+  // Offset proc/bio centres to be vertically centred in totalH
+  const procOffset = (totalH - totalProcH - PAD_V * 2) / 2;
+  const bioOffset  = (totalH - totalBioH  - PAD_V * 2) / 2;
+  const pCY = i => procCentres[i] + procOffset;
+  const bCY = i => bioCentres[i]  + bioOffset;
+
+  // Simple text wrapper for SVG (splits on spaces to fit width)
+  function wrapText(text, maxChars) {
+    const words = text.split(" ");
+    const lines = [];
+    let cur = "";
+    for (const w of words) {
+      if ((cur + " " + w).trim().length > maxChars && cur) {
+        lines.push(cur.trim());
+        cur = w;
+      } else {
+        cur = (cur + " " + w).trim();
+      }
+    }
+    if (cur) lines.push(cur.trim());
+    return lines;
+  }
+
+  const badge = (text, col, x, y) => (
+    <g key={text}>
+      <rect x={x} y={y - 7} width={text.length * 5.5 + 8} height={13} rx="3"
+        fill={`${col}22`} stroke={`${col}55`} strokeWidth="0.8" />
+      <text x={x + 4} y={y + 2} fontSize="8" fill={col} fontWeight="700" fontFamily={T.body}>{text}</text>
+    </g>
+  );
 
   return (
     <div>
-      {/* System selector */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
         {SYSTEMS.map(s => (
           <button key={s.id} onClick={() => setFlowSysId(s.id)}
             style={{ padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
@@ -3567,78 +3664,96 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
       </div>
 
       <div style={{ overflowX: "auto" }}>
-        <svg width={totalW} height={totalH} style={{ fontFamily: T.body, display: "block" }}>
+        <svg width={totalW} height={totalH} style={{ display: "block", fontFamily: T.body, overflow: "visible" }}>
 
-          {/* ── Connector lines ── */}
-          {/* System → each process */}
-          {procs.map(([procName], pi) => {
+          {/* System → Process connectors */}
+          {procs.map(([, ], pi) => {
             const x1 = COL1_X + COL1_W, y1 = sysY;
-            const x2 = COL2_X, y2 = procY(pi);
+            const x2 = COL2_X,           y2 = pCY(pi);
             const mx = (x1 + x2) / 2;
-            return <path key={`sp-${pi}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
-              fill="none" stroke={C.steel} strokeWidth="1" opacity="0.5" />;
+            return <path key={`sp${pi}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
+              fill="none" stroke={C.steel} strokeWidth="1.2" opacity="0.4" />;
           })}
-          {/* Each process → its biomarkers */}
-          {procs.map(([procName, bms], pi) => bms.map(bmName => {
+
+          {/* Process → Biomarker connectors */}
+          {procs.map(([, bms], pi) => bms.map(bmName => {
             const bi = allBiomarkers.indexOf(bmName);
             if (bi === -1) return null;
-            const x1 = COL2_X + COL2_W, y1 = procY(pi);
-            const x2 = COL3_X, y2 = bioY(bi);
+            const x1 = COL2_X + COL2_W, y1 = pCY(pi);
+            const x2 = COL3_X,           y2 = bCY(bi);
             const mx = (x1 + x2) / 2;
-            return <path key={`pb-${pi}-${bmName}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
+            return <path key={`pb${pi}${bmName}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
               fill="none" stroke={C.border} strokeWidth="1" />;
           }))}
 
-          {/* ── System node ── */}
-          <g>
-            <rect x={COL1_X} y={sysY - sysH/2} width={COL1_W} height={sysH} rx="8"
-              fill={`${C.navy}14`} stroke={C.navy} strokeWidth="1.5" />
-            <text x={COL1_X + COL1_W/2} y={sysY - 6} textAnchor="middle"
-              fontSize="12" fontWeight="700" fill={C.navy} fontFamily={T.display}>{sys.name}</text>
-            <text x={COL1_X + COL1_W/2} y={sysY + 10} textAnchor="middle"
-              fontSize="9" fill={C.textMuted}>Health System</text>
-          </g>
+          {/* System node */}
+          <rect x={COL1_X} y={sysY - SYS_H/2} width={COL1_W} height={SYS_H} rx="8"
+            fill={`${C.navy}14`} stroke={C.navy} strokeWidth="1.5" />
+          {wrapText(sys.name, 16).map((line, li, arr) => (
+            <text key={li} x={COL1_X + COL1_W/2} y={sysY - (arr.length - 1) * 7 + li * 14 - 5}
+              textAnchor="middle" fontSize="12" fontWeight="700" fill={C.navy} fontFamily={T.body}>{line}</text>
+          ))}
+          <text x={COL1_X + COL1_W/2} y={sysY + SYS_H/2 - 10}
+            textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Health System</text>
 
-          {/* ── Process nodes ── */}
+          {/* Process nodes */}
           {procs.map(([procName], pi) => {
             const pe = procWeights[procName] ?? DEFAULT_PROC;
-            const isModified = pe.weight !== 1 || pe.color !== "red";
-            const cy = procY(pi);
+            const w = pe.weight ?? 1;
+            const col = pe.color ?? "red";
+            const isModified = w !== 1 || col !== "red";
+            const cy = pCY(pi);
+            const h = procHeights[pi];
             const bCol = isModified ? C.teal : C.steel;
+            const nameLines = wrapText(procName, 20);
             return (
               <g key={procName}>
-                <rect x={COL2_X} y={cy - ROW_H/2 + 2} width={COL2_W} height={ROW_H - 4} rx="7"
+                <rect x={COL2_X} y={cy - h/2} width={COL2_W} height={h} rx="7"
                   fill={`${C.steel}10`} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
-                <text x={COL2_X + 8} y={cy - 3} fontSize="10" fontWeight="600" fill={C.navy}
-                  dominantBaseline="middle">{procName}</text>
-                {isModified ? (
-                  <text x={COL2_X + 8} y={cy + 11} fontSize="8" fill={C.teal}>
-                    {pe.weight !== 1 ? `×${pe.weight}` : ""}{pe.color !== "red" ? ` ${pe.color}` : ""}
-                  </text>
-                ) : (
-                  <text x={COL2_X + 8} y={cy + 11} fontSize="8" fill={C.textFaint}>default</text>
-                )}
+                {nameLines.map((line, li) => (
+                  <text key={li} x={COL2_X + 10} y={cy - (nameLines.length - 1) * 6 + li * 13 - (isModified ? 8 : 0)}
+                    fontSize="10" fontWeight="600" fill={C.navy} fontFamily={T.body}>{line}</text>
+                ))}
+                {isModified && (() => {
+                  const badges = [];
+                  let bx = COL2_X + 10;
+                  const by = cy + h/2 - 16;
+                  if (w !== 1)        { badges.push(badge(`×${w}`, C.teal, bx, by)); bx += `×${w}`.length * 5.5 + 16; }
+                  if (col !== "red") { badges.push(badge(col, C.fair, bx, by)); }
+                  return badges;
+                })()}
               </g>
             );
           })}
 
-          {/* ── Biomarker nodes ── */}
+          {/* Biomarker nodes */}
           {allBiomarkers.map((bmName, bi) => {
             const be = bioWeights[bmName] ?? DEFAULT_BIO;
-            const isModified = be.weight !== 1 || be.color !== "red" || be.level !== "high";
-            const cy = bioY(bi);
+            const w = be.weight ?? 1;
+            const col = be.color ?? "red";
+            const lvl = be.level ?? "high";
+            const isModified = w !== 1 || col !== "red" || lvl !== "high";
+            const cy = bCY(bi);
+            const h = bioHeights[bi];
             const bCol = isModified ? C.teal : C.border;
+            const nameLines = wrapText(bmName, 20);
             return (
               <g key={bmName}>
-                <rect x={COL3_X} y={cy - ROW_H/2 + 2} width={COL3_W} height={ROW_H - 4} rx="6"
+                <rect x={COL3_X} y={cy - h/2} width={COL3_W} height={h} rx="6"
                   fill={C.surface} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
-                <text x={COL3_X + 7} y={cy - 3} fontSize="9" fill={C.textSecond}
-                  dominantBaseline="middle">{bmName}</text>
-                {isModified && (
-                  <text x={COL3_X + 7} y={cy + 10} fontSize="8" fill={C.teal}>
-                    {be.weight !== 1 ? `×${be.weight} ` : ""}{be.color !== "red" ? `${be.color} ` : ""}{be.level !== "high" ? be.level : ""}
-                  </text>
-                )}
+                {nameLines.map((line, li) => (
+                  <text key={li} x={COL3_X + 8} y={cy - (nameLines.length - 1) * 6 + li * 12 - (isModified ? 6 : 0)}
+                    fontSize="9" fill={C.textSecond} fontFamily={T.body}>{line}</text>
+                ))}
+                {isModified && (() => {
+                  const badges = [];
+                  let bx = COL3_X + 8;
+                  const by = cy + h/2 - 14;
+                  if (w !== 1)         { badges.push(badge(`×${w}`, C.teal, bx, by)); bx += `×${w}`.length * 5.5 + 16; }
+                  if (col !== "red")  { badges.push(badge(col, C.fair, bx, by));       bx += col.length * 5.5 + 16; }
+                  if (lvl !== "high") { badges.push(badge(lvl, C.atRisk, bx, by)); }
+                  return badges;
+                })()}
               </g>
             );
           })}
@@ -3646,12 +3761,11 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
         </svg>
       </div>
       <div style={{ fontSize: 10, color: C.textFaint, marginTop: 12 }}>
-        Teal border = non-default weight settings · Shared biomarkers (appearing in multiple processes) are shown once with multiple connecting lines.
+        Teal border = non-default weight settings · Shared biomarkers appear once with multiple connecting lines.
       </div>
     </div>
   );
 }
-
 
 // ─── ExportTab ────────────────────────────────────────────────────────────────
 function ExportTab({ profiles, activeProfile, exportProfile, card }) {
