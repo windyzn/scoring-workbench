@@ -3684,29 +3684,28 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
   const DEFAULT_BIO  = { weight: 1, color: "red", level: "high" };
   const DEFAULT_PROC = { weight: 1, color: "red" };
   const allBiomarkers = [...new Set(procs.flatMap(([, bms]) => bms))];
+  const svgRef = useRef(null);
 
-  // Layout
-  const COL1_X = 16,  COL1_W = 150;
-  const COL2_X = 226, COL2_W = 170;
-  const COL3_X = 456, COL3_W = 160;
-  const PAD_V  = 24;
-  const PROC_GAP = 12, BIO_GAP = 8;
-  const PROC_H = 40,  BIO_H = 36;  // base row height — will expand for badges
-  const SYS_H  = 56;
+  // Layout — wider columns and gaps for readability
+  const COL1_X = 24,  COL1_W = 170;
+  const COL2_X = 290, COL2_W = 190;
+  const COL3_X = 580, COL3_W = 190;
+  const PAD_V  = 28;
+  const PROC_GAP = 14, BIO_GAP = 10;
+  const PROC_H = 42, BIO_H = 38;
+  const SYS_H  = 60;
 
-  // Compute actual heights per node (taller when badges shown)
   const procHeights = procs.map(([procName]) => {
     const pe = procWeights[procName] ?? DEFAULT_PROC;
     const isModified = (pe.weight ?? 1) !== 1 || (pe.color ?? "red") !== "red";
-    return isModified ? 58 : PROC_H;
+    return isModified ? 60 : PROC_H;
   });
   const bioHeights = allBiomarkers.map(bmName => {
     const be = bioWeights[bmName] ?? DEFAULT_BIO;
     const isModified = (be.weight ?? 1) !== 1 || (be.color ?? "red") !== "red" || (be.level ?? "high") !== "high";
-    return isModified ? 52 : BIO_H;
+    return isModified ? 54 : BIO_H;
   });
 
-  // Y centre of each node
   const procCentres = procs.map((_, i) => {
     let y = PAD_V;
     for (let j = 0; j < i; j++) y += procHeights[j] + PROC_GAP;
@@ -3719,29 +3718,23 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
   });
 
   const totalProcH = procHeights.reduce((s, h) => s + h, 0) + (procs.length - 1) * PROC_GAP;
-  const totalBioH  = bioHeights.reduce((s, h)  => s + h, 0)  + (allBiomarkers.length - 1) * BIO_GAP;
+  const totalBioH  = bioHeights.reduce((s, h) => s + h, 0) + (allBiomarkers.length - 1) * BIO_GAP;
   const totalH = Math.max(totalProcH, totalBioH, SYS_H) + PAD_V * 2;
   const totalW = COL3_X + COL3_W + COL1_X;
   const sysY = totalH / 2;
 
-  // Offset proc/bio centres to be vertically centred in totalH
   const procOffset = (totalH - totalProcH - PAD_V * 2) / 2;
   const bioOffset  = (totalH - totalBioH  - PAD_V * 2) / 2;
   const pCY = i => procCentres[i] + procOffset;
   const bCY = i => bioCentres[i]  + bioOffset;
 
-  // Simple text wrapper for SVG (splits on spaces to fit width)
   function wrapText(text, maxChars) {
     const words = text.split(" ");
     const lines = [];
     let cur = "";
     for (const w of words) {
-      if ((cur + " " + w).trim().length > maxChars && cur) {
-        lines.push(cur.trim());
-        cur = w;
-      } else {
-        cur = (cur + " " + w).trim();
-      }
+      if ((cur + " " + w).trim().length > maxChars && cur) { lines.push(cur.trim()); cur = w; }
+      else cur = (cur + " " + w).trim();
     }
     if (cur) lines.push(cur.trim());
     return lines;
@@ -3755,22 +3748,83 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
     </g>
   );
 
+  // ── Download as PNG ──────────────────────────────────────────────────────────
+  const downloadPng = () => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const serializer = new XMLSerializer();
+    const svgStr = serializer.serializeToString(svg);
+    const canvas = document.createElement("canvas");
+    const scale = 2;
+    canvas.width = totalW * scale;
+    canvas.height = totalH * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#F6FCFF";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const img = new Image();
+    const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      const a = document.createElement("a");
+      a.download = `flowchart-${sys.name.replace(/\s+/g, "-").toLowerCase()}.png`;
+      a.href = canvas.toDataURL("image/png");
+      a.click();
+    };
+    img.src = url;
+  };
+
+  // ── Download as Mermaid ──────────────────────────────────────────────────────
+  const downloadMermaid = () => {
+    const slug = s => s.replace(/[^a-zA-Z0-9]/g, "_");
+    let md = "```mermaid\ngraph LR\n";
+    md += `  ${slug(sys.name)}["${sys.name}"]\n`;
+    procs.forEach(([procName, bms]) => {
+      md += `  ${slug(sys.name)} --> ${slug(procName)}["${procName}"]\n`;
+      bms.forEach(bm => {
+        md += `  ${slug(procName)} --> ${slug(bm)}["${bm}"]\n`;
+      });
+    });
+    md += "```\n";
+    const a = document.createElement("a");
+    a.download = `flowchart-${sys.name.replace(/\s+/g, "-").toLowerCase()}.md`;
+    a.href = "data:text/markdown;charset=utf-8," + encodeURIComponent(md);
+    a.click();
+  };
+
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
-        {SYSTEMS.map(s => (
-          <button key={s.id} onClick={() => setFlowSysId(s.id)}
+      {/* System selector + download buttons */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {SYSTEMS.map(s => (
+            <button key={s.id} onClick={() => setFlowSysId(s.id)}
+              style={{ padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+                border: `1px solid ${flowSysId === s.id ? C.steel : C.border}`,
+                background: flowSysId === s.id ? `${C.steel}18` : "transparent",
+                color: flowSysId === s.id ? C.steel : C.textMuted, fontWeight: flowSysId === s.id ? 700 : 400 }}>
+              {s.name}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={downloadPng}
             style={{ padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-              border: `1px solid ${flowSysId === s.id ? C.steel : C.border}`,
-              background: flowSysId === s.id ? `${C.steel}18` : "transparent",
-              color: flowSysId === s.id ? C.steel : C.textMuted, fontWeight: flowSysId === s.id ? 700 : 400 }}>
-            {s.name}
+              border: `1px solid ${C.teal}66`, background: "transparent", color: C.teal }}>
+            ⬇ PNG
           </button>
-        ))}
+          <button onClick={downloadMermaid}
+            style={{ padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+              border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted }}>
+            ⬇ Mermaid
+          </button>
+        </div>
       </div>
 
       <div style={{ overflowX: "auto" }}>
-        <svg width={totalW} height={totalH} style={{ display: "block", fontFamily: T.body, overflow: "visible" }}>
+        <svg ref={svgRef} width={totalW} height={totalH} style={{ display: "block", fontFamily: T.body, overflow: "visible" }}
+          xmlns="http://www.w3.org/2000/svg">
 
           {/* System → Process connectors */}
           {procs.map(([, ], pi) => {
@@ -3795,7 +3849,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
           {/* System node */}
           <rect x={COL1_X} y={sysY - SYS_H/2} width={COL1_W} height={SYS_H} rx="8"
             fill={`${C.navy}14`} stroke={C.navy} strokeWidth="1.5" />
-          {wrapText(sys.name, 16).map((line, li, arr) => (
+          {wrapText(sys.name, 18).map((line, li, arr) => (
             <text key={li} x={COL1_X + COL1_W/2} y={sysY - (arr.length - 1) * 7 + li * 14 - 5}
               textAnchor="middle" fontSize="12" fontWeight="700" fill={C.navy} fontFamily={T.body}>{line}</text>
           ))}
@@ -3811,20 +3865,20 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
             const cy = pCY(pi);
             const h = procHeights[pi];
             const bCol = isModified ? C.teal : C.steel;
-            const nameLines = wrapText(procName, 20);
+            const nameLines = wrapText(procName, 22);
             return (
               <g key={procName}>
                 <rect x={COL2_X} y={cy - h/2} width={COL2_W} height={h} rx="7"
                   fill={`${C.steel}10`} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
                 {nameLines.map((line, li) => (
-                  <text key={li} x={COL2_X + 10} y={cy - (nameLines.length - 1) * 6 + li * 13 - (isModified ? 8 : 0)}
+                  <text key={li} x={COL2_X + 12} y={cy - (nameLines.length - 1) * 6 + li * 13 - (isModified ? 8 : 0)}
                     fontSize="10" fontWeight="600" fill={C.navy} fontFamily={T.body}>{line}</text>
                 ))}
                 {isModified && (() => {
                   const badges = [];
-                  let bx = COL2_X + 10;
+                  let bx = COL2_X + 12;
                   const by = cy + h/2 - 16;
-                  if (w !== 1)        { badges.push(badge(`×${w}`, C.teal, bx, by)); bx += `×${w}`.length * 5.5 + 16; }
+                  if (w !== 1)       { badges.push(badge(`x${w}`, C.teal, bx, by)); bx += String(w).length * 5.5 + 20; }
                   if (col !== "red") { badges.push(badge(col, C.fair, bx, by)); }
                   return badges;
                 })()}
@@ -3842,20 +3896,20 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
             const cy = bCY(bi);
             const h = bioHeights[bi];
             const bCol = isModified ? C.teal : C.border;
-            const nameLines = wrapText(bmName, 20);
+            const nameLines = wrapText(bmName, 22);
             return (
               <g key={bmName}>
                 <rect x={COL3_X} y={cy - h/2} width={COL3_W} height={h} rx="6"
                   fill={C.surface} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
                 {nameLines.map((line, li) => (
-                  <text key={li} x={COL3_X + 8} y={cy - (nameLines.length - 1) * 6 + li * 12 - (isModified ? 6 : 0)}
+                  <text key={li} x={COL3_X + 10} y={cy - (nameLines.length - 1) * 6 + li * 12 - (isModified ? 6 : 0)}
                     fontSize="9" fill={C.textSecond} fontFamily={T.body}>{line}</text>
                 ))}
                 {isModified && (() => {
                   const badges = [];
-                  let bx = COL3_X + 8;
+                  let bx = COL3_X + 10;
                   const by = cy + h/2 - 14;
-                  if (w !== 1)         { badges.push(badge(`×${w}`, C.teal, bx, by)); bx += `×${w}`.length * 5.5 + 16; }
+                  if (w !== 1)         { badges.push(badge(`x${w}`, C.teal, bx, by)); bx += String(w).length * 5.5 + 20; }
                   if (col !== "red")  { badges.push(badge(col, C.fair, bx, by));       bx += col.length * 5.5 + 16; }
                   if (lvl !== "high") { badges.push(badge(lvl, C.atRisk, bx, by)); }
                   return badges;
