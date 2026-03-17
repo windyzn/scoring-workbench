@@ -1578,15 +1578,11 @@ export default function App() {
             const missing = required.filter(r => !cols.some(c => norm(c) === r));
             if (missing.length) {
               const friendly = { myid: "my_id", measurename: "measure_name", labconcentration: "lab_concentration", lowerreferencerange: "lower_reference_range", upperreferencerange: "upper_reference_range", isreported: "is_reported" };
-              throw new Error(`Missing required columns: ${missing.map(m => friendly[m]).join(", ")}.
-
-Expected columns: my_id, barcode, test_id, measure_name, lab_concentration, lower_reference_range, upper_reference_range, is_reported`);
+              throw new Error("Missing required columns: " + missing.map(m => friendly[m]).join(", ") + ". Expected columns: my_id, barcode, test_id, measure_name, lab_concentration, lower_reference_range, upper_reference_range, is_reported");
             }
           }
           const d = buildClients(rows);
-          if (!Object.keys(d).length) throw new Error("No scoreable rows found after filtering.
-
-Make sure is_reported = True for at least some rows, and that lab_concentration values are numeric (not BLQ/NR/ND).");
+          if (!Object.keys(d).length) throw new Error("No scoreable rows found. Make sure is_reported = True for at least some rows and that lab_concentration is numeric (not BLQ/NR/ND).");
           setClients(d);
           setDemoLoaded(false);
           setClientId(Object.keys(d)[0]);
@@ -2406,6 +2402,16 @@ Make sure is_reported = True for at least some rows, and that lab_concentration 
 }
 
 // ─── Upload ───────────────────────────────────────────────────────────────────
+function SpinnerDots() {
+  const [frame, setFrame] = React.useState(0);
+  React.useEffect(() => {
+    const t = setInterval(() => setFrame(f => (f + 1) % 8), 120);
+    return () => clearInterval(t);
+  }, []);
+  const chars = ["◐","◓","◑","◒","◐","◓","◑","◒"];
+  return <span style={{ fontSize: 20, color: C.teal }}>{chars[frame]}</span>;
+}
+
 function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, isUploading, loadDemo, personas }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 24 }}>
@@ -2422,10 +2428,8 @@ function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, i
             background: isUploading ? `${C.teal}08` : dragOver ? `${C.teal}0A` : C.white, transition: "all 0.2s", width: "100%" }}>
           {isUploading ? (
             <>
-              <div style={{ fontSize: 22, color: C.teal, marginBottom: 8, animation: "spin 1s linear infinite",
-                display: "inline-block" }}>⟳</div>
-              <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-              <div style={{ fontSize: 13, color: C.teal, fontWeight: 600 }}>Processing data…</div>
+              <SpinnerDots />
+              <div style={{ fontSize: 13, color: C.teal, fontWeight: 600, marginTop: 8 }}>Processing data…</div>
               <div style={{ fontSize: 11, color: C.textFaint, marginTop: 4 }}>Parsing and scoring, please wait</div>
             </>
           ) : (
