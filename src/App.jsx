@@ -1392,7 +1392,7 @@ export default function App() {
       "client-tab-second",   // 14 switch to tutorial profile tab
       "client-scores-table", // 15 score deltas
       "agg-tab-histograms",  // 16 click histograms tab
-      "client-scores-table", // 17 reading histograms (spotlight system scores)
+      "first-sys-histogram", // 17 reading histograms (spotlight system scores)
       "agg-tab-flowchart",   // 18 click flowchart tab
       null,                  // 19 reading flowchart
       "agg-tab-export",      // 20 click export tab
@@ -2046,16 +2046,16 @@ export default function App() {
           // 16
           { title: "Step 17 of 26 · Histograms",
             body: "Click the Histograms tab to see score distributions across all clients.",
-            cta: "👆 Click the Histograms tab — or click Next",
+            cta: "👆 Click the Histograms tab",
             spotlight: "agg-tab-histograms", advance: "next" },
           // 17
           { title: "Step 18 of 26 · Reading Histograms",
             body: "Each bar shows how many clients scored in that range. Drag the cut-off sliders to adjust red/yellow/green thresholds.",
-            spotlight: "client-scores-table", advance: "next" },
+            spotlight: "first-sys-histogram", advance: "next" },
           // 18
           { title: "Step 19 of 26 · Flowchart",
             body: "Click the Flowchart tab to see how systems, processes, and biomarkers connect.",
-            cta: "👆 Click the Flowchart tab — or click Next",
+            cta: "👆 Click the Flowchart tab",
             spotlight: "agg-tab-flowchart", advance: "next" },
           // 19
           { title: "Step 20 of 26 · Reading the Flowchart",
@@ -2082,11 +2082,11 @@ export default function App() {
           // 24
           { title: "Step 25 of 26 · Export a Profile",
             body: "Use ⬇ Export to also download weights as a CSV from here.",
-            cta: "👆 Click ⬇ Export on any profile",
+
             spotlight: "export-btn", advance: "next" },
           // 25
           { title: "Step 26 of 26 · You're Ready! 🎉",
-            body: "You're all set. Happy scoring!",
+            body: "You're all set. Explore the tabs, tweak weights, and compare profiles. Happy scoring!",
             spotlight: null, advance: "done" },
         ];
 
@@ -3629,7 +3629,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
       </div>
 
       {/* System histograms */}
-      <div style={{ ...card, padding: 20 }}>
+      <div data-tutorial="first-sys-histogram" style={{ ...card, padding: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>System Scores</div>
         <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {sysScores.length} client report{sysScores.length !== 1 ? "s" : ""}.</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
