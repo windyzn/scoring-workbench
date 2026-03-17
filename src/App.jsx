@@ -3381,7 +3381,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
 function CutoffControl({ redCutoff, setRedCutoff, yellowCutoff, setYellowCutoff, onReset, defaultRed, defaultYellow }) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
   return (
-    <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap", marginTop: 12 }}>
+    <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap", marginTop: 24 }}>
       <div>
         <div style={{ fontSize: 10, color: C.critical, fontWeight: 600, marginBottom: 4 }}>
           Red: 0 – {redCutoff - 1}
@@ -3435,7 +3435,7 @@ function Histogram({ scores, title, redCutoff, yellowCutoff }) {
   const yBar = count => padT + iH - (count / maxCount) * iH;
   return (
     <div>
-      <div style={{ fontSize: 12, fontWeight: 600, color: C.navy, marginBottom: 6 }}>{title}</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.navy, marginBottom: 6 }}>{title}</div>
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", overflow: "visible" }}>
         <rect x={padL} y={padT} width={(redCutoff / 100) * iW} height={iH} fill={`${C.critical}12`} />
         <rect x={x(redCutoff)} y={padT} width={((yellowCutoff - redCutoff) / 100) * iW} height={iH} fill={`${C.fair}12`} />
@@ -3447,7 +3447,7 @@ function Histogram({ scores, title, redCutoff, yellowCutoff }) {
           return b.count > 0 ? (
             <g key={i}>
               <rect x={padL + i * binW + 1} y={yBar(b.count)} width={binW - 2} height={bh} fill={`${col}90`} rx="2" />
-              <text x={padL + i * binW + binW / 2} y={yBar(b.count) - 4} textAnchor="middle" fontSize="9" fill={C.textMuted}>{b.count}</text>
+              <text x={padL + i * binW + binW / 2} y={yBar(b.count) - 3} textAnchor="middle" fontSize="6" fill={C.textMuted}>{b.count}</text>
             </g>
           ) : null;
         })}
@@ -3455,14 +3455,14 @@ function Histogram({ scores, title, redCutoff, yellowCutoff }) {
           const y = padT + iH * (1 - f);
           return <g key={f}>
             <line x1={padL} x2={W - padR} y1={y} y2={y} stroke={C.iceLight} strokeWidth="0.7" />
-            <text x={padL - 4} y={y + 3} fontSize="8" fill={C.textFaint} textAnchor="end">{Math.round(f * maxCount)}</text>
+            <text x={padL - 4} y={y + 3} fontSize="6" fill={C.textFaint} textAnchor="end">{Math.round(f * maxCount)}</text>
           </g>;
         })}
         {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(v => (
-          <text key={v} x={x(v)} y={H - 4} textAnchor="middle" fontSize="8" fill={C.textFaint}>{v}</text>
+          <text key={v} x={x(v)} y={H - 4} textAnchor="middle" fontSize="6" fill={C.textFaint}>{v}</text>
         ))}
-        <line x1={x(redCutoff)}    y1={padT} x2={x(redCutoff)}    y2={padT + iH} stroke={C.critical} strokeWidth="1.5" strokeDasharray="4,3" />
-        <line x1={x(yellowCutoff)} y1={padT} x2={x(yellowCutoff)} y2={padT + iH} stroke={C.fair}     strokeWidth="1.5" strokeDasharray="4,3" />
+        <line x1={x(redCutoff)}    y1={padT} x2={x(redCutoff)}    y2={padT + iH} stroke={C.critical} strokeWidth="0.8" strokeDasharray="3,2" />
+        <line x1={x(yellowCutoff)} y1={padT} x2={x(yellowCutoff)} y2={padT + iH} stroke={C.fair}     strokeWidth="0.8" strokeDasharray="3,2" />
       </svg>
       {/* % breakdown */}
       {(() => {
@@ -3472,20 +3472,20 @@ function Histogram({ scores, title, redCutoff, yellowCutoff }) {
         const nGreen  = scores.filter(s => s >= yellowCutoff).length;
         const pct = v => n > 0 ? (v / n * 100).toFixed(0) : 0;
         return (
-          <div style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 16, marginTop: 18, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ width: 10, height: 10, borderRadius: 2, background: C.critical, display: "inline-block" }} />
-              <span style={{ fontSize: 11, color: C.critical, fontWeight: 700 }}>{pct(nRed)}%</span>
+              <span style={{ fontSize: 10, color: C.critical, fontWeight: 700 }}>{pct(nRed)}%</span>
               <span style={{ fontSize: 10, color: C.textFaint }}>Red ({nRed} of {n})</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ width: 10, height: 10, borderRadius: 2, background: C.fair, display: "inline-block" }} />
-              <span style={{ fontSize: 11, color: C.fair, fontWeight: 700 }}>{pct(nYellow)}%</span>
+              <span style={{ fontSize: 10, color: C.fair, fontWeight: 700 }}>{pct(nYellow)}%</span>
               <span style={{ fontSize: 10, color: C.textFaint }}>Yellow ({nYellow} of {n})</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ width: 10, height: 10, borderRadius: 2, background: C.teal, display: "inline-block" }} />
-              <span style={{ fontSize: 11, color: C.teal, fontWeight: 700 }}>{pct(nGreen)}%</span>
+              <span style={{ fontSize: 10, color: C.teal, fontWeight: 700 }}>{pct(nGreen)}%</span>
               <span style={{ fontSize: 10, color: C.textFaint }}>Green ({nGreen} of {n})</span>
             </div>
           </div>
