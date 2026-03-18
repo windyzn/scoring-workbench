@@ -2176,7 +2176,7 @@ export default function App() {
                     </button>
                   )}
                   {isDone && (
-                    <button onClick={() => { setShowTutorial(false); setActiveView("aggregate"); setAggTab("overview"); }}
+                    <button onClick={() => { setShowTutorial(false); setProfileModal(false); setActiveView("aggregate"); setAggTab("overview"); }}
                       style={{ padding: "5px 13px", border: "none", borderRadius: 7, fontSize: 11,
                         cursor: "pointer", background: C.teal, color: C.navy, fontWeight: 700 }}>
                       Let's go! →
