@@ -1338,6 +1338,7 @@ export default function App() {
   const [col1Open,        setCol1Open]        = useState(true);
   const [col2Open,        setCol2Open]        = useState(true);
   const [concOverrides,   setConcOverrides]   = useState({});  // { [clientId]: { [markerName]: value } }
+  const [aggTab,          setAggTab]          = useState("overview");
   const [sysYellowCutoff, setSysYellowCutoff] = useState(91);
   const [sysRedCutoff,   setSysRedCutoff]   = useState(70);
   const [procYellowCutoff,setProcYellowCutoff]= useState(91);
@@ -1378,31 +1379,20 @@ export default function App() {
     if (!showTutorial) { setSpotlightRect(null); return; }
     const STEP_TARGETS = [
       "upload-dropzone",     // 0  upload
-      null,                  // 1  aggregate explain
-      "view-toggle",         // 2  go to client report
-      "systems-panel",       // 3  health systems panel
-      "processes-panel",     // 4  processes panel
-      "first-proc-card",     // 5  adjust proc weight
-      "tab-bio-weights",     // 6  click bio weights tab
-      "first-bio-card",      // 7  adjust bio weight
-      "tab-curves",          // 8  click curves tab
-      "curve-shape-btns",    // 9  change curve shape
-      "save-profile-btn",    // 10 click save profile
-      "save-modal-box",      // 11 name and save
-      "view-toggle",         // 12 go to aggregate
-      "profile-pills",       // 13 select profiles
-      "client-tab-second",   // 14 switch to tutorial profile tab
-      "client-scores-table", // 15 score deltas
-      "agg-tab-histograms",  // 16 click histograms tab
-      "first-sys-histogram", // 17 reading histograms (spotlight system scores)
-      "agg-tab-flowchart",   // 18 click flowchart tab
-      null,                  // 19 reading flowchart
-      "agg-tab-export",      // 20 click export tab
-      null,                  // 21 about export
-      "manage-profiles-btn", // 22 open manage profiles
-      null,                  // 23 clean up
-      "export-btn",          // 24 export a profile
-      null,                  // 25 complete
+      "view-toggle",         // 1  adjust weighting
+      "first-proc-card",     // 2  process weights
+      "tab-bio-weights",     // 3  open bio weights tab
+      "first-bio-card",      // 4  adjust bio weight
+      "save-profile-btn",    // 5  save profile
+      "save-modal-box",      // 6  name and save
+      "view-toggle",         // 7  back to aggregate
+      "profile-pills",       // 8  select profiles
+      "client-tab-second",   // 9  switch profile tab
+      "client-scores-table", // 10 score deltas
+      "agg-tabs-bar",        // 11 explore aggregate views
+      "manage-profiles-btn", // 12 manage profiles
+      "export-btn",          // 13 clean up
+      null,                  // 14 done
     ];
         const targetId = STEP_TARGETS[tutorialStep];
     if (!targetId) { setSpotlightRect(null); return; }
@@ -1455,10 +1445,12 @@ export default function App() {
   const setBioWeights  = useCallback(fn => {
     setProfiles(prev => prev.map(p => p.id === activeProfileId ? { ...p, bioWeights: fn(p.bioWeights) } : p));
     setTutorialDone(prev => ({ ...prev, bioWeightChanged: true }));
+    setTutorialStep(prev => prev === 4 ? 5 : prev);
   }, [activeProfileId]);
   const setProcWeights = useCallback(fn => {
     setProfiles(prev => prev.map(p => p.id === activeProfileId ? { ...p, procWeights: fn(p.procWeights) } : p));
     setTutorialDone(prev => ({ ...prev, procWeightChanged: true }));
+    setTutorialStep(prev => prev === 2 ? 3 : prev);
   }, [activeProfileId]);
   const resetWeights   = useCallback(() => {
     if (!window.confirm("Reset all weights and concentration overrides for this profile and client? This cannot be undone.")) return;
@@ -1481,11 +1473,12 @@ export default function App() {
     setNewName(""); setSaveModal(false);
     setActiveProfileId(id);
     setTutorialDone(prev => ({ ...prev, profileSaved: true }));
-    setTutorialStep(prev => prev === 11 ? 12 : prev);
+    setTutorialStep(prev => prev === 5 ? 6 : prev);
+    setTutorialStep(prev => prev === 6 ? 7 : prev);
     // If we got here via the dirty-default prompt, now navigate to the pending view
     if (pendingView) {
       setActiveView(pendingView);
-      if (pendingView === "aggregate") setTutorialStep(prev => prev === 12 ? 13 : prev);
+      if (pendingView === "aggregate") setTutorialStep(prev => prev === 7 ? 8 : prev);
       setPendingView(null);
     }
   }, [newName, profiles.length, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight, pendingView]);
@@ -1743,7 +1736,7 @@ export default function App() {
         <div style={{ width: 1, height: 20, background: "#ffffff22" }} />
         <span style={{ fontSize: 10, color: C.iceLight, letterSpacing: "0.18em", textTransform: "uppercase" }}>Scoring Workbench</span>
         <div data-tutorial="view-toggle" style={{ display: "flex", background: "#1a3e55", borderRadius: 6, padding: 2, marginLeft: 8 }}>
-          {[["client", "Client Report"], ["aggregate", "Aggregate Statistics"]].map(([v, l]) => (
+          {[["client", "Adjust Weighting"], ["aggregate", "Aggregate Statistics"]].map(([v, l]) => (
             <button key={v} onClick={() => {
               // If Default profile has unsaved changes and user is heading to Aggregate, intercept
               if (v === "aggregate" && isDefaultDirty) {
@@ -1754,9 +1747,9 @@ export default function App() {
               setActiveView(v);
               if (v === "aggregate") { setCol1Open(false); setCol2Open(false); }
               if (v === "client")    { setCol1Open(true);  setCol2Open(true);  }
-              // Tutorial: step 2 waits for user to click Client Report; step 5 waits for Aggregate
-              if (v === "client")    setTutorialStep(prev => prev === 2 ? 3 : prev);
-              if (v === "aggregate") setTutorialStep(prev => prev === 12 ? 13 : prev);
+              // Tutorial: step 2 waits for user to click Adjust Weighting; step 12 waits for Aggregate
+              if (v === "client")    setTutorialStep(prev => prev === 1 ? 2 : prev);
+              if (v === "aggregate") setTutorialStep(prev => prev === 7 ? 8 : prev);
             }} style={{ padding: "4px 12px", fontSize: 11,
               borderRadius: 5, border: "none", cursor: "pointer", fontFamily: T.body,
               background: activeView === v ? C.teal : "transparent",
@@ -1770,8 +1763,8 @@ export default function App() {
               padding: "4px 8px", borderRadius: 6, fontSize: 11, cursor: "pointer", maxWidth: 150 }}>
             {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <button data-tutorial="save-profile-btn" onClick={() => { setSaveModal(true); setTutorialStep(prev => prev === 10 ? 11 : prev); }} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Save Profile</button>
-          <button data-tutorial="manage-profiles-btn" onClick={() => { setEditingId(null); setProfileModal(true); setTutorialStep(prev => prev === 22 ? 23 : prev); }} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Manage Profiles</button>
+          <button data-tutorial="save-profile-btn" onClick={() => { setSaveModal(true); setTutorialStep(prev => prev === 5 ? 6 : prev); }} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Save Profile</button>
+          <button data-tutorial="manage-profiles-btn" onClick={() => { setEditingId(null); setProfileModal(true); setTutorialStep(prev => prev === 12 ? 13 : prev); }} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Manage Profiles</button>
           <button onClick={resetWeights} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>↺ Reset</button>
           <button onClick={() => { setTutorialStep(0); setShowTutorial(true); }} title="Show tutorial"
             style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>?</button>
@@ -1970,124 +1963,75 @@ export default function App() {
         // advance: "auto" = fired by action hook in code; "next" = manual Next; "action" = Next appears when doneKey set; "done" = final dismiss
         const STEPS = [
           // 0
-          { title: "Step 1 of 26 · Upload Data",
+          { title: "Step 1 of 15 · Upload Data",
             body: "Drop a CSV file onto the box, or click it to browse. No data? Use the demo data below.",
             cta: "📂 Upload a CSV — or click Load Demo Data to explore immediately",
             spotlight: "upload-dropzone", advance: "auto" },
           // 1
-          { title: "Step 2 of 26 · Aggregate Statistics",
-            body: "This is the Aggregate view. You'll compare profiles here after setting weights.",
-            spotlight: null, advance: "next" },
-          // 2
-          { title: "Step 3 of 26 · Go to Client Report",
-            body: "Switch to the Client Report to adjust weights.",
-            cta: "👆 Click 'Client Report' in the toggle above",
+          { title: "Step 2 of 15 · Adjust Weighting",
+            body: "Switch to Adjust Weighting to start setting weights.",
+            cta: "👆 Click 'Adjust Weighting' in the toggle above",
             spotlight: "view-toggle", advance: "auto" },
-          // 3
-          { title: "Step 4 of 26 · Health Systems",
-            body: "Select a health system here to explore its processes and biomarkers.",
-            spotlight: "systems-panel", advance: "next" },
-          // 4
-          { title: "Step 5 of 26 · Processes",
-            body: "Each system contains several processes. Select one to adjust its weights.",
-            spotlight: "processes-panel", advance: "next" },
-          // 5
-          { title: "Step 6 of 26 · Process Weights",
+          // 2
+          { title: "Step 3 of 15 · Process Weights",
             body: "Drag the slider to adjust this process's weight.",
             cta: "🎚 Move the weight slider on the first process card",
-            spotlight: "first-proc-card", advance: "action", doneKey: "procWeightChanged" },
-          // 6
-          { title: "Step 7 of 26 · Open Biomarker Weights",
+            spotlight: "first-proc-card", advance: "auto" },
+          // 3
+          { title: "Step 4 of 15 · Open Biomarker Weights",
             body: "Open the Biomarker Weights tab.",
             cta: "👆 Click the 'Biomarker Weights' tab",
             spotlight: "tab-bio-weights", advance: "auto" },
-          // 7
-          { title: "Step 8 of 26 · Adjust a Biomarker Weight",
+          // 4
+          { title: "Step 5 of 15 · Adjust a Biomarker Weight",
             body: "Drag the slider to set a manual weight for this biomarker.",
             cta: "🎚 Move the weight slider on the first biomarker card",
-            spotlight: "first-bio-card", advance: "action", doneKey: "bioWeightChanged" },
-          // 8
-          { title: "Step 9 of 26 · Open Biomarker Curves",
-            body: "Open the Biomarker Curves tab.",
-            cta: "👆 Click the 'Biomarker Curves' tab",
-            spotlight: "tab-curves", advance: "auto" },
-          // 9
-          { title: "Step 10 of 26 · Change Curve Shape",
-            body: "Switch the curve shape to change how scores decay out of range.",
-            cta: "👆 Click a different curve shape button",
-            spotlight: "curve-shape-btns", advance: "action", doneKey: "curveChanged" },
-          // 10
-          { title: "Step 11 of 26 · Save a Profile",
+            spotlight: "first-bio-card", advance: "auto" },
+          // 5
+          { title: "Step 6 of 15 · Save a Profile",
             body: "Click Save Profile to save your adjustments.",
             cta: "👆 Click 'Save Profile'",
             spotlight: "save-profile-btn", advance: "auto" },
-          // 11
-          { title: "Step 12 of 26 · Name Your Profile",
+          // 6
+          { title: "Step 7 of 15 · Name Your Profile",
             body: "Name your profile and click Save.",
-            cta: "✏️ Type a name (e.g. 'Tutorial') and click Save",
-            spotlight: "save-modal-box", advance: "action", doneKey: "profileSaved" },
-          // 12
-          { title: "Step 13 of 26 · Back to Aggregate",
+            cta: "✏️ Type a name and click Save",
+            spotlight: "save-modal-box", advance: "auto" },
+          // 7
+          { title: "Step 8 of 15 · Back to Aggregate",
             body: "Switch back to Aggregate Statistics.",
             cta: "👆 Click 'Aggregate Statistics'",
             spotlight: "view-toggle", advance: "auto" },
-          // 13
-          { title: "Step 14 of 26 · Select Profiles to Compare",
+          // 8
+          { title: "Step 9 of 15 · Select Profiles to Compare",
             body: "Click two profiles to compare. The first selected becomes the baseline.",
             cta: "👆 Click two profile pills",
             spotlight: "profile-pills", advance: "action", doneKey: "profilesSelected" },
-          // 14
-          { title: "Step 15 of 26 · Switch Profile Tab",
+          // 9
+          { title: "Step 10 of 15 · Switch Profile Tab",
             body: "Switch to your new profile tab to see score differences.",
             cta: "👆 Switch the active profile using the tab",
             spotlight: "client-tab-second", advance: "auto" },
-          // 15
-          { title: "Step 16 of 26 · Score Deltas",
+          // 10
+          { title: "Step 11 of 15 · Score Deltas",
             body: "▲▼ deltas show how scores changed vs. the baseline.",
             spotlight: "client-scores-table", advance: "next" },
-          // 16
-          { title: "Step 17 of 26 · Histograms",
-            body: "Click the Histograms tab to see score distributions across all clients.",
-            cta: "👆 Click the Histograms tab",
-            spotlight: "agg-tab-histograms", advance: "next" },
-          // 17
-          { title: "Step 18 of 26 · Reading Histograms",
-            body: "Each bar shows how many clients scored in that range. Drag the cut-off sliders to adjust red/yellow/green thresholds.",
-            spotlight: "first-sys-histogram", advance: "next" },
-          // 18
-          { title: "Step 19 of 26 · Flowchart",
-            body: "Click the Flowchart tab to see how systems, processes, and biomarkers connect.",
-            cta: "👆 Click the Flowchart tab",
-            spotlight: "agg-tab-flowchart", advance: "next" },
-          // 19
-          { title: "Step 20 of 26 · Reading the Flowchart",
-            body: "The flowchart shows the full hierarchy for each health system. Teal borders mean non-default weights are set.",
-            spotlight: null, advance: "next" },
-          // 20
-          { title: "Step 21 of 26 · Export Tab",
-            body: "Click the Export tab to download weight profiles.",
-            cta: "👆 Click the Export tab — or click Next",
-            spotlight: "agg-tab-export", advance: "next" },
-          // 21
-          { title: "Step 22 of 26 · About Export",
-            body: "Download a human-friendly or database-format CSV of your weight adjustments. You can also re-import a profile later.",
-            spotlight: null, advance: "next" },
-          // 22
-          { title: "Step 23 of 26 · Manage Profiles",
+          // 11
+          { title: "Step 12 of 15 · Explore Aggregate Views",
+            body: "Explore histograms, the flowchart, and export from the tabs above. Take your time.",
+            cta: "👆 Click Next when you're ready",
+            spotlight: "agg-tabs-bar", advance: "next" },
+          // 12
+          { title: "Step 13 of 15 · Manage Profiles",
             body: "Open the Profile Manager to rename, duplicate, or delete profiles.",
             cta: "👆 Click 'Manage Profiles' in the top bar",
             spotlight: "manage-profiles-btn", advance: "auto" },
-          // 23
-          { title: "Step 24 of 26 · Clean Up",
-            body: "Delete or keep the Tutorial profile.",
-            spotlight: null, advance: "next" },
-          // 24
-          { title: "Step 25 of 26 · Export a Profile",
-            body: "Use ⬇ Export to also download weights as a CSV from here.",
-
+          // 13
+          { title: "Step 14 of 15 · Clean Up",
+            body: "Delete or keep the Tutorial profile. Use ⬇ Export to download weights as a CSV.",
             spotlight: "export-btn", advance: "next" },
-          // 25
-          { title: "Step 26 of 26 · You're Ready! 🎉",
+          // 14
+          { title: "Step 15 of 15 · You're Ready! 🎉",
             body: "You're all set. Explore the tabs, tweak weights, and compare profiles. Happy scoring!",
             spotlight: null, advance: "done" },
         ];
@@ -2232,7 +2176,7 @@ export default function App() {
                     </button>
                   )}
                   {isDone && (
-                    <button onClick={() => setShowTutorial(false)}
+                    <button onClick={() => { setShowTutorial(false); setActiveView("aggregate"); setAggTab("overview"); }}
                       style={{ padding: "5px 13px", border: "none", borderRadius: 7, fontSize: 11,
                         cursor: "pointer", background: C.teal, color: C.navy, fontWeight: 700 }}>
                       Let's go! →
@@ -2265,7 +2209,7 @@ export default function App() {
                   : p));
                 setDefaultDirtyModal(false);
                 setActiveView(pendingView || "aggregate");
-                if ((pendingView || "aggregate") === "aggregate") setTutorialStep(prev => prev === 12 ? 13 : prev);
+                if ((pendingView || "aggregate") === "aggregate") setTutorialStep(prev => prev === 7 ? 8 : prev);
               }} style={{ padding: "7px 14px", border: `1px solid ${C.border}`, borderRadius: 6,
                 fontSize: 12, cursor: "pointer", background: "transparent", color: C.textMuted }}>
                 Discard & Continue
@@ -2396,7 +2340,7 @@ export default function App() {
           {!hasData ? (
             <UploadPrompt fileRef={fileRef} dragOver={dragOver} setDragOver={setDragOver} handleFile={handleFile} uploadErr={uploadErr} isUploading={isUploading} loadDemo={loadDemo} personas={DEMO_PERSONAS} />
           ) : activeView === "aggregate" ? (
-            <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} />
+            <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} aggTab={aggTab} setAggTab={setAggTab} />
           ) : (
             <>
               {/* Header: system name + breadcrumb + dual gauges */}
@@ -2426,9 +2370,8 @@ export default function App() {
                       {...(tutId ? { "data-tutorial": tutId } : {})}
                       onClick={() => {
                         setTab(key);
-                        if (key === "weights-bio") setTutorialStep(prev => prev === 6 ? 7 : prev);
-                        if (key === "curves")       setTutorialStep(prev => prev === 8 ? 9 : prev);
-                      }}
+                        if (key === "weights-bio") setTutorialStep(prev => prev === 3 ? 4 : prev);
+                                              }}
                       style={{ padding: "9px 16px", fontSize: 12,
                         color: tab === key ? C.steel : C.textFaint, background: "none", border: "none",
                         borderBottom: `2px solid ${tab === key ? C.steel : "transparent"}`,
@@ -3257,8 +3200,7 @@ function gradeBg(score) {
 // Profile colour palette for multi-profile comparison
 const PROF_COLORS = [C.steel, C.teal, C.fair, C.atRisk, "#8B6FAB"];
 
-function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, exportProfile, activeProfile }) {
-  const [aggTab, setAggTab] = useState("overview");
+function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, exportProfile, activeProfile, aggTab, setAggTab }) {
   const [clientTab, setClientTab] = useState(0);
   const [editOverviewCutoff, setEditOverviewCutoff] = useState(false);
   const [overviewGreen, setOverviewGreen] = useState(91);
@@ -3299,17 +3241,18 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, paddingLeft: 4 }}>
+      <div data-tutorial="agg-tabs-bar" style={{ display: "flex", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, paddingLeft: 4 }}>
         {AGG_TABS.map(({ key, label }) => (
           <button key={key}
+            {...(key === "overview"   ? { "data-tutorial": "agg-tab-overview"   } : {})}
             {...(key === "histograms" ? { "data-tutorial": "agg-tab-histograms" } : {})}
             {...(key === "flowchart"  ? { "data-tutorial": "agg-tab-flowchart"  } : {})}
             {...(key === "export"     ? { "data-tutorial": "agg-tab-export"      } : {})}
             onClick={() => {
               setAggTab(key);
-              if (key === "histograms") setTutorialStep(prev => prev === 16 ? 17 : prev);
-              if (key === "flowchart")  setTutorialStep(prev => prev === 18 ? 19 : prev);
-              if (key === "export")     setTutorialStep(prev => prev === 20 ? 21 : prev);
+              if (key === "histograms") setTutorialStep(prev => prev === 12 ? 13 : prev);
+              if (key === "flowchart")  setTutorialStep(prev => prev === 14 ? 15 : prev);
+              if (key === "export")     setTutorialStep(prev => prev === 15 ? 16 : prev);
             }}
             style={{ padding: "10px 18px", fontSize: 12, border: "none", cursor: "pointer",
               background: "transparent", color: aggTab === key ? C.steel : C.textFaint,
@@ -3366,7 +3309,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                     const col = PROF_COLORS[pi % PROF_COLORS.length];
                     return (
                       <button key={profile.id} {...(pi === 1 ? { "data-tutorial": "client-tab-second" } : {})}
-                        onClick={() => { setClientTab(pi); if (pi === 1) setTutorialStep(prev => prev === 14 ? 15 : prev); }}
+                        onClick={() => { setClientTab(pi); if (pi === 1) setTutorialStep(prev => prev === 9 ? 10 : prev); }}
                         style={{ padding: "7px 16px", fontSize: 11, border: "none", cursor: "pointer",
                           background: clientTab === pi ? C.surface : "transparent",
                           color: clientTab === pi ? col : C.textMuted, fontWeight: clientTab === pi ? 700 : 400,
