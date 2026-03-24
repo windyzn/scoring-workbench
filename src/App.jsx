@@ -1756,6 +1756,7 @@ export default function App() {
             {/* ── Top bar ── */}
             <div style={{
                 background: C.navy, height: 50, display: "flex", alignItems: "center",
+                position: "sticky", top: 0, zIndex: 50,
                 padding: "0 22px", gap: 14, flexShrink: 0, zIndex: 20, boxShadow: "0 2px 10px rgba(24,55,75,0.2)"
             }}>
                 <span onClick={() => { setClients({ "DEMO-healthy": DEMO_HEALTHY, "DEMO-typical": DEMO_TYPICAL, "DEMO-unhealthy": DEMO_UNHEALTHY }); setDemoLoaded(false); setActiveView("aggregate"); }} style={{ fontSize: 20, color: C.teal, fontFamily: T.display, fontStyle: "italic", cursor: "pointer" }} title="Back to home">my</span>
