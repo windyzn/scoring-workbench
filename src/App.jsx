@@ -1679,6 +1679,7 @@ export default function App() {
         return merged;
     }, [clientId, clients, concOverrides]);
     const selProc = activeProc || Object.keys(system.processes)[0];
+    const isTwoTier = Object.keys(system.processes).length === 1;
 
     const { procResults, sysScore } = useMemo(() => {
         if (!Object.keys(markers).length) return { procResults: [], sysScore: null };
@@ -1740,7 +1741,7 @@ export default function App() {
     }, [bioWeights, procWeights]);
 
     const TABS = [
-        { key: "weights-proc", label: "Process Weights" },
+        ...(!isTwoTier ? [{ key: "weights-proc", label: "Process Weights" }] : []),
         { key: "weights-bio", label: "Biomarker Weights" },
         { key: "curves", label: "Biomarker Curves" },
         { key: "flags", label: `Biomarker Flags${oorFlags.length ? ` (${oorFlags.length})` : ""}` },
@@ -2404,7 +2405,7 @@ export default function App() {
                 </div>
 
                 {/* ── Column 2: Processes ── */}
-                <div style={{ width: col2Open ? 196 : 28, flexShrink: 0, background: `${C.iceLight}30`, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", transition: "width 0.2s ease", overflow: "hidden" }}>
+                {!isTwoTier && <div style={{ width: col2Open ? 196 : 28, flexShrink: 0, background: `${C.iceLight}30`, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", transition: "width 0.2s ease", overflow: "hidden" }}>
                     {/* collapse tab */}
                     <button onClick={() => setCol2Open(o => !o)}
                         title={col2Open ? "Collapse processes panel" : "Expand processes panel"}
@@ -2444,7 +2445,7 @@ export default function App() {
                             );
                         })}
                     </div>}
-                </div>
+                </div>}
 
                 {/* ── Main area ── */}
                 <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -4054,6 +4055,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
     const DEFAULT_BIO = { weight: 1, color: "red", level: "high" };
     const DEFAULT_PROC = { weight: 1, color: "red" };
     const allBiomarkers = [...new Set(procs.flatMap(([, bms]) => bms))];
+    const isTwoTier = procs.length === 1;
     const svgRef = useRef(null);
 
     // Layout — wider columns and gaps for readability
@@ -4203,25 +4205,33 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                 <svg ref={svgRef} width={totalW} height={totalH} style={{ display: "block", fontFamily: T.body, overflow: "visible" }}
                     xmlns="http://www.w3.org/2000/svg">
 
-                    {/* System → Process connectors */}
-                    {procs.map(([,], pi) => {
-                        const x1 = COL1_X + COL1_W, y1 = sysY;
-                        const x2 = COL2_X, y2 = pCY(pi);
-                        const mx = (x1 + x2) / 2;
-                        return <path key={`sp${pi}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
-                            fill="none" stroke={C.steel} strokeWidth="1.2" opacity="0.4" />;
-                    })}
-
-                    {/* Process → Biomarker connectors */}
-                    {procs.map(([, bms], pi) => bms.map(bmName => {
-                        const bi = allBiomarkers.indexOf(bmName);
-                        if (bi === -1) return null;
-                        const x1 = COL2_X + COL2_W, y1 = pCY(pi);
-                        const x2 = COL3_X, y2 = bCY(bi);
-                        const mx = (x1 + x2) / 2;
-                        return <path key={`pb${pi}${bmName}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
-                            fill="none" stroke={C.border} strokeWidth="1" />;
-                    }))}
+                    {/* Connectors: 2-tier = system→bio direct; 3-tier = system→process→bio */}
+                    {isTwoTier ? (
+                        allBiomarkers.map((bmName, bi) => {
+                            const x1 = COL1_X + COL1_W, y1 = sysY;
+                            const x2 = COL2_X, y2 = bCY(bi);
+                            const mx = (x1 + x2) / 2;
+                            return <path key={`sb${bi}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
+                                fill="none" stroke={C.border} strokeWidth="1" />;
+                        })
+                    ) : (<>
+                        {procs.map(([,], pi) => {
+                            const x1 = COL1_X + COL1_W, y1 = sysY;
+                            const x2 = COL2_X, y2 = pCY(pi);
+                            const mx = (x1 + x2) / 2;
+                            return <path key={`sp${pi}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
+                                fill="none" stroke={C.steel} strokeWidth="1.2" opacity="0.4" />;
+                        })}
+                        {procs.map(([, bms], pi) => bms.map(bmName => {
+                            const bi = allBiomarkers.indexOf(bmName);
+                            if (bi === -1) return null;
+                            const x1 = COL2_X + COL2_W, y1 = pCY(pi);
+                            const x2 = COL3_X, y2 = bCY(bi);
+                            const mx = (x1 + x2) / 2;
+                            return <path key={`pb${pi}${bmName}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
+                                fill="none" stroke={C.border} strokeWidth="1" />;
+                        }))}
+                    </>)}
 
                     {/* System node */}
                     <rect x={COL1_X} y={sysY - SYS_H / 2} width={COL1_W} height={SYS_H} rx="8"
@@ -4233,8 +4243,8 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                     <text x={COL1_X + COL1_W / 2} y={sysY + SYS_H / 2 - 10}
                         textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Health System</text>
 
-                    {/* Process nodes */}
-                    {procs.map(([procName], pi) => {
+                    {/* Process nodes — 3-tier only */}
+                    {!isTwoTier && procs.map(([procName], pi) => {
                         const pe = procWeights[procName] ?? DEFAULT_PROC;
                         const w = pe.weight ?? 1;
                         const col = pe.color ?? "red";
@@ -4265,6 +4275,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
 
                     {/* Biomarker nodes */}
                     {allBiomarkers.map((bmName, bi) => {
+                        const bioX = isTwoTier ? COL2_X : COL3_X;
                         const be = bioWeights[bmName] ?? DEFAULT_BIO;
                         const w = be.weight ?? 1;
                         const col = be.color ?? "red";
@@ -4276,15 +4287,15 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                         const nameLines = wrapText(bmName, 22);
                         return (
                             <g key={bmName}>
-                                <rect x={COL3_X} y={cy - h / 2} width={COL3_W} height={h} rx="6"
+                                <rect x={bioX} y={cy - h / 2} width={COL3_W} height={h} rx="6"
                                     fill={C.surface} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
                                 {nameLines.map((line, li) => (
-                                    <text key={li} x={COL3_X + 10} y={cy - (nameLines.length - 1) * 6 + li * 12 - (isModified ? 6 : 0)}
+                                    <text key={li} x={bioX + 10} y={cy - (nameLines.length - 1) * 6 + li * 12 - (isModified ? 6 : 0)}
                                         fontSize="9" fill={C.textSecond} fontFamily={T.body}>{line}</text>
                                 ))}
                                 {isModified && (() => {
                                     const badges = [];
-                                    let bx = COL3_X + 10;
+                                    let bx = bioX + 10;
                                     const by = cy + h / 2 - 14;
                                     if (w !== 1) { badges.push(badge(`x${w}`, C.teal, bx, by)); bx += String(w).length * 5.5 + 20; }
                                     if (col !== "red") { badges.push(badge(col, C.fair, bx, by)); bx += col.length * 5.5 + 16; }
