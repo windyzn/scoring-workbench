@@ -1856,7 +1856,7 @@ export default function App() {
         r.readAsText(file);
     }, []);
 
-    const system = SYSTEMS.find(s => s.id === systemId) || SYSTEMS[0];
+    const system = ALL_SYSTEMS.find(s => s.id === systemId) || ALL_SYSTEMS[0];
     const markers = useMemo(() => {
         if (!clientId || !clients[clientId]) return {};
         const base = clients[clientId].markers;
@@ -1913,7 +1913,7 @@ export default function App() {
     const oorFlags = useMemo(() => {
         const f = [];
         procResults.forEach(pr => {
-            const sys = SYSTEMS.find(s => Object.keys(s.processes).includes(pr.process));
+            const sys = ALL_SYSTEMS.find(s => Object.keys(s.processes).includes(pr.process));
             pr.biomarkers.forEach(bm => {
                 if (!bm.missing && bm.zone !== "green")
                     f.push({ ...bm, process: pr.process, system: sys?.name ?? "", systemId: sys?.id ?? "" });
@@ -3822,7 +3822,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {SYSTEMS.map((sys, si) => {
+                                        {ALL_SYSTEMS.map((sys, si) => {
                                             const allStats = aggregateData.map(pd => sysStatsForProfile(pd, sys.id));
                                             const baseStats = allStats[0];
                                             const procC = overviewColour(baseStats?.mean);
@@ -4154,7 +4154,7 @@ function Histogram({ scores, title, redCutoff, yellowCutoff }) {
 function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, histSysId, setHistSysId, histProcName, setHistProcName, card }) {
     const DEFAULT_SYS_RED = 70, DEFAULT_SYS_YELLOW = 91;
     const DEFAULT_PROC_RED = 70, DEFAULT_PROC_YELLOW = 91;
-    const selSys = SYSTEMS.find(s => s.id === histSysId) || SYSTEMS[0];
+    const selSys = ALL_SYSTEMS.find(s => s.id === histSysId) || ALL_SYSTEMS[0];
     const procs = Object.keys(selSys.processes);
     const validProc = procs.includes(histProcName) ? histProcName : procs[0];
 
@@ -4179,7 +4179,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>System Scores</div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {sysScores.length} client report{sysScores.length !== 1 ? "s" : ""}.</div>
                 <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-                    {SYSTEMS.map(s => (
+                    {ALL_SYSTEMS.map(s => (
                         <button key={s.id} onClick={() => { setHistSysId(s.id); setHistProcName(Object.keys(s.processes)[0]); }}
                             style={{
                                 padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
@@ -4245,7 +4245,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 
 // ─── FlowchartTab ─────────────────────────────────────────────────────────────
 function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }) {
-    const sys = SYSTEMS.find(s => s.id === flowSysId) || SYSTEMS[0];
+    const sys = ALL_SYSTEMS.find(s => s.id === flowSysId) || ALL_SYSTEMS[0];
     const procs = Object.entries(sys.processes);
     const DEFAULT_BIO = { weight: 1, color: "red", level: "high" };
     const DEFAULT_PROC = { weight: 1, color: "red" };
@@ -4365,7 +4365,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
             {/* System selector + download buttons */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {SYSTEMS.map(s => (
+                    {ALL_SYSTEMS.map(s => (
                         <button key={s.id} onClick={() => setFlowSysId(s.id)}
                             style={{
                                 padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
