@@ -4313,8 +4313,8 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
 
     // Layout — wider columns and gaps for readability
     const COL1_X = 24, COL1_W = 170;
-    const COL2_X = 290, COL2_W = 190;
-    const COL3_X = 580, COL3_W = 190;
+    const COL2_X = 340, COL2_W = 190;
+    const COL3_X = 680, COL3_W = 190;
     const PAD_V = 28;
     const PROC_GAP = 14, BIO_GAP = 10;
     const PROC_H = 42, BIO_H = 38;
