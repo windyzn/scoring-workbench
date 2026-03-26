@@ -4310,6 +4310,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
     const allBiomarkers = [...new Set(procs.flatMap(([, bms]) => bms))];
     const isTwoTier = procs.length === 1;
     const svgRef = useRef(null);
+    const [hoveredProc, setHoveredProc] = useState(null);
 
     // Layout — wider columns and gaps for readability
     const COL1_X = 24, COL1_W = 170;
@@ -4468,21 +4469,30 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                                 fill="none" stroke={C.border} strokeWidth="1" />;
                         })
                     ) : (<>
-                        {procs.map(([,], pi) => {
+                        {procs.map(([procName,], pi) => {
                             const x1 = COL1_X + COL1_W, y1 = sysY;
                             const x2 = COL2_X, y2 = pCY(pi);
                             const mx = (x1 + x2) / 2;
+                            const isActive = hoveredProc === procName;
+                            const dimmed = hoveredProc && !isActive;
                             return <path key={`sp${pi}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
-                                fill="none" stroke={C.steel} strokeWidth="1.2" opacity="0.4" />;
+                                fill="none" stroke={isActive ? C.teal : C.steel}
+                                strokeWidth={isActive ? 2 : 1.2}
+                                opacity={dimmed ? 0.1 : isActive ? 0.9 : 0.4} />;
                         })}
-                        {procs.map(([, bms], pi) => bms.map(bmName => {
+                        {procs.map(([procName, bms], pi) => bms.map(bmName => {
                             const bi = allBiomarkers.indexOf(bmName);
                             if (bi === -1) return null;
                             const x1 = COL2_X + COL2_W, y1 = pCY(pi);
                             const x2 = COL3_X, y2 = bCY(bi);
                             const mx = (x1 + x2) / 2;
+                            const isActive = hoveredProc === procName;
+                            const dimmed = hoveredProc && !isActive;
                             return <path key={`pb${pi}${bmName}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
-                                fill="none" stroke={C.border} strokeWidth="1" />;
+                                fill="none"
+                                stroke={isActive ? C.teal : C.border}
+                                strokeWidth={isActive ? 1.8 : 1}
+                                opacity={dimmed ? 0.1 : isActive ? 1 : 1} />;
                         }))}
                     </>)}
 
@@ -4506,13 +4516,23 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                         const h = procHeights[pi];
                         const bCol = isModified ? C.teal : C.steel;
                         const nameLines = wrapText(procName, 22);
+                        const isActive = hoveredProc === procName;
+                        const dimmed = hoveredProc && !isActive;
                         return (
-                            <g key={procName}>
+                            <g key={procName}
+                                onMouseEnter={() => setHoveredProc(procName)}
+                                onMouseLeave={() => setHoveredProc(null)}
+                                style={{ cursor: "default" }}>
                                 <rect x={COL2_X} y={cy - h / 2} width={COL2_W} height={h} rx="7"
-                                    fill={`${C.steel}10`} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
+                                    fill={isActive ? `${C.teal}22` : dimmed ? `${C.steel}05` : `${C.steel}10`}
+                                    stroke={isActive ? C.teal : dimmed ? `${C.steel}40` : bCol}
+                                    strokeWidth={isActive ? 2 : isModified ? 1.5 : 1}
+                                    opacity={dimmed ? 0.4 : 1} />
                                 {nameLines.map((line, li) => (
                                     <text key={li} x={COL2_X + 12} y={cy - (nameLines.length - 1) * 6 + li * 13 - (isModified ? 8 : 0)}
-                                        fontSize="10" fontWeight="600" fill={C.navy} fontFamily={T.body}>{line}</text>
+                                        fontSize="10" fontWeight="600"
+                                        fill={isActive ? C.teal : dimmed ? C.textFaint : C.navy}
+                                        fontFamily={T.body}>{line}</text>
                                 ))}
                                 {isModified && (() => {
                                     const badges = [];
@@ -4538,13 +4558,18 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                         const h = bioHeights[bi];
                         const bCol = isModified ? C.teal : C.border;
                         const nameLines = wrapText(bmName, 22);
-                        return (
-                            <g key={bmName}>
+                        const bioIsActive = hoveredProc && procs.some(([pn, bms]) => pn === hoveredProc && bms.includes(bmName));
+                        const bioDimmed = hoveredProc && !bioIsActive;
+                        return (<g key={bmName}>
                                 <rect x={bioX} y={cy - h / 2} width={COL3_W} height={h} rx="6"
-                                    fill={C.surface} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
+                                    fill={bioIsActive ? `${C.teal}18` : bioDimmed ? `${C.iceLight}60` : C.surface}
+                                    stroke={bioIsActive ? C.teal : bioDimmed ? `${C.border}` : bCol}
+                                    strokeWidth={bioIsActive ? 2 : isModified ? 1.5 : 1}
+                                    opacity={bioDimmed ? 0.35 : 1} />
                                 {nameLines.map((line, li) => (
                                     <text key={li} x={bioX + 10} y={cy - (nameLines.length - 1) * 6 + li * 12 - (isModified ? 6 : 0)}
-                                        fontSize="9" fill={C.textSecond} fontFamily={T.body}>{line}</text>
+                                        fontSize="9" fill={bioIsActive ? C.teal : bioDimmed ? C.textFaint : C.textSecond}
+                                        fontFamily={T.body}>{line}</text>
                                 ))}
                                 {isModified && (() => {
                                     const badges = [];
