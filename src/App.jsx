@@ -1648,6 +1648,16 @@ export default function App() {
         if (isNonDefaultBio || isNonDefaultProc) return true;
         return false;
     })();
+    const navigateToClient = useCallback((pid, label) => {
+        if (!window.confirm(`View ${label} in Adjust Weighting?`)) return;
+        setClientId(pid);
+        setSystemId(SYSTEMS[0].id);
+        setActiveProc(null);
+        setActiveView("client");
+        setCol1Open(true);
+        setCol2Open(true);
+    }, []);
+
     const setCutoff = useCallback(v => setParam("cutoff", v), [setParam]);
     const setGreenPct = useCallback(v => setParam("greenPct", v), [setParam]);
     const setCurve = useCallback(v => setParam("curve", v), [setParam]);
@@ -2647,7 +2657,7 @@ export default function App() {
                     {!hasData ? (
                         <UploadPrompt fileRef={fileRef} dragOver={dragOver} setDragOver={setDragOver} handleFile={handleFile} uploadErr={uploadErr} isUploading={isUploading} loadDemo={loadDemo} personas={DEMO_PERSONAS} />
                     ) : activeView === "aggregate" ? (
-                        <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} aggTab={aggTab} setAggTab={setAggTab} />
+                        <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} aggTab={aggTab} setAggTab={setAggTab} onNavigateToClient={navigateToClient} />
                     ) : (
                         <>
                             {/* Header: system name + breadcrumb + dual gauges */}
@@ -3581,7 +3591,7 @@ function gradeBg(score) {
 // Profile colour palette for multi-profile comparison
 const PROF_COLORS = [C.steel, C.teal, C.fair, C.atRisk, "#8B6FAB"];
 
-function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, exportProfile, activeProfile, aggTab, setAggTab }) {
+function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, exportProfile, activeProfile, aggTab, setAggTab, onNavigateToClient }) {
     const [clientTab, setClientTab] = useState(0);
     const [editOverviewCutoff, setEditOverviewCutoff] = useState(false);
     const [overviewGreen, setOverviewGreen] = useState(91);
@@ -3729,7 +3739,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                     const baseRow = isComparing && clientTab > 0 ? aggregateData[0].clients.find(r => r.pid === row.pid) : null;
                                                     return (
                                                         <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
-                                                            <td style={{ padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>{row.label ?? row.pid}</td>
+                                                            <td onClick={() => onNavigateToClient(row.pid, row.label ?? row.pid)} style={{ padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.steel, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20`, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55` }}>{row.label ?? row.pid}</td>
                                                             {(() => {
                                                                 const scores = row.systems.map(s => s.score).filter(x => x != null);
                                                                 const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
@@ -3961,7 +3971,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 <tbody>
                                                     {rows.map((row, ri) => (
                                                         <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
-                                                            <td style={{ padding: "7px 16px", fontFamily: T.mono, fontSize: 10, color: C.textSecond, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>{row.label ?? row.pid}</td>
+                                                            <td onClick={() => onNavigateToClient(row.pid, row.label ?? row.pid)} style={{ padding: "7px 16px", fontFamily: T.mono, fontSize: 10, color: C.steel, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20`, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55` }}>{row.label ?? row.pid}</td>
                                                             {(() => {
                                                                 const scores = allProcs.map(procName => row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null).filter(x => x != null);
                                                                 const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
