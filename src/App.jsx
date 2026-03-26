@@ -3762,8 +3762,30 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     </div>
                                 );
                             })()}
-                            {/* Cutoff editor */}
+                            {/* Download + Cutoff editor */}
                             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+                                <button onClick={() => {
+                                    const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
+                                    const headers = ["Client", "Flags", ...ALL_SYSTEMS.map(s => s.name)];
+                                    const csvRows = rows.map(row => {
+                                        const scores = row.systems.map(s => s.score).filter(x => x != null);
+                                        const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
+                                        const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
+                                        const flag = nR > 0 ? `${nR}R${nY > 0 ? ` ${nY}Y` : ""}` : nY > 0 ? `${nY}Y` : "✓";
+                                        return [row.label ?? row.pid, flag, ...ALL_SYSTEMS.map(s => {
+                                            const score = row.systems.find(x => x.id === s.id)?.score;
+                                            return score != null ? Math.floor(score) : "";
+                                        })];
+                                    });
+                                    const csv = [headers, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+                                    const a = document.createElement("a");
+                                    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+                                    a.download = `system_scores${isComparing ? "_" + aggregateData[isComparing ? clientTab : 0].profile.name.replace(/\s+/g, "_") : ""}.csv`;
+                                    a.click(); URL.revokeObjectURL(a.href);
+                                }} style={{
+                                    fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                    border: `1px solid ${C.teal}66`, background: "transparent", color: C.teal
+                                }}>⬇ CSV</button>
                                 <button onClick={() => setEditOverviewCutoff(o => !o)}
                                     style={{
                                         fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
@@ -3967,6 +3989,32 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         </div>
                                     );
                                 })()}
+                            </div>
+                            {/* Process scores download */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, marginBottom: 24 }}>
+                                <button onClick={() => {
+                                    const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
+                                    const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))];
+                                    const headers = ["Client", "Flags", ...allProcs];
+                                    const csvRows = rows.map(row => {
+                                        const scores = allProcs.map(procName => row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null).filter(x => x != null);
+                                        const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
+                                        const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
+                                        const flag = nR > 0 ? `${nR}R${nY > 0 ? ` ${nY}Y` : ""}` : nY > 0 ? `${nY}Y` : "✓";
+                                        return [row.label ?? row.pid, flag, ...allProcs.map(procName => {
+                                            const score = row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null;
+                                            return score != null ? Math.floor(score) : "";
+                                        })];
+                                    });
+                                    const csv = [headers, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+                                    const a = document.createElement("a");
+                                    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+                                    a.download = `process_scores${isComparing ? "_" + aggregateData[isComparing ? clientTab : 0].profile.name.replace(/\s+/g, "_") : ""}.csv`;
+                                    a.click(); URL.revokeObjectURL(a.href);
+                                }} style={{
+                                    fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                    border: `1px solid ${C.teal}66`, background: "transparent", color: C.teal
+                                }}>⬇ CSV</button>
                             </div>
                             <div>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Process Population Summary</div>
