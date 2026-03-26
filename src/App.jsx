@@ -4561,26 +4561,26 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                         const bioIsActive = hoveredProc && procs.some(([pn, bms]) => pn === hoveredProc && bms.includes(bmName));
                         const bioDimmed = hoveredProc && !bioIsActive;
                         return (<g key={bmName}>
-                                <rect x={bioX} y={cy - h / 2} width={COL3_W} height={h} rx="6"
-                                    fill={bioIsActive ? `${C.teal}18` : bioDimmed ? `${C.iceLight}60` : C.surface}
-                                    stroke={bioIsActive ? C.teal : bioDimmed ? `${C.border}` : bCol}
-                                    strokeWidth={bioIsActive ? 2 : isModified ? 1.5 : 1}
-                                    opacity={bioDimmed ? 0.35 : 1} />
-                                {nameLines.map((line, li) => (
-                                    <text key={li} x={bioX + 10} y={cy - (nameLines.length - 1) * 6 + li * 12 - (isModified ? 6 : 0)}
-                                        fontSize="9" fill={bioIsActive ? C.teal : bioDimmed ? C.textFaint : C.textSecond}
-                                        fontFamily={T.body}>{line}</text>
-                                ))}
-                                {isModified && (() => {
-                                    const badges = [];
-                                    let bx = bioX + 10;
-                                    const by = cy + h / 2 - 14;
-                                    if (w !== 1) { badges.push(badge(`x${w}`, C.teal, bx, by)); bx += String(w).length * 5.5 + 20; }
-                                    if (col !== "red") { badges.push(badge(col, C.fair, bx, by)); bx += col.length * 5.5 + 16; }
-                                    if (lvl !== "high") { badges.push(badge(lvl, C.atRisk, bx, by)); }
-                                    return badges;
-                                })()}
-                            </g>
+                            <rect x={bioX} y={cy - h / 2} width={COL3_W} height={h} rx="6"
+                                fill={bioIsActive ? `${C.teal}18` : bioDimmed ? `${C.iceLight}60` : C.surface}
+                                stroke={bioIsActive ? C.teal : bioDimmed ? `${C.border}` : bCol}
+                                strokeWidth={bioIsActive ? 2 : isModified ? 1.5 : 1}
+                                opacity={bioDimmed ? 0.35 : 1} />
+                            {nameLines.map((line, li) => (
+                                <text key={li} x={bioX + 10} y={cy - (nameLines.length - 1) * 6 + li * 12 - (isModified ? 6 : 0)}
+                                    fontSize="9" fill={bioIsActive ? C.teal : bioDimmed ? C.textFaint : C.textSecond}
+                                    fontFamily={T.body}>{line}</text>
+                            ))}
+                            {isModified && (() => {
+                                const badges = [];
+                                let bx = bioX + 10;
+                                const by = cy + h / 2 - 14;
+                                if (w !== 1) { badges.push(badge(`x${w}`, C.teal, bx, by)); bx += String(w).length * 5.5 + 20; }
+                                if (col !== "red") { badges.push(badge(col, C.fair, bx, by)); bx += col.length * 5.5 + 16; }
+                                if (lvl !== "high") { badges.push(badge(lvl, C.atRisk, bx, by)); }
+                                return badges;
+                            })()}
+                        </g>
                         );
                     })}
 
