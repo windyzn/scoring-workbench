@@ -2545,12 +2545,12 @@ export default function App() {
                         title={col1Open ? "Collapse systems panel" : "Expand systems panel"}
                         style={{
                             display: "flex", alignItems: "center", justifyContent: col1Open ? "flex-end" : "center",
-                            gap: 6, padding: "8px 10px", border: "none", borderBottom: `1px solid ${C.border}`,
+                            gap: 6, padding: "0 10px", height: 38, border: "none", borderBottom: `1px solid ${C.border}`,
                             background: "transparent", cursor: "pointer", flexShrink: 0, color: C.textFaint,
-                            fontSize: 10, letterSpacing: "0.1em"
+                            fontSize: 12, letterSpacing: "0.1em", boxSizing: "border-box"
                         }}>
-                        {col1Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600 }}>Systems</span>}
-                        <span style={{ fontSize: 14, lineHeight: 1 }}>{col1Open ? "‹" : "›"}</span>
+                        {col1Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600, lineHeight: 1 }}>Systems</span>}
+                        <span style={{ fontSize: 12, lineHeight: 1 }}>{col1Open ? "‹" : "›"}</span>
                     </button>
 
                     {col1Open && <>
@@ -2606,11 +2606,11 @@ export default function App() {
                         title={col2Open ? "Collapse processes panel" : "Expand processes panel"}
                         style={{
                             display: "flex", alignItems: "center", justifyContent: col2Open ? "flex-end" : "center",
-                            gap: 6, padding: "8px 10px", border: "none", borderBottom: `1px solid ${C.border}`,
-                            background: "transparent", cursor: "pointer", flexShrink: 0, color: C.textFaint, fontSize: 10
+                            gap: 6, padding: "0 10px", height: 38, border: "none", borderBottom: `1px solid ${C.border}`,
+                            background: "transparent", cursor: "pointer", flexShrink: 0, color: C.textFaint, fontSize: 12, boxSizing: "border-box"
                         }}>
-                        {col2Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600 }}>Processes</span>}
-                        <span style={{ fontSize: 14, lineHeight: 1 }}>{col2Open ? "‹" : "›"}</span>
+                        {col2Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600, lineHeight: 1 }}>Processes</span>}
+                        <span style={{ fontSize: 12, lineHeight: 1 }}>{col2Open ? "‹" : "›"}</span>
                     </button>
 
                     {col2Open && <div data-tutorial="processes-panel" style={{ overflowY: "auto", flex: 1 }}>
@@ -3622,7 +3622,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
 
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-            <div data-tutorial="agg-tabs-bar" style={{ display: "flex", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, paddingLeft: 4 }}>
+            <div data-tutorial="agg-tabs-bar" style={{ display: "flex", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, paddingLeft: 4, height: 38, boxSizing: "border-box" }}>
                 {AGG_TABS.map(({ key, label }) => (
                     <button key={key}
                         {...(key === "overview" ? { "data-tutorial": "agg-tab-overview" } : {})}
@@ -3636,9 +3636,9 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             if (key === "export") setTutorialStep(prev => prev === 15 ? 16 : prev);
                         }}
                         style={{
-                            padding: "10px 18px", fontSize: 12, border: "none", cursor: "pointer",
+                            padding: "0 18px", height: 38, fontSize: 12, border: "none", cursor: "pointer",
                             background: "transparent", color: aggTab === key ? C.steel : C.textFaint,
-                            fontWeight: aggTab === key ? 700 : 400,
+                            fontWeight: aggTab === key ? 700 : 400, boxSizing: "border-box",
                             borderBottom: `2px solid ${aggTab === key ? C.steel : "transparent"}`,
                             transition: "all 0.15s"
                         }}>
