@@ -4515,7 +4515,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                         const cy = pCY(pi);
                         const h = procHeights[pi];
                         const bCol = isModified ? C.teal : C.steel;
-                        const nameLines = wrapText(procName, 22);
+                        const nameLines = wrapText(procName, 48);
                         const isActive = hoveredProc === procName;
                         const dimmed = hoveredProc && !isActive;
                         return (
@@ -4557,7 +4557,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                         const cy = bCY(bi);
                         const h = bioHeights[bi];
                         const bCol = isModified ? C.teal : C.border;
-                        const nameLines = wrapText(bmName, 22);
+                        const nameLines = wrapText(bmName, 48);
                         const bioIsActive = hoveredProc && procs.some(([pn, bms]) => pn === hoveredProc && bms.includes(bmName));
                         const bioDimmed = hoveredProc && !bioIsActive;
                         return (<g key={bmName}>
