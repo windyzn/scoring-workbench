@@ -4313,9 +4313,9 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
     const [hoveredProc, setHoveredProc] = useState(null);
 
     // Layout — wider columns and gaps for readability
-    const COL1_X = 24, COL1_W = 170;
-    const COL2_X = 340, COL2_W = 190;
-    const COL3_X = 680, COL3_W = 190;
+    const COL1_X = 24, COL1_W = 204;
+    const COL2_X = 374, COL2_W = 228;
+    const COL3_X = 754, COL3_W = 228;
     const PAD_V = 28;
     const PROC_GAP = 14, BIO_GAP = 10;
     const PROC_H = 42, BIO_H = 38;
