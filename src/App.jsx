@@ -8,7 +8,7 @@ const C = {
     textMuted: "#61859D", textFaint: "#8CAABB",
     green: "#658385", good: "#61859D", fair: "#C4956A", atRisk: "#B07555", critical: "#B07070",
 };
-const T = { display: "'Georgia',serif", body: "'Trebuchet MS','Segoe UI',sans-serif", mono: "'Courier New',monospace" };
+const T = { display: "'Georgia',serif", body: "'Nunito','Trebuchet MS','Segoe UI',sans-serif", mono: "'Courier New',monospace" };
 
 // ─── System / process / marker mapping ───────────────────────────────────────
 const SYSTEMS = [
