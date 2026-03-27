@@ -32,4 +32,4 @@ Live URL: https://windyzn.github.io/scoring-workbench/
 
 ## Documentation
 
-See [scoring_documentation](https://molecularyou.atlassian.net/wiki/spaces/MY/pages/801275942/Health+Score+Algorithm+Percent+Deviation+Score) for the full specification of the scoring model, including biomarker colour classification, distance-based decay, weight override logic, and worked examples.
+See [scoring_documentation](https://molecularyou.atlassian.net/wiki/spaces/MY/pages/1263239169/System+Score+Algorithm) for the full specification of the scoring model, including biomarker colour classification, distance-based decay, weight override logic, and worked examples.
