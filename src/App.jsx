@@ -2728,6 +2728,15 @@ function SpinnerDots() {
 }
 
 function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, isUploading, loadDemo, personas }) {
+    const [showCsvExample, setShowCsvExample] = useState(false);
+    const EXAMPLE_ROWS = [
+        { my_id: "P001", barcode: "BC00001", test_id: "T001", measure_name: "Homocysteine", lab_concentration: "9.7", lower_reference_range: "6.3", upper_reference_range: "13.1", is_reported: "True" },
+        { my_id: "P001", barcode: "BC00001", test_id: "T001", measure_name: "C-reactive protein", lab_concentration: "54.2", lower_reference_range: "0", upper_reference_range: "108.3", is_reported: "True" },
+        { my_id: "P001", barcode: "BC00001", test_id: "T001", measure_name: "Glucose", lab_concentration: "4823.1", lower_reference_range: "3824.3", upper_reference_range: "5772.8", is_reported: "True" },
+        { my_id: "P002", barcode: "BC00002", test_id: "T002", measure_name: "Homocysteine", lab_concentration: "18.0", lower_reference_range: "6.3", upper_reference_range: "13.1", is_reported: "True" },
+        { my_id: "P002", barcode: "BC00002", test_id: "T002", measure_name: "Cotinine", lab_concentration: "0.002", lower_reference_range: "0", upper_reference_range: "0.016", is_reported: "False" },
+    ];
+    const COLS = ["my_id", "barcode", "test_id", "measure_name", "lab_concentration", "lower_reference_range", "upper_reference_range", "is_reported"];
     return (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 24 }}>
             <div style={{ textAlign: "center" }}>
@@ -2754,6 +2763,10 @@ function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, i
                             <div style={{ fontSize: 26, color: C.teal, marginBottom: 8 }}>↑</div>
                             <div style={{ fontSize: 13, color: C.textSecond, fontWeight: 600, marginBottom: 4 }}>Drop CSV or click to upload</div>
                             <div style={{ fontSize: 11, color: C.textFaint }}>Columns: my_id · barcode · measure_name · lab_concentration · lower/upper_reference_range · is_reported</div>
+                            <button onClick={e => { e.stopPropagation(); setShowCsvExample(true); }}
+                                style={{ marginTop: 6, fontSize: 11, color: C.teal, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>
+                                View example CSV
+                            </button>
                         </>
                     )}
                     {uploadErr && !isUploading && (
@@ -2788,6 +2801,81 @@ function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, i
                     ))}
                 </div>
             </div>
+
+            {/* CSV Example Modal */}
+            {showCsvExample && (
+                <div style={{
+                    position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 600,
+                    display: "flex", alignItems: "center", justifyContent: "center"
+                }} onClick={() => setShowCsvExample(false)}>
+                    <div style={{
+                        background: C.surface, borderRadius: 14, width: "min(900px, 95vw)",
+                        maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column",
+                        boxShadow: "0 12px 48px rgba(24,55,75,0.3)"
+                    }} onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div style={{ background: C.navy, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+                            <div>
+                                <div style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>Example CSV format</div>
+                                <div style={{ fontSize: 11, color: C.iceMid, marginTop: 3 }}>One row per biomarker per client. Only rows with is_reported = True and a numeric lab_concentration are scored.</div>
+                            </div>
+                            <button onClick={() => setShowCsvExample(false)}
+                                style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+                        </div>
+                        {/* Table */}
+                        <div style={{ overflowX: "auto", overflowY: "auto", flex: 1 }}>
+                            <table style={{ borderCollapse: "collapse", fontSize: 11, width: "100%", minWidth: 700 }}>
+                                <thead>
+                                    <tr style={{ background: `${C.navy}10`, position: "sticky", top: 0 }}>
+                                        {COLS.map(col => (
+                                            <th key={col} style={{
+                                                padding: "9px 12px", textAlign: "left", color: C.navy,
+                                                fontWeight: 700, whiteSpace: "nowrap", borderBottom: `2px solid ${C.border}`,
+                                                fontFamily: T.mono, fontSize: 10
+                                            }}>{col}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {EXAMPLE_ROWS.map((row, ri) => (
+                                        <tr key={ri} style={{ borderBottom: `1px solid ${C.border}`, background: ri % 2 === 0 ? "transparent" : `${C.iceLight}30` }}>
+                                            {COLS.map(col => (
+                                                <td key={col} style={{
+                                                    padding: "8px 12px", whiteSpace: "nowrap",
+                                                    fontFamily: col === "is_reported" || col === "my_id" || col === "barcode" || col === "test_id" ? T.mono : T.body,
+                                                    fontSize: 11,
+                                                    color: col === "is_reported"
+                                                        ? row[col] === "True" ? C.teal : C.critical
+                                                        : col === "measure_name" ? C.textPrimary : C.textSecond
+                                                }}>{row[col]}</td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                    {/* Ellipsis row */}
+                                    <tr style={{ background: `${C.iceLight}20` }}>
+                                        {COLS.map(col => (
+                                            <td key={col} style={{ padding: "6px 12px", color: C.textFaint, fontSize: 11, textAlign: "center" }}>…</td>
+                                        ))}
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        {/* Footer notes */}
+                        <div style={{ padding: "14px 20px", borderTop: `1px solid ${C.border}`, flexShrink: 0, display: "flex", gap: 24, flexWrap: "wrap" }}>
+                            {[
+                                ["my_id / barcode / test_id", "Client identifiers — barcode preferred, falls back to test_id then my_id"],
+                                ["lab_concentration", "Numeric values only — BLQ, NR, ND rows are skipped"],
+                                ["is_reported", "Only rows marked True are scored"],
+                            ].map(([label, note]) => (
+                                <div key={label} style={{ fontSize: 10, color: C.textMuted, lineHeight: 1.6 }}>
+                                    <span style={{ fontFamily: T.mono, color: C.navy, fontWeight: 700 }}>{label}</span>
+                                    <br />{note}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
