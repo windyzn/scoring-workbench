@@ -3689,6 +3689,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const [histSysId, setHistSysId] = useState(SYSTEMS[0].id);
     const [histProcName, setHistProcName] = useState(Object.keys(SYSTEMS[0].processes)[0]);
     const [flowSysId, setFlowSysId] = useState(SYSTEMS[0].id);
+    const [visibleSystems, setVisibleSystems] = useState(() => new Set(ALL_SYSTEMS.map(s => s.id)));
+    const [showSysFilter, setShowSysFilter] = useState(false);
+    const allProcNames = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))];
+    const [visibleProcs, setVisibleProcs] = useState(() => new Set(allProcNames));
+    const [showProcFilter, setShowProcFilter] = useState(false);
 
     if (!aggregateData || !aggregateData.length) return (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
@@ -3819,7 +3824,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 <tr style={{ background: C.navy }}>
                                                     <th style={{ padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Client</th>
                                                     <th style={{ padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>⚠</th>
-                                                    {ALL_SYSTEMS.map(s => <th key={s.id} style={{ padding: "10px 6px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, minWidth: 80 }}><div style={{ minWidth: 72, maxWidth: 100, margin: "0 auto", lineHeight: 1.3 }}>{s.name}</div></th>)}
+                                                    {ALL_SYSTEMS.filter(s => visibleSystems.has(s.id)).map(s => <th key={s.id} style={{ padding: "10px 6px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, minWidth: 80 }}><div style={{ minWidth: 72, maxWidth: 100, margin: "0 auto", lineHeight: 1.3 }}>{s.name}</div></th>)}
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -3840,7 +3845,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                     </td>
                                                                 );
                                                             })()}
-                                                            {row.systems.map(s => {
+                                                            {row.systems.filter(s => visibleSystems.has(s.id)).map(s => {
                                                                 const baseScore = baseRow?.systems.find(bs => bs.id === s.id)?.score ?? null;
                                                                 const d = s.score != null && baseScore != null ? s.score - baseScore : null;
                                                                 return (
@@ -3861,16 +3866,58 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                 );
                             })()}
                             {/* Download + Cutoff editor */}
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+                                {/* System columns filter */}
+                                <div style={{ position: "relative" }}>
+                                    <button onClick={() => setShowSysFilter(o => !o)} style={{
+                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                        border: `1px solid ${visibleSystems.size < ALL_SYSTEMS.length ? C.steel : C.border}`,
+                                        background: visibleSystems.size < ALL_SYSTEMS.length ? `${C.steel}12` : "transparent",
+                                        color: visibleSystems.size < ALL_SYSTEMS.length ? C.steel : C.textFaint
+                                    }}>⚙ Columns {visibleSystems.size < ALL_SYSTEMS.length ? `(${visibleSystems.size}/${ALL_SYSTEMS.length})` : ""}</button>
+                                    {showSysFilter && (
+                                        <div style={{
+                                            position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 100,
+                                            background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
+                                            boxShadow: "0 6px 24px rgba(24,55,75,0.15)", width: 260, maxHeight: 360,
+                                            overflowY: "auto", padding: "10px 0"
+                                        }} onMouseLeave={() => setShowSysFilter(false)}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 12px 8px", borderBottom: `1px solid ${C.border}`, marginBottom: 6 }}>
+                                                <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Filter systems</span>
+                                                <div style={{ display: "flex", gap: 8 }}>
+                                                    <button onClick={() => setVisibleSystems(new Set(ALL_SYSTEMS.map(s => s.id)))} style={{ fontSize: 9, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0 }}>All</button>
+                                                    <button onClick={() => setVisibleSystems(new Set())} style={{ fontSize: 9, color: C.textFaint, background: "none", border: "none", cursor: "pointer", padding: 0 }}>None</button>
+                                                </div>
+                                            </div>
+                                            {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Risk", systems: DISEASE_SYSTEMS }].map(({ label, systems }) => (
+                                                <div key={label}>
+                                                    <div style={{ padding: "4px 12px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</div>
+                                                    {systems.map(s => (
+                                                        <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px", cursor: "pointer", fontSize: 11, color: C.textSecond }}>
+                                                            <input type="checkbox" checked={visibleSystems.has(s.id)}
+                                                                onChange={() => setVisibleSystems(prev => {
+                                                                    const next = new Set(prev);
+                                                                    next.has(s.id) ? next.delete(s.id) : next.add(s.id);
+                                                                    return next;
+                                                                })} style={{ accentColor: C.steel }} />
+                                                            {s.name}
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                                 <button onClick={() => {
                                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                    const headers = ["Client", "Flags", ...ALL_SYSTEMS.map(s => s.name)];
+                                    const visibleSysList = ALL_SYSTEMS.filter(s => visibleSystems.has(s.id));
+                                    const headers = ["Client", "Flags", ...visibleSysList.map(s => s.name)];
                                     const csvRows = rows.map(row => {
                                         const scores = row.systems.map(s => s.score).filter(x => x != null);
                                         const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
                                         const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
                                         const flag = nR > 0 ? `${nR}R${nY > 0 ? ` ${nY}Y` : ""}` : nY > 0 ? `${nY}Y` : "✓";
-                                        return [row.label ?? row.pid, flag, ...ALL_SYSTEMS.map(s => {
+                                        return [row.label ?? row.pid, flag, ...visibleSysList.map(s => {
                                             const score = row.systems.find(x => x.id === s.id)?.score;
                                             return score != null ? Math.floor(score) : "";
                                         })];
@@ -3942,7 +3989,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {ALL_SYSTEMS.map((sys, si) => {
+                                        {ALL_SYSTEMS.filter(s => visibleSystems.has(s.id)).map((sys, si) => {
                                             const allStats = aggregateData.map(pd => sysStatsForProfile(pd, sys.id));
                                             const baseStats = allStats[0];
                                             const procC = overviewColour(baseStats?.mean);
@@ -4040,7 +4087,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Each cell shows the process score for that client.</div>
                                 {(() => {
                                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                    const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))];
+                                    const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))].filter(p => visibleProcs.has(p));
                                     return (
                                         <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                             <table style={{ borderCollapse: "collapse", fontSize: 11, tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
@@ -4089,10 +4136,51 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                 })()}
                             </div>
                             {/* Process scores download */}
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, marginBottom: 24 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, marginBottom: 24, flexWrap: "wrap" }}>
+                                {/* Process columns filter */}
+                                <div style={{ position: "relative" }}>
+                                    <button onClick={() => setShowProcFilter(o => !o)} style={{
+                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                        border: `1px solid ${visibleProcs.size < allProcNames.length ? C.steel : C.border}`,
+                                        background: visibleProcs.size < allProcNames.length ? `${C.steel}12` : "transparent",
+                                        color: visibleProcs.size < allProcNames.length ? C.steel : C.textFaint
+                                    }}>⚙ Columns {visibleProcs.size < allProcNames.length ? `(${visibleProcs.size}/${allProcNames.length})` : ""}</button>
+                                    {showProcFilter && (
+                                        <div style={{
+                                            position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 100,
+                                            background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
+                                            boxShadow: "0 6px 24px rgba(24,55,75,0.15)", width: 260, maxHeight: 400,
+                                            overflowY: "auto", padding: "10px 0"
+                                        }} onMouseLeave={() => setShowProcFilter(false)}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 12px 8px", borderBottom: `1px solid ${C.border}`, marginBottom: 6 }}>
+                                                <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Filter processes</span>
+                                                <div style={{ display: "flex", gap: 8 }}>
+                                                    <button onClick={() => setVisibleProcs(new Set(allProcNames))} style={{ fontSize: 9, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0 }}>All</button>
+                                                    <button onClick={() => setVisibleProcs(new Set())} style={{ fontSize: 9, color: C.textFaint, background: "none", border: "none", cursor: "pointer", padding: 0 }}>None</button>
+                                                </div>
+                                            </div>
+                                            {SYSTEMS.map(sys => (
+                                                <div key={sys.id}>
+                                                    <div style={{ padding: "4px 12px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em" }}>{sys.name}</div>
+                                                    {Object.keys(sys.processes).map(proc => (
+                                                        <label key={proc} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px", cursor: "pointer", fontSize: 11, color: C.textSecond }}>
+                                                            <input type="checkbox" checked={visibleProcs.has(proc)}
+                                                                onChange={() => setVisibleProcs(prev => {
+                                                                    const next = new Set(prev);
+                                                                    next.has(proc) ? next.delete(proc) : next.add(proc);
+                                                                    return next;
+                                                                })} style={{ accentColor: C.steel }} />
+                                                            {proc}
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                                 <button onClick={() => {
                                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                    const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))];
+                                    const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))].filter(p => visibleProcs.has(p));
                                     const headers = ["Client", "Flags", ...allProcs];
                                     const csvRows = rows.map(row => {
                                         const scores = allProcs.map(procName => row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null).filter(x => x != null);
@@ -4126,7 +4214,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {procNames.map((procName, pi) => {
+                                            {procNames.filter(p => visibleProcs.has(p)).map((procName, pi) => {
                                                 const st = procStatsForProfile(aggregateData[isComparing ? clientTab : 0], procName);
                                                 const procC = overviewColour(st?.mean);
                                                 return (
