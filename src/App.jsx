@@ -3228,9 +3228,9 @@ function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, set
                     <div style={{ fontSize: 10, lineHeight: 1.6 }}>Applied globally to all systems.</div>
                 </div>
                 <div style={{ flex: 1, minWidth: 160, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <Slider label="Cutoff" value={cutoff} min={0.1} max={1.0} step={0.05}
+                    <Slider label="Cutoff" value={cutoff} min={0.1} max={2.0} step={0.05}
                         onChange={setCutoff} color={C.navyMid} fmt={v => `${(v * 100).toFixed(0)}%`}
-                        tooltip={"Distance from the reference boundary (as a fraction of the range width) at which score reaches 0.\n\nAt 50%: a marker 50% outside the boundary scores 0."} />
+                        tooltip={"Distance from the reference boundary (as a fraction of the range width) at which score reaches 0.\n\nAt 50%: a marker 50% outside the boundary scores 0. At 200%: only markers extremely far out of range score 0."} />
                     <Slider label="Green margin" value={greenPct} min={0.01} max={0.2} step={0.01}
                         onChange={setGreenPct} color={C.teal} fmt={v => `${(v * 100).toFixed(0)}%`}
                         tooltip={"Width of the 'perfect' zone centred on the reference range, as a % of the range width.\n\nAt 5%: biomarkers within 5% of the ref boundaries score 100. Larger values mean a wider green zone and slower score decay."} />
