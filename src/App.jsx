@@ -1204,8 +1204,7 @@ function scoreBM(v, lo, hi, cutoff = 0.5, gp = 0.05, curve = "linear") {
     const dist = v > gH ? (v - gH) / rng : (gL - v) / rng;
     const t = Math.max(0, Math.min(1, dist / cutoff));
     let s = curve === "linear" ? 100 * (1 - t)
-        : curve === "sqrt" ? 100 * (1 - Math.sqrt(t))
-            : Math.max(0, 100 * (1 - 1 / (1 + Math.exp(-8 * (t - 0.5)))) * 2);
+        : Math.max(0, 100 * (1 - Math.log2(1 + t)));
     return Math.max(0, Math.min(100, s));
 }
 
@@ -3239,7 +3238,7 @@ function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, set
                 <div style={{ minWidth: 160 }}>
                     <div style={{ fontSize: 11, color: C.textSecond, marginBottom: 6 }}>Curve shape</div>
                     <div data-tutorial="curve-shape-btns" style={{ display: "flex", gap: 4 }}>
-                        {["linear", "sqrt", "sigmoid"].map(cv => (
+                        {["linear", "log2"].map(cv => (
                             <button key={cv} onClick={() => setCurve(cv)} style={{
                                 flex: 1, padding: "5px 0", fontSize: 10,
                                 border: `1px solid ${curve === cv ? C.steel : C.border}`, borderRadius: 5, cursor: "pointer",
