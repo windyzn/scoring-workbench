@@ -3786,12 +3786,93 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
 
                 {aggTab === "overview" && (
                     <div>
+
                         <div data-tutorial="client-scores-table" style={{ marginBottom: 32 }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Client Scores</div>
                             <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
                                 Each cell shows the system score for that client.
                                 {isComparing && clientTab === 0 && <span> Viewing <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> (baseline).</span>}
                                 {isComparing && clientTab > 0 && <span> Viewing <strong style={{ color: PROF_COLORS[clientTab] }}>{aggregateData[clientTab].profile.name}</strong>. ▲▼ deltas vs. baseline.</span>}
+                            </div>
+                            {/* Table controls */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                                <button onClick={() => {
+                                    const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
+                                    const visibleSysList = ALL_SYSTEMS.filter(s => visibleSystems.has(s.id));
+                                    const headers = ["Client", "Flags", ...visibleSysList.map(s => s.name)];
+                                    const csvRows = rows.map(row => {
+                                        const scores = row.systems.map(s => s.score).filter(x => x != null);
+                                        const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
+                                        const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
+                                        const flag = nR > 0 ? (nR + "R" + (nY > 0 ? " " + nY + "Y" : "")) : nY > 0 ? (nY + "Y") : "✓";
+                                        return [row.label ?? row.pid, flag, ...visibleSysList.map(s => {
+                                            const score = row.systems.find(x => x.id === s.id)?.score;
+                                            return score != null ? Math.floor(score) : "";
+                                        })];
+                                    });
+                                    const csv = [headers, ...csvRows].map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
+                                    const a = document.createElement("a");
+                                    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+                                    a.download = "system_scores.csv";
+                                    a.click(); URL.revokeObjectURL(a.href);
+                                }} style={{ fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer", border: `1px solid ${C.teal}66`, background: "transparent", color: C.teal }}>⬇ CSV</button>
+                                <div style={{ position: "relative" }}>
+                                    <button onClick={() => setShowSysFilter(o => !o)} style={{
+                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                        border: `1px solid ${visibleSystems.size < ALL_SYSTEMS.length ? C.steel : C.border}`,
+                                        background: visibleSystems.size < ALL_SYSTEMS.length ? `${C.steel}12` : "transparent",
+                                        color: visibleSystems.size < ALL_SYSTEMS.length ? C.steel : C.textFaint
+                                    }}>⚙ Columns {visibleSystems.size < ALL_SYSTEMS.length ? `(${visibleSystems.size}/${ALL_SYSTEMS.length})` : ""}</button>
+                                    {showSysFilter && (
+                                        <div style={{
+                                            position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 100,
+                                            background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
+                                            boxShadow: "0 6px 24px rgba(24,55,75,0.15)", width: 260, maxHeight: 360,
+                                            overflowY: "auto", padding: "10px 0"
+                                        }} onMouseLeave={() => setShowSysFilter(false)}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 12px 8px", borderBottom: `1px solid ${C.border}`, marginBottom: 6 }}>
+                                                <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Filter systems</span>
+                                                <div style={{ display: "flex", gap: 8 }}>
+                                                    <button onClick={() => setVisibleSystems(new Set(ALL_SYSTEMS.map(s => s.id)))} style={{ fontSize: 9, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0 }}>All</button>
+                                                    <button onClick={() => setVisibleSystems(new Set())} style={{ fontSize: 9, color: C.textFaint, background: "none", border: "none", cursor: "pointer", padding: 0 }}>None</button>
+                                                </div>
+                                            </div>
+                                            {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Risk", systems: DISEASE_SYSTEMS }].map(({ label, systems }) => (
+                                                <div key={label}>
+                                                    <div style={{ padding: "4px 12px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</div>
+                                                    {systems.map(s => (
+                                                        <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px", cursor: "pointer", fontSize: 11, color: C.textSecond }}>
+                                                            <input type="checkbox" checked={visibleSystems.has(s.id)}
+                                                                onChange={() => setVisibleSystems(prev => { const next = new Set(prev); next.has(s.id) ? next.delete(s.id) : next.add(s.id); return next; })}
+                                                                style={{ accentColor: C.steel }} />
+                                                            {s.name}
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <button onClick={() => setEditOverviewCutoff(o => !o)} style={{
+                                    fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                    border: `1px solid ${editOverviewCutoff ? C.teal : C.border}`,
+                                    background: editOverviewCutoff ? `${C.teal}12` : "transparent",
+                                    color: editOverviewCutoff ? C.teal : C.textFaint
+                                }}>{editOverviewCutoff ? "🔓" : "🔒"} Colour cut-offs</button>
+                                {editOverviewCutoff && <>
+                                    <span style={{ fontSize: 10, color: C.teal }}>Green ≥</span>
+                                    <input type="number" min={overviewYellow + 1} max={100} value={overviewGreen}
+                                        onChange={e => { const v = Math.round(Number(e.target.value)); if (v > overviewYellow && v <= 100) setOverviewGreen(v); }}
+                                        style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.teal}`, borderRadius: 4, textAlign: "center", color: C.teal, fontWeight: 700 }} />
+                                    <span style={{ fontSize: 10, color: C.fair }}>Yellow ≥</span>
+                                    <input type="number" min={1} max={overviewGreen - 1} value={overviewYellow}
+                                        onChange={e => { const v = Math.round(Number(e.target.value)); if (v >= 1 && v < overviewGreen) setOverviewYellow(v); }}
+                                        style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.fair}`, borderRadius: 4, textAlign: "center", color: C.fair, fontWeight: 700 }} />
+                                    {(overviewGreen !== 91 || overviewYellow !== 70) && (
+                                        <button onClick={() => { setOverviewGreen(91); setOverviewYellow(70); }}
+                                            style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer", border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint }}>↺ reset</button>
+                                    )}
+                                </>}
                             </div>
                             {isComparing && (
                                 <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
@@ -3865,99 +3946,6 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     </div>
                                 );
                             })()}
-                            {/* Download + Cutoff editor */}
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
-                                <button onClick={() => {
-                                    const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                    const visibleSysList = ALL_SYSTEMS.filter(s => visibleSystems.has(s.id));
-                                    const headers = ["Client", "Flags", ...visibleSysList.map(s => s.name)];
-                                    const csvRows = rows.map(row => {
-                                        const scores = row.systems.map(s => s.score).filter(x => x != null);
-                                        const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
-                                        const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
-                                        const flag = nR > 0 ? `${nR}R${nY > 0 ? ` ${nY}Y` : ""}` : nY > 0 ? `${nY}Y` : "✓";
-                                        return [row.label ?? row.pid, flag, ...visibleSysList.map(s => {
-                                            const score = row.systems.find(x => x.id === s.id)?.score;
-                                            return score != null ? Math.floor(score) : "";
-                                        })];
-                                    });
-                                    const csv = [headers, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-                                    const a = document.createElement("a");
-                                    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-                                    a.download = `system_scores${isComparing ? "_" + aggregateData[isComparing ? clientTab : 0].profile.name.replace(/\s+/g, "_") : ""}.csv`;
-                                    a.click(); URL.revokeObjectURL(a.href);
-                                }} style={{
-                                    fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                    border: `1px solid ${C.teal}66`, background: "transparent", color: C.teal
-                                }}>⬇ CSV</button>
-                                {/* System columns filter */}
-                                <div style={{ position: "relative" }}>
-                                    <button onClick={() => setShowSysFilter(o => !o)} style={{
-                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                        border: `1px solid ${visibleSystems.size < ALL_SYSTEMS.length ? C.steel : C.border}`,
-                                        background: visibleSystems.size < ALL_SYSTEMS.length ? `${C.steel}12` : "transparent",
-                                        color: visibleSystems.size < ALL_SYSTEMS.length ? C.steel : C.textFaint
-                                    }}>⚙ Columns {visibleSystems.size < ALL_SYSTEMS.length ? `(${visibleSystems.size}/${ALL_SYSTEMS.length})` : ""}</button>
-                                    {showSysFilter && (
-                                        <div style={{
-                                            position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 100,
-                                            background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
-                                            boxShadow: "0 6px 24px rgba(24,55,75,0.15)", width: 260, maxHeight: 360,
-                                            overflowY: "auto", padding: "10px 0"
-                                        }} onMouseLeave={() => setShowSysFilter(false)}>
-                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 12px 8px", borderBottom: `1px solid ${C.border}`, marginBottom: 6 }}>
-                                                <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Filter systems</span>
-                                                <div style={{ display: "flex", gap: 8 }}>
-                                                    <button onClick={() => setVisibleSystems(new Set(ALL_SYSTEMS.map(s => s.id)))} style={{ fontSize: 9, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0 }}>All</button>
-                                                    <button onClick={() => setVisibleSystems(new Set())} style={{ fontSize: 9, color: C.textFaint, background: "none", border: "none", cursor: "pointer", padding: 0 }}>None</button>
-                                                </div>
-                                            </div>
-                                            {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Risk", systems: DISEASE_SYSTEMS }].map(({ label, systems }) => (
-                                                <div key={label}>
-                                                    <div style={{ padding: "4px 12px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</div>
-                                                    {systems.map(s => (
-                                                        <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px", cursor: "pointer", fontSize: 11, color: C.textSecond }}>
-                                                            <input type="checkbox" checked={visibleSystems.has(s.id)}
-                                                                onChange={() => setVisibleSystems(prev => {
-                                                                    const next = new Set(prev);
-                                                                    next.has(s.id) ? next.delete(s.id) : next.add(s.id);
-                                                                    return next;
-                                                                })} style={{ accentColor: C.steel }} />
-                                                            {s.name}
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <button onClick={() => setEditOverviewCutoff(o => !o)}
-                                    style={{
-                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                        border: `1px solid ${editOverviewCutoff ? C.teal : C.border}`,
-                                        background: editOverviewCutoff ? `${C.teal}12` : "transparent",
-                                        color: editOverviewCutoff ? C.teal : C.textFaint
-                                    }}>
-                                    {editOverviewCutoff ? "🔓" : "🔒"} Colour cut-offs
-                                </button>
-                                {editOverviewCutoff && <>
-                                    <span style={{ fontSize: 10, color: C.teal }}>Green ≥</span>
-                                    <input type="number" min={overviewYellow + 1} max={100} value={overviewGreen}
-                                        onChange={e => { const v = Math.round(Number(e.target.value)); if (v > overviewYellow && v <= 100) setOverviewGreen(v); }}
-                                        style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.teal}`, borderRadius: 4, textAlign: "center", color: C.teal, fontWeight: 700 }} />
-                                    <span style={{ fontSize: 10, color: C.fair }}>Yellow ≥</span>
-                                    <input type="number" min={1} max={overviewGreen - 1} value={overviewYellow}
-                                        onChange={e => { const v = Math.round(Number(e.target.value)); if (v >= 1 && v < overviewGreen) setOverviewYellow(v); }}
-                                        style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.fair}`, borderRadius: 4, textAlign: "center", color: C.fair, fontWeight: 700 }} />
-                                    {(overviewGreen !== 91 || overviewYellow !== 70) && (
-                                        <button onClick={() => { setOverviewGreen(91); setOverviewYellow(70); }}
-                                            style={{
-                                                fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer",
-                                                border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint
-                                            }}>↺ reset</button>
-                                    )}
-                                </>}
-                            </div>
 
                         </div>
                         <div style={{ marginTop: 24 }}>
@@ -4082,9 +4070,90 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     })}
                                 </div>
                             )}
+
                             <div data-tutorial="client-scores-table" style={{ marginBottom: 32 }}>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Client Process Scores</div>
                                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Each cell shows the process score for that client.</div>
+                                {/* Table controls */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                                    <button onClick={() => {
+                                        const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
+                                        const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))].filter(p => visibleProcs.has(p));
+                                        const headers = ["Client", "Flags", ...allProcs];
+                                        const csvRows = rows.map(row => {
+                                            const scores = allProcs.map(procName => row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null).filter(x => x != null);
+                                            const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
+                                            const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
+                                            const flag = nR > 0 ? (nR + "R" + (nY > 0 ? " " + nY + "Y" : "")) : nY > 0 ? (nY + "Y") : "✓";
+                                            return [row.label ?? row.pid, flag, ...allProcs.map(procName => {
+                                                const score = row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null;
+                                                return score != null ? Math.floor(score) : "";
+                                            })];
+                                        });
+                                        const csv = [headers, ...csvRows].map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
+                                        const a = document.createElement("a");
+                                        a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+                                        a.download = "process_scores.csv";
+                                        a.click(); URL.revokeObjectURL(a.href);
+                                    }} style={{ fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer", border: `1px solid ${C.teal}66`, background: "transparent", color: C.teal }}>⬇ CSV</button>
+                                    <div style={{ position: "relative" }}>
+                                        <button onClick={() => setShowProcFilter(o => !o)} style={{
+                                            fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                            border: `1px solid ${visibleProcs.size < allProcNames.length ? C.steel : C.border}`,
+                                            background: visibleProcs.size < allProcNames.length ? `${C.steel}12` : "transparent",
+                                            color: visibleProcs.size < allProcNames.length ? C.steel : C.textFaint
+                                        }}>⚙ Columns {visibleProcs.size < allProcNames.length ? `(${visibleProcs.size}/${allProcNames.length})` : ""}</button>
+                                        {showProcFilter && (
+                                            <div style={{
+                                                position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 100,
+                                                background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
+                                                boxShadow: "0 6px 24px rgba(24,55,75,0.15)", width: 260, maxHeight: 400,
+                                                overflowY: "auto", padding: "10px 0"
+                                            }} onMouseLeave={() => setShowProcFilter(false)}>
+                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 12px 8px", borderBottom: `1px solid ${C.border}`, marginBottom: 6 }}>
+                                                    <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Filter processes</span>
+                                                    <div style={{ display: "flex", gap: 8 }}>
+                                                        <button onClick={() => setVisibleProcs(new Set(allProcNames))} style={{ fontSize: 9, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0 }}>All</button>
+                                                        <button onClick={() => setVisibleProcs(new Set())} style={{ fontSize: 9, color: C.textFaint, background: "none", border: "none", cursor: "pointer", padding: 0 }}>None</button>
+                                                    </div>
+                                                </div>
+                                                {SYSTEMS.map(sys => (
+                                                    <div key={sys.id}>
+                                                        <div style={{ padding: "4px 12px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em" }}>{sys.name}</div>
+                                                        {Object.keys(sys.processes).map(proc => (
+                                                            <label key={proc} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px", cursor: "pointer", fontSize: 11, color: C.textSecond }}>
+                                                                <input type="checkbox" checked={visibleProcs.has(proc)}
+                                                                    onChange={() => setVisibleProcs(prev => { const next = new Set(prev); next.has(proc) ? next.delete(proc) : next.add(proc); return next; })}
+                                                                    style={{ accentColor: C.steel }} />
+                                                                {proc}
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button onClick={() => setEditOverviewCutoff(o => !o)} style={{
+                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                        border: `1px solid ${editOverviewCutoff ? C.teal : C.border}`,
+                                        background: editOverviewCutoff ? `${C.teal}12` : "transparent",
+                                        color: editOverviewCutoff ? C.teal : C.textFaint
+                                    }}>{editOverviewCutoff ? "🔓" : "🔒"} Colour cut-offs</button>
+                                    {editOverviewCutoff && <>
+                                        <span style={{ fontSize: 10, color: C.teal }}>Green ≥</span>
+                                        <input type="number" min={overviewYellow + 1} max={100} value={overviewGreen}
+                                            onChange={e => { const v = Math.round(Number(e.target.value)); if (v > overviewYellow && v <= 100) setOverviewGreen(v); }}
+                                            style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.teal}`, borderRadius: 4, textAlign: "center", color: C.teal, fontWeight: 700 }} />
+                                        <span style={{ fontSize: 10, color: C.fair }}>Yellow ≥</span>
+                                        <input type="number" min={1} max={overviewGreen - 1} value={overviewYellow}
+                                            onChange={e => { const v = Math.round(Number(e.target.value)); if (v >= 1 && v < overviewGreen) setOverviewYellow(v); }}
+                                            style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.fair}`, borderRadius: 4, textAlign: "center", color: C.fair, fontWeight: 700 }} />
+                                        {(overviewGreen !== 91 || overviewYellow !== 70) && (
+                                            <button onClick={() => { setOverviewGreen(91); setOverviewYellow(70); }}
+                                                style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer", border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint }}>↺ reset</button>
+                                        )}
+                                    </>}
+                                </div>
                                 {(() => {
                                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
                                     const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))].filter(p => visibleProcs.has(p));
@@ -4135,99 +4204,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     );
                                 })()}
                             </div>
-                            {/* Process scores download */}
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, marginBottom: 24, flexWrap: "wrap" }}>
-                                <button onClick={() => {
-                                    const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                    const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))].filter(p => visibleProcs.has(p));
-                                    const headers = ["Client", "Flags", ...allProcs];
-                                    const csvRows = rows.map(row => {
-                                        const scores = allProcs.map(procName => row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null).filter(x => x != null);
-                                        const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
-                                        const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
-                                        const flag = nR > 0 ? `${nR}R${nY > 0 ? ` ${nY}Y` : ""}` : nY > 0 ? `${nY}Y` : "✓";
-                                        return [row.label ?? row.pid, flag, ...allProcs.map(procName => {
-                                            const score = row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null;
-                                            return score != null ? Math.floor(score) : "";
-                                        })];
-                                    });
-                                    const csv = [headers, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-                                    const a = document.createElement("a");
-                                    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-                                    a.download = `process_scores${isComparing ? "_" + aggregateData[isComparing ? clientTab : 0].profile.name.replace(/\s+/g, "_") : ""}.csv`;
-                                    a.click(); URL.revokeObjectURL(a.href);
-                                }} style={{
-                                    fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                    border: `1px solid ${C.teal}66`, background: "transparent", color: C.teal
-                                }}>⬇ CSV</button>
-                                {/* Process columns filter */}
-                                <div style={{ position: "relative" }}>
-                                    <button onClick={() => setShowProcFilter(o => !o)} style={{
-                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                        border: `1px solid ${visibleProcs.size < allProcNames.length ? C.steel : C.border}`,
-                                        background: visibleProcs.size < allProcNames.length ? `${C.steel}12` : "transparent",
-                                        color: visibleProcs.size < allProcNames.length ? C.steel : C.textFaint
-                                    }}>⚙ Columns {visibleProcs.size < allProcNames.length ? `(${visibleProcs.size}/${allProcNames.length})` : ""}</button>
-                                    {showProcFilter && (
-                                        <div style={{
-                                            position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 100,
-                                            background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
-                                            boxShadow: "0 6px 24px rgba(24,55,75,0.15)", width: 260, maxHeight: 400,
-                                            overflowY: "auto", padding: "10px 0"
-                                        }} onMouseLeave={() => setShowProcFilter(false)}>
-                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 12px 8px", borderBottom: `1px solid ${C.border}`, marginBottom: 6 }}>
-                                                <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Filter processes</span>
-                                                <div style={{ display: "flex", gap: 8 }}>
-                                                    <button onClick={() => setVisibleProcs(new Set(allProcNames))} style={{ fontSize: 9, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0 }}>All</button>
-                                                    <button onClick={() => setVisibleProcs(new Set())} style={{ fontSize: 9, color: C.textFaint, background: "none", border: "none", cursor: "pointer", padding: 0 }}>None</button>
-                                                </div>
-                                            </div>
-                                            {SYSTEMS.map(sys => (
-                                                <div key={sys.id}>
-                                                    <div style={{ padding: "4px 12px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em" }}>{sys.name}</div>
-                                                    {Object.keys(sys.processes).map(proc => (
-                                                        <label key={proc} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px", cursor: "pointer", fontSize: 11, color: C.textSecond }}>
-                                                            <input type="checkbox" checked={visibleProcs.has(proc)}
-                                                                onChange={() => setVisibleProcs(prev => {
-                                                                    const next = new Set(prev);
-                                                                    next.has(proc) ? next.delete(proc) : next.add(proc);
-                                                                    return next;
-                                                                })} style={{ accentColor: C.steel }} />
-                                                            {proc}
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <button onClick={() => setEditOverviewCutoff(o => !o)}
-                                    style={{
-                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                        border: `1px solid ${editOverviewCutoff ? C.teal : C.border}`,
-                                        background: editOverviewCutoff ? `${C.teal}12` : "transparent",
-                                        color: editOverviewCutoff ? C.teal : C.textFaint
-                                    }}>
-                                    {editOverviewCutoff ? "🔓" : "🔒"} Colour cut-offs
-                                </button>
-                                {editOverviewCutoff && <>
-                                    <span style={{ fontSize: 10, color: C.teal }}>Green ≥</span>
-                                    <input type="number" min={overviewYellow + 1} max={100} value={overviewGreen}
-                                        onChange={e => { const v = Math.round(Number(e.target.value)); if (v > overviewYellow && v <= 100) setOverviewGreen(v); }}
-                                        style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.teal}`, borderRadius: 4, textAlign: "center", color: C.teal, fontWeight: 700 }} />
-                                    <span style={{ fontSize: 10, color: C.fair }}>Yellow ≥</span>
-                                    <input type="number" min={1} max={overviewGreen - 1} value={overviewYellow}
-                                        onChange={e => { const v = Math.round(Number(e.target.value)); if (v >= 1 && v < overviewGreen) setOverviewYellow(v); }}
-                                        style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.fair}`, borderRadius: 4, textAlign: "center", color: C.fair, fontWeight: 700 }} />
-                                    {(overviewGreen !== 91 || overviewYellow !== 70) && (
-                                        <button onClick={() => { setOverviewGreen(91); setOverviewYellow(70); }}
-                                            style={{
-                                                fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer",
-                                                border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint
-                                            }}>↺ reset</button>
-                                    )}
-                                </>}
-                            </div>
+
                             <div>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Process Population Summary</div>
                                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Summary statistics per process across all clients.</div>
