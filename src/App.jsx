@@ -8,7 +8,7 @@ const C = {
     textMuted: "#61859D", textFaint: "#8CAABB",
     green: "#658385", good: "#61859D", fair: "#C4956A", atRisk: "#B07555", critical: "#B07070",
 };
-const T = { display: "'Georgia',serif", body: "'Nunito','Trebuchet MS','Segoe UI',sans-serif", mono: "'Courier New',monospace" };
+const T = { display: "'Georgia',serif", body: "'Trebuchet MS','Segoe UI',sans-serif", mono: "'Courier New',monospace" };
 
 // ─── System / process / marker mapping ───────────────────────────────────────
 const SYSTEMS = [
@@ -84,196 +84,6 @@ const ALIASES = {
     "Asymmetric dimethylarginine": "ADMA", "Hydroxysphingomyelin C14:1": "SM (OH) C14:1",
     "Sphingomyelin C16:0": "SM C16:0", "Sphingomyelin C20:2": "SM C20:2",
 };
-
-// ─── Disease Risk Systems ─────────────────────────────────────────────────────
-// Same biomarker→process mapping as health systems; processes reused across both.
-const DISEASE_SYSTEMS = [
-    {
-        id: "alzheimers_disease", name: "Alzheimer's Disease", processes: {
-            "Blood Vessel Lining Health": ["Asymmetric dimethylarginine", "Cadherin-5", "Kallistatin"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Cell Growth and Renewal": ["Diacetylspermine", "Putrescine", "Spermidine", "Spermine"],
-            "DNA & Gene Regulation": ["Betaine", "Choline", "Glycine", "Sarcosine"],
-            "Methylation & B-Vitamin Status": ["Homocysteine", "Methylmalonic acid"],
-            "Mitochondrial Energy": ["alpha-Ketoglutaric acid", "Citric acid", "Fumaric acid", "Lactic acid", "Pyruvic acid", "Succinic acid"],
-            "Tryptophan Processing": ["Kynurenine", "Tryptophan"],
-            "Brain & Nerve Signals": ["5-Hydroxyindole-3-acetic acid", "DOPA", "Gamma-aminobutyric acid", "Histamine", "Homovanillic acid", "Phenylethylamine", "Serotonin", "Tyramine"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-    {
-        id: "atherosclerosis", name: "Atherosclerosis", processes: {
-            "Blood Clotting Control": ["Alpha-2-antiplasmin", "Antithrombin-III", "Beta-2-glycoprotein 1", "Carboxypeptidase B2", "Heparin cofactor 2", "Histidine-rich glycoprotein", "Kininogen-1"],
-            "Blood Vessel Lining Health": ["Asymmetric dimethylarginine", "Cadherin-5", "Kallistatin"],
-            "Cell Membrane Lipids": ["Hydroxysphingomyelin C14:1", "Sphingomyelin C16:0", "Sphingomyelin C20:2"],
-            "Circulation Support": ["Angiotensinogen", "Phosphatidylinositol-glycan-specific phospholipase D", "Plasma serine protease inhibitor", "Tetranectin"],
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune Cell Recruitment": ["Attractin", "CD44 antigen", "Galectin-3-binding protein", "Intercellular adhesion molecule 1", "L-selectin"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-            "Clotting & Wound Healing": ["Coagulation factor IX", "Coagulation factor V", "Coagulation factor X", "Coagulation factor XI", "Coagulation factor XII", "Coagulation factor XIII A chain", "Coagulation factor XIII B chain", "Fibrinogen alpha chain", "Fibrinogen beta chain", "Fibrinogen gamma chain", "Plasminogen", "Protein Z-dependent protease inhibitor", "Prothrombin", "Thrombospondin-1", "Vitamin K-dependent protein S", "Vitamin K-dependent protein Z", "Vitronectin", "von Willebrand Factor"],
-        }
-    },
-    {
-        id: "cardiovascular_disease", name: "Cardiovascular Disease", processes: {
-            "Blood Clotting Control": ["Alpha-2-antiplasmin", "Antithrombin-III", "Beta-2-glycoprotein 1", "Carboxypeptidase B2", "Heparin cofactor 2", "Histidine-rich glycoprotein", "Kininogen-1"],
-            "Blood Vessel Lining Health": ["Asymmetric dimethylarginine", "Cadherin-5", "Kallistatin"],
-            "Cell Membrane Lipids": ["Hydroxysphingomyelin C14:1", "Sphingomyelin C16:0", "Sphingomyelin C20:2"],
-            "Circulation Support": ["Angiotensinogen", "Phosphatidylinositol-glycan-specific phospholipase D", "Plasma serine protease inhibitor", "Tetranectin"],
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Oxygen Transport": ["Carbonic anhydrase 1", "Hemoglobin subunit alpha 1"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Blood Sugar Control": ["Adipocyte plasma membrane-associated protein", "Alanine", "Aspartic acid", "Glucose", "Glutamic acid"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Hormone Balance": ["Corticosteroid-binding globulin", "Insulin-like growth factor-binding protein 2", "Insulin-like growth factor-binding protein 3", "Insulin-like growth factor-binding protein complex acid labile subunit", "Pregnancy zone protein", "Sex hormone-binding globulin", "Thyroxine-binding globulin"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-            "Clotting & Wound Healing": ["Coagulation factor IX", "Coagulation factor V", "Coagulation factor X", "Coagulation factor XI", "Coagulation factor XII", "Coagulation factor XIII A chain", "Coagulation factor XIII B chain", "Fibrinogen alpha chain", "Fibrinogen beta chain", "Fibrinogen gamma chain", "Plasminogen", "Protein Z-dependent protease inhibitor", "Prothrombin", "Thrombospondin-1", "Vitamin K-dependent protein S", "Vitamin K-dependent protein Z", "Vitronectin", "von Willebrand Factor"],
-        }
-    },
-    {
-        id: "chronic_kidney_disease", name: "Chronic Kidney Disease", processes: {
-            "Blood Vessel Lining Health": ["Asymmetric dimethylarginine", "Cadherin-5", "Kallistatin"],
-            "Circulation Support": ["Angiotensinogen", "Phosphatidylinositol-glycan-specific phospholipase D", "Plasma serine protease inhibitor", "Tetranectin"],
-            "Kidney Filtration": ["Beta-2-microglobulin", "Creatinine", "Cystatin-C", "Uric acid"],
-            "Vitamin & Mineral Transport": ["Afamin", "Retinol-binding protein 4", "Serotransferrin", "Serum albumin", "Transthyretin", "Vitamin D-binding protein"],
-            "Blood Cleaning & Recycling": ["Glutathione peroxidase 3", "Haptoglobin", "Hemopexin", "Peroxiredoxin-2"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Amino Acid Pool": ["Acetyl-Ornithine", "Alpha-amino-N-butyric acid", "alpha-Aminoadipic acid", "Arginine", "Asparagine", "Beta-alanine", "Carnosine", "cis-OH-Proline", "Glutamine", "Histidine", "Lysine", "Methylhistidine", "Ornithine", "Taurine", "trans-OH-Proline"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Hormone Balance": ["Corticosteroid-binding globulin", "Insulin-like growth factor-binding protein 2", "Insulin-like growth factor-binding protein 3", "Insulin-like growth factor-binding protein complex acid labile subunit", "Pregnancy zone protein", "Sex hormone-binding globulin", "Thyroxine-binding globulin"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-    {
-        id: "chronic_obstructive_pulmonary_disease", name: "COPD", processes: {
-            "Oxygen Transport": ["Carbonic anhydrase 1", "Hemoglobin subunit alpha 1"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Enzyme Control": ["Alpha-1-antichymotrypsin", "Alpha-1-antitrypsin", "Carboxypeptidase N catalytic chain", "Carboxypeptidase N subunit 2", "Inter-alpha-trypsin inhibitor heavy chain H1", "Inter-alpha-trypsin inhibitor heavy chain H2", "Inter-alpha-trypsin inhibitor heavy chain H4", "Protein AMBP"],
-            "Mitochondrial Energy": ["alpha-Ketoglutaric acid", "Citric acid", "Fumaric acid", "Lactic acid", "Pyruvic acid", "Succinic acid"],
-            "Early Warning Response": ["Alpha-1B-glycoprotein", "Clusterin", "Lipopolysaccharide-binding protein", "Plasma protease C1 inhibitor"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune Cell Recruitment": ["Attractin", "CD44 antigen", "Galectin-3-binding protein", "Intercellular adhesion molecule 1", "L-selectin"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-            "Tissue Support Proteins": ["Alpha-2-HS-glycoprotein", "Fetuin-B", "Pigment epithelium-derived factor", "Vasorin"],
-        }
-    },
-    {
-        id: "depression", name: "Depression", processes: {
-            "Gut Bacteria Activity": ["Benzoic acid", "Hippuric acid", "Hydroxyphenylacetic acid", "Indole acetic acid", "Para-hydroxyhippuric acid", "Trigonelline", "Trimethylamine N-oxide"],
-            "Methylation & B-Vitamin Status": ["Homocysteine", "Methylmalonic acid"],
-            "Mitochondrial Energy": ["alpha-Ketoglutaric acid", "Citric acid", "Fumaric acid", "Lactic acid", "Pyruvic acid", "Succinic acid"],
-            "Tryptophan Processing": ["Kynurenine", "Tryptophan"],
-            "Brain & Nerve Signals": ["5-Hydroxyindole-3-acetic acid", "DOPA", "Gamma-aminobutyric acid", "Histamine", "Homovanillic acid", "Phenylethylamine", "Serotonin", "Tyramine"],
-            "Hormone Balance": ["Corticosteroid-binding globulin", "Insulin-like growth factor-binding protein 2", "Insulin-like growth factor-binding protein 3", "Insulin-like growth factor-binding protein complex acid labile subunit", "Pregnancy zone protein", "Sex hormone-binding globulin", "Thyroxine-binding globulin"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-    {
-        id: "inflammatory_bowel_disease", name: "Inflammatory Bowel Disease", processes: {
-            "Digestive Enzymes": ["Biotinidase", "Xaa-Pro dipeptidase"],
-            "Gut Bacteria Activity": ["Benzoic acid", "Hippuric acid", "Hydroxyphenylacetic acid", "Indole acetic acid", "Para-hydroxyhippuric acid", "Trigonelline", "Trimethylamine N-oxide"],
-            "Gut Lining Health": ["Citrulline"],
-            "Short-Chain Fatty Acid Production": ["Butyric acid", "Isobutyric acid", "Propionic acid"],
-            "Early Warning Response": ["Alpha-1B-glycoprotein", "Clusterin", "Lipopolysaccharide-binding protein", "Plasma protease C1 inhibitor"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune Cell Movement": ["Endothelial protein C receptor", "Plastin-2"],
-            "Immune Cell Recruitment": ["Attractin", "CD44 antigen", "Galectin-3-binding protein", "Intercellular adhesion molecule 1", "L-selectin"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-            "Tissue & Joint Health": ["Angiogenin", "Cartilage acidic protein 1", "Extracellular matrix protein 1", "Fibronectin", "Fibulin-1", "Gelsolin", "Lumican", "Proteoglycan 4", "Tenascin"],
-        }
-    },
-    {
-        id: "liver_disease", name: "Liver Disease", processes: {
-            "Blood Clotting Control": ["Alpha-2-antiplasmin", "Antithrombin-III", "Beta-2-glycoprotein 1", "Carboxypeptidase B2", "Heparin cofactor 2", "Histidine-rich glycoprotein", "Kininogen-1"],
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Blood Cleaning & Recycling": ["Glutathione peroxidase 3", "Haptoglobin", "Hemopexin", "Peroxiredoxin-2"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Dietary & Environmental Exposures": ["Cotinine", "Proline-Betaine"],
-            "Enzyme Control": ["Alpha-1-antichymotrypsin", "Alpha-1-antitrypsin", "Carboxypeptidase N catalytic chain", "Carboxypeptidase N subunit 2", "Inter-alpha-trypsin inhibitor heavy chain H1", "Inter-alpha-trypsin inhibitor heavy chain H2", "Inter-alpha-trypsin inhibitor heavy chain H4", "Protein AMBP"],
-            "Amino Acid Pool": ["Acetyl-Ornithine", "Alpha-amino-N-butyric acid", "alpha-Aminoadipic acid", "Arginine", "Asparagine", "Beta-alanine", "Carnosine", "cis-OH-Proline", "Glutamine", "Histidine", "Lysine", "Methylhistidine", "Ornithine", "Taurine", "trans-OH-Proline"],
-            "Amino Acids Used for Energy": ["Creatine", "Isoleucine", "Leucine", "Methionine", "Phenylalanine", "Proline", "Serine", "Threonine", "Tyrosine", "Valine"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-            "Tissue Support Proteins": ["Alpha-2-HS-glycoprotein", "Fetuin-B", "Pigment epithelium-derived factor", "Vasorin"],
-        }
-    },
-    {
-        id: "non_alcoholic_fatty_liver_disease", name: "NAFLD", processes: {
-            "Cell Membrane Lipids": ["Hydroxysphingomyelin C14:1", "Sphingomyelin C16:0", "Sphingomyelin C20:2"],
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Blood Cleaning & Recycling": ["Glutathione peroxidase 3", "Haptoglobin", "Hemopexin", "Peroxiredoxin-2"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Dietary & Environmental Exposures": ["Cotinine", "Proline-Betaine"],
-            "Enzyme Control": ["Alpha-1-antichymotrypsin", "Alpha-1-antitrypsin", "Carboxypeptidase N catalytic chain", "Carboxypeptidase N subunit 2", "Inter-alpha-trypsin inhibitor heavy chain H1", "Inter-alpha-trypsin inhibitor heavy chain H2", "Inter-alpha-trypsin inhibitor heavy chain H4", "Protein AMBP"],
-            "Gut Bacteria Activity": ["Benzoic acid", "Hippuric acid", "Hydroxyphenylacetic acid", "Indole acetic acid", "Para-hydroxyhippuric acid", "Trigonelline", "Trimethylamine N-oxide"],
-            "Blood Sugar Control": ["Adipocyte plasma membrane-associated protein", "Alanine", "Aspartic acid", "Glucose", "Glutamic acid"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Mitochondrial Energy": ["alpha-Ketoglutaric acid", "Citric acid", "Fumaric acid", "Lactic acid", "Pyruvic acid", "Succinic acid"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-    {
-        id: "polycystic_ovarian_syndrome", name: "PCOS", processes: {
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Blood Sugar Control": ["Adipocyte plasma membrane-associated protein", "Alanine", "Aspartic acid", "Glucose", "Glutamic acid"],
-            "Cell Growth and Renewal": ["Diacetylspermine", "Putrescine", "Spermidine", "Spermine"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Hormone Balance": ["Corticosteroid-binding globulin", "Insulin-like growth factor-binding protein 2", "Insulin-like growth factor-binding protein 3", "Insulin-like growth factor-binding protein complex acid labile subunit", "Pregnancy zone protein", "Sex hormone-binding globulin", "Thyroxine-binding globulin"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-    {
-        id: "rheumatoid_arthritis", name: "Rheumatoid Arthritis", processes: {
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Early Warning Response": ["Alpha-1B-glycoprotein", "Clusterin", "Lipopolysaccharide-binding protein", "Plasma protease C1 inhibitor"],
-            "Germ Detection": ["Ficolin-2", "Ficolin-3", "Lysozyme C", "Mannan-binding lectin serine protease 2", "Mannose-binding protein C"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune Cell Movement": ["Endothelial protein C receptor", "Plastin-2"],
-            "Immune Cell Recruitment": ["Attractin", "CD44 antigen", "Galectin-3-binding protein", "Intercellular adhesion molecule 1", "L-selectin"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-            "Clotting & Wound Healing": ["Coagulation factor IX", "Coagulation factor V", "Coagulation factor X", "Coagulation factor XI", "Coagulation factor XII", "Coagulation factor XIII A chain", "Coagulation factor XIII B chain", "Fibrinogen alpha chain", "Fibrinogen beta chain", "Fibrinogen gamma chain", "Plasminogen", "Protein Z-dependent protease inhibitor", "Prothrombin", "Thrombospondin-1", "Vitamin K-dependent protein S", "Vitamin K-dependent protein Z", "Vitronectin", "von Willebrand Factor"],
-            "Tissue & Joint Health": ["Angiogenin", "Cartilage acidic protein 1", "Extracellular matrix protein 1", "Fibronectin", "Fibulin-1", "Gelsolin", "Lumican", "Proteoglycan 4", "Tenascin"],
-            "Tissue Support Proteins": ["Alpha-2-HS-glycoprotein", "Fetuin-B", "Pigment epithelium-derived factor", "Vasorin"],
-        }
-    },
-    {
-        id: "type_2_diabetes", name: "Type 2 Diabetes", processes: {
-            "Blood Vessel Lining Health": ["Asymmetric dimethylarginine", "Cadherin-5", "Kallistatin"],
-            "Cell Membrane Lipids": ["Hydroxysphingomyelin C14:1", "Sphingomyelin C16:0", "Sphingomyelin C20:2"],
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Kidney Filtration": ["Beta-2-microglobulin", "Creatinine", "Cystatin-C", "Uric acid"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Gut Bacteria Activity": ["Benzoic acid", "Hippuric acid", "Hydroxyphenylacetic acid", "Indole acetic acid", "Para-hydroxyhippuric acid", "Trigonelline", "Trimethylamine N-oxide"],
-            "Amino Acid Pool": ["Acetyl-Ornithine", "Alpha-amino-N-butyric acid", "alpha-Aminoadipic acid", "Arginine", "Asparagine", "Beta-alanine", "Carnosine", "cis-OH-Proline", "Glutamine", "Histidine", "Lysine", "Methylhistidine", "Ornithine", "Taurine", "trans-OH-Proline"],
-            "Amino Acids Used for Energy": ["Creatine", "Isoleucine", "Leucine", "Methionine", "Phenylalanine", "Proline", "Serine", "Threonine", "Tyrosine", "Valine"],
-            "Blood Sugar Control": ["Adipocyte plasma membrane-associated protein", "Alanine", "Aspartic acid", "Glucose", "Glutamic acid"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Mitochondrial Energy": ["alpha-Ketoglutaric acid", "Citric acid", "Fumaric acid", "Lactic acid", "Pyruvic acid", "Succinic acid"],
-            "Hormone Balance": ["Corticosteroid-binding globulin", "Insulin-like growth factor-binding protein 2", "Insulin-like growth factor-binding protein 3", "Insulin-like growth factor-binding protein complex acid labile subunit", "Pregnancy zone protein", "Sex hormone-binding globulin", "Thyroxine-binding globulin"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-];
-
-// Combined array for places that need all systems together
-const ALL_SYSTEMS = [...SYSTEMS, ...DISEASE_SYSTEMS];
-
 
 // All biomarker and process weights default to 1.0 — zone-based auto-weighting
 // is handled dynamically at score time using yellowWeight / redWeight globals.
@@ -1647,16 +1457,6 @@ export default function App() {
         if (isNonDefaultBio || isNonDefaultProc) return true;
         return false;
     })();
-    const navigateToClient = useCallback((pid, label) => {
-        if (!window.confirm(`View ${label} in Adjust Weighting?`)) return;
-        setClientId(pid);
-        setSystemId(SYSTEMS[0].id);
-        setActiveProc(null);
-        setActiveView("client");
-        setCol1Open(true);
-        setCol2Open(true);
-    }, []);
-
     const setCutoff = useCallback(v => setParam("cutoff", v), [setParam]);
     const setGreenPct = useCallback(v => setParam("greenPct", v), [setParam]);
     const setCurve = useCallback(v => setParam("curve", v), [setParam]);
@@ -1865,7 +1665,7 @@ export default function App() {
         r.readAsText(file);
     }, []);
 
-    const system = ALL_SYSTEMS.find(s => s.id === systemId) || ALL_SYSTEMS[0];
+    const system = SYSTEMS.find(s => s.id === systemId) || SYSTEMS[0];
     const markers = useMemo(() => {
         if (!clientId || !clients[clientId]) return {};
         const base = clients[clientId].markers;
@@ -1885,7 +1685,7 @@ export default function App() {
         return computeSystem(system, markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight);
     }, [system, markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight]);
 
-    const allSysScores = useMemo(() => ALL_SYSTEMS.map(s => ({
+    const allSysScores = useMemo(() => SYSTEMS.map(s => ({
         id: s.id, name: s.name,
         score: Object.keys(markers).length
             ? computeSystem(s, markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight).sysScore
@@ -1902,7 +1702,7 @@ export default function App() {
             profile: prof,
             clients: pids.map(pid => {
                 const m = clients[pid].markers;
-                const syss = ALL_SYSTEMS.map(s => {
+                const syss = SYSTEMS.map(s => {
                     const res = computeSystem(s, m, prof.bioWeights, prof.procWeights,
                         prof.cutoff ?? DEFAULT_PARAMS.cutoff,
                         prof.greenPct ?? DEFAULT_PARAMS.greenPct,
@@ -1922,7 +1722,7 @@ export default function App() {
     const oorFlags = useMemo(() => {
         const f = [];
         procResults.forEach(pr => {
-            const sys = ALL_SYSTEMS.find(s => Object.keys(s.processes).includes(pr.process));
+            const sys = SYSTEMS.find(s => Object.keys(s.processes).includes(pr.process));
             pr.biomarkers.forEach(bm => {
                 if (!bm.missing && bm.zone !== "green")
                     f.push({ ...bm, process: pr.process, system: sys?.name ?? "", systemId: sys?.id ?? "" });
@@ -2554,42 +2354,37 @@ export default function App() {
                         title={col1Open ? "Collapse systems panel" : "Expand systems panel"}
                         style={{
                             display: "flex", alignItems: "center", justifyContent: col1Open ? "flex-end" : "center",
-                            gap: 6, padding: "0 10px", height: 38, border: "none", borderBottom: `1px solid ${C.border}`,
+                            gap: 6, padding: "8px 10px", border: "none", borderBottom: `1px solid ${C.border}`,
                             background: "transparent", cursor: "pointer", flexShrink: 0, color: C.textFaint,
-                            fontSize: 12, letterSpacing: "0.1em", boxSizing: "border-box"
+                            fontSize: 10, letterSpacing: "0.1em"
                         }}>
-                        {col1Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600, lineHeight: 1 }}>Systems</span>}
-                        <span style={{ fontSize: 12, lineHeight: 1 }}>{col1Open ? "‹" : "›"}</span>
+                        {col1Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600 }}>Systems</span>}
+                        <span style={{ fontSize: 14, lineHeight: 1 }}>{col1Open ? "‹" : "›"}</span>
                     </button>
 
                     {col1Open && <>
                         <div data-tutorial="systems-panel" style={{ overflowY: "auto", flex: 1 }}>
-                            {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Risk", systems: DISEASE_SYSTEMS }].map(({ label, systems }) => (
-                                <div key={label}>
-                                    <div style={{ padding: "8px 14px 4px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", borderBottom: `1px solid ${C.border}` }}>{label}</div>
-                                    {systems.map(sys => {
-                                        const s = allSysScores.find(x => x.id === sys.id)?.score;
-                                        const active = systemId === sys.id && activeView === "client";
-                                        return (
-                                            <button key={sys.id} onClick={() => { setSystemId(sys.id); setActiveProc(null); setActiveView("client"); }}
-                                                style={{
-                                                    display: "block", width: "100%", textAlign: "left", padding: "10px 14px",
-                                                    border: "none", cursor: "pointer", transition: "all 0.12s",
-                                                    background: active ? `${C.teal}18` : "transparent",
-                                                    borderLeft: `3px solid ${active ? C.teal : "transparent"}`
-                                                }}>
-                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
-                                                    <span style={{ fontSize: 12, color: active ? C.navy : C.textSecond, fontWeight: active ? 700 : 400, lineHeight: 1.3, flex: 1 }}>{sys.name}</span>
-                                                    {s != null
-                                                        ? <span style={{ fontSize: 12, color: procColour(Math.floor(s)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(s)}</span>
-                                                        : <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
-                                                </div>
-                                                {s != null && <div style={{ marginTop: 4 }}><ScoreBar score={s} h={2} /></div>}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            ))}
+                            {SYSTEMS.map(sys => {
+                                const s = allSysScores.find(x => x.id === sys.id)?.score;
+                                const active = systemId === sys.id && activeView === "client";
+                                return (
+                                    <button key={sys.id} onClick={() => { setSystemId(sys.id); setActiveProc(null); setActiveView("client"); }}
+                                        style={{
+                                            display: "block", width: "100%", textAlign: "left", padding: "10px 14px",
+                                            border: "none", cursor: "pointer", transition: "all 0.12s",
+                                            background: active ? `${C.teal}18` : "transparent",
+                                            borderLeft: `3px solid ${active ? C.teal : "transparent"}`
+                                        }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+                                            <span style={{ fontSize: 12, color: active ? C.navy : C.textSecond, fontWeight: active ? 700 : 400, lineHeight: 1.3, flex: 1 }}>{sys.name}</span>
+                                            {s != null
+                                                ? <span style={{ fontSize: 12, color: procColour(Math.floor(s)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(s)}</span>
+                                                : <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
+                                        </div>
+                                        {s != null && <div style={{ marginTop: 4 }}><ScoreBar score={s} h={2} /></div>}
+                                    </button>
+                                );
+                            })}
                         </div>
 
                         {/* ── Profile params note ── */}
@@ -2615,11 +2410,11 @@ export default function App() {
                         title={col2Open ? "Collapse processes panel" : "Expand processes panel"}
                         style={{
                             display: "flex", alignItems: "center", justifyContent: col2Open ? "flex-end" : "center",
-                            gap: 6, padding: "0 10px", height: 38, border: "none", borderBottom: `1px solid ${C.border}`,
-                            background: "transparent", cursor: "pointer", flexShrink: 0, color: C.textFaint, fontSize: 12, boxSizing: "border-box"
+                            gap: 6, padding: "8px 10px", border: "none", borderBottom: `1px solid ${C.border}`,
+                            background: "transparent", cursor: "pointer", flexShrink: 0, color: C.textFaint, fontSize: 10
                         }}>
-                        {col2Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600, lineHeight: 1 }}>Processes</span>}
-                        <span style={{ fontSize: 12, lineHeight: 1 }}>{col2Open ? "‹" : "›"}</span>
+                        {col2Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600 }}>Processes</span>}
+                        <span style={{ fontSize: 14, lineHeight: 1 }}>{col2Open ? "‹" : "›"}</span>
                     </button>
 
                     {col2Open && <div data-tutorial="processes-panel" style={{ overflowY: "auto", flex: 1 }}>
@@ -2656,7 +2451,7 @@ export default function App() {
                     {!hasData ? (
                         <UploadPrompt fileRef={fileRef} dragOver={dragOver} setDragOver={setDragOver} handleFile={handleFile} uploadErr={uploadErr} isUploading={isUploading} loadDemo={loadDemo} personas={DEMO_PERSONAS} />
                     ) : activeView === "aggregate" ? (
-                        <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} aggTab={aggTab} setAggTab={setAggTab} onNavigateToClient={navigateToClient} />
+                        <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} aggTab={aggTab} setAggTab={setAggTab} />
                     ) : (
                         <>
                             {/* Header: system name + breadcrumb + dual gauges */}
@@ -2727,15 +2522,6 @@ function SpinnerDots() {
 }
 
 function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, isUploading, loadDemo, personas }) {
-    const [showCsvExample, setShowCsvExample] = useState(false);
-    const EXAMPLE_ROWS = [
-        { my_id: "P001", barcode: "BC00001", test_id: "T001", measure_name: "Homocysteine", lab_concentration: "9.7", lower_reference_range: "6.3", upper_reference_range: "13.1", is_reported: "True" },
-        { my_id: "P001", barcode: "BC00001", test_id: "T001", measure_name: "C-reactive protein", lab_concentration: "54.2", lower_reference_range: "0", upper_reference_range: "108.3", is_reported: "True" },
-        { my_id: "P001", barcode: "BC00001", test_id: "T001", measure_name: "Glucose", lab_concentration: "4823.1", lower_reference_range: "3824.3", upper_reference_range: "5772.8", is_reported: "True" },
-        { my_id: "P002", barcode: "BC00002", test_id: "T002", measure_name: "Homocysteine", lab_concentration: "18.0", lower_reference_range: "6.3", upper_reference_range: "13.1", is_reported: "True" },
-        { my_id: "P002", barcode: "BC00002", test_id: "T002", measure_name: "Cotinine", lab_concentration: "0.002", lower_reference_range: "0", upper_reference_range: "0.016", is_reported: "False" },
-    ];
-    const COLS = ["my_id", "barcode", "test_id", "measure_name", "lab_concentration", "lower_reference_range", "upper_reference_range", "is_reported"];
     return (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 24 }}>
             <div style={{ textAlign: "center" }}>
@@ -2762,10 +2548,6 @@ function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, i
                             <div style={{ fontSize: 26, color: C.teal, marginBottom: 8 }}>↑</div>
                             <div style={{ fontSize: 13, color: C.textSecond, fontWeight: 600, marginBottom: 4 }}>Drop CSV or click to upload</div>
                             <div style={{ fontSize: 11, color: C.textFaint }}>Columns: my_id · barcode · measure_name · lab_concentration · lower/upper_reference_range · is_reported</div>
-                            <button onClick={e => { e.stopPropagation(); setShowCsvExample(true); }}
-                                style={{ marginTop: 6, fontSize: 11, color: C.teal, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>
-                                View example CSV
-                            </button>
                         </>
                     )}
                     {uploadErr && !isUploading && (
@@ -2800,81 +2582,6 @@ function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, i
                     ))}
                 </div>
             </div>
-
-            {/* CSV Example Modal */}
-            {showCsvExample && (
-                <div style={{
-                    position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 600,
-                    display: "flex", alignItems: "center", justifyContent: "center"
-                }} onClick={() => setShowCsvExample(false)}>
-                    <div style={{
-                        background: C.surface, borderRadius: 14, width: "min(900px, 95vw)",
-                        maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column",
-                        boxShadow: "0 12px 48px rgba(24,55,75,0.3)"
-                    }} onClick={e => e.stopPropagation()}>
-                        {/* Header */}
-                        <div style={{ background: C.navy, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                            <div>
-                                <div style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>Example CSV format</div>
-                                <div style={{ fontSize: 11, color: C.iceMid, marginTop: 3 }}>One row per biomarker per client. Only rows with is_reported = True and a numeric lab_concentration are scored.</div>
-                            </div>
-                            <button onClick={() => setShowCsvExample(false)}
-                                style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
-                        </div>
-                        {/* Table */}
-                        <div style={{ overflowX: "auto", overflowY: "auto", flex: 1 }}>
-                            <table style={{ borderCollapse: "collapse", fontSize: 11, width: "100%", minWidth: 700 }}>
-                                <thead>
-                                    <tr style={{ background: `${C.navy}10`, position: "sticky", top: 0 }}>
-                                        {COLS.map(col => (
-                                            <th key={col} style={{
-                                                padding: "9px 12px", textAlign: "left", color: C.navy,
-                                                fontWeight: 700, whiteSpace: "nowrap", borderBottom: `2px solid ${C.border}`,
-                                                fontFamily: T.mono, fontSize: 10
-                                            }}>{col}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {EXAMPLE_ROWS.map((row, ri) => (
-                                        <tr key={ri} style={{ borderBottom: `1px solid ${C.border}`, background: ri % 2 === 0 ? "transparent" : `${C.iceLight}30` }}>
-                                            {COLS.map(col => (
-                                                <td key={col} style={{
-                                                    padding: "8px 12px", whiteSpace: "nowrap",
-                                                    fontFamily: col === "is_reported" || col === "my_id" || col === "barcode" || col === "test_id" ? T.mono : T.body,
-                                                    fontSize: 11,
-                                                    color: col === "is_reported"
-                                                        ? row[col] === "True" ? C.teal : C.critical
-                                                        : col === "measure_name" ? C.textPrimary : C.textSecond
-                                                }}>{row[col]}</td>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                    {/* Ellipsis row */}
-                                    <tr style={{ background: `${C.iceLight}20` }}>
-                                        {COLS.map(col => (
-                                            <td key={col} style={{ padding: "6px 12px", color: C.textFaint, fontSize: 11, textAlign: "center" }}>…</td>
-                                        ))}
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        {/* Footer notes */}
-                        <div style={{ padding: "14px 20px", borderTop: `1px solid ${C.border}`, flexShrink: 0, display: "flex", gap: 24, flexWrap: "wrap" }}>
-                            {[
-                                ["my_id / barcode / test_id", "Client identifiers — barcode preferred, falls back to test_id then my_id"],
-                                ["lab_concentration", "Numeric values only — BLQ, NR, ND rows are skipped"],
-                                ["is_reported", "Only rows marked True are scored"],
-                            ].map(([label, note]) => (
-                                <div key={label} style={{ fontSize: 10, color: C.textMuted, lineHeight: 1.6 }}>
-                                    <span style={{ fontFamily: T.mono, color: C.navy, fontWeight: 700 }}>{label}</span>
-                                    <br />{note}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
@@ -3228,9 +2935,9 @@ function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, set
                     <div style={{ fontSize: 10, lineHeight: 1.6 }}>Applied globally to all systems.</div>
                 </div>
                 <div style={{ flex: 1, minWidth: 160, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <Slider label="Cutoff" value={cutoff} min={0.1} max={2.0} step={0.05}
+                    <Slider label="Cutoff" value={cutoff} min={0.1} max={1.0} step={0.05}
                         onChange={setCutoff} color={C.navyMid} fmt={v => `${(v * 100).toFixed(0)}%`}
-                        tooltip={"Distance from the reference boundary (as a fraction of the range width) at which score reaches 0.\n\nAt 50%: a marker 50% outside the boundary scores 0. At 200%: only markers extremely far out of range score 0."} />
+                        tooltip={"Distance from the reference boundary (as a fraction of the range width) at which score reaches 0.\n\nAt 50%: a marker 50% outside the boundary scores 0."} />
                     <Slider label="Green margin" value={greenPct} min={0.01} max={0.2} step={0.01}
                         onChange={setGreenPct} color={C.teal} fmt={v => `${(v * 100).toFixed(0)}%`}
                         tooltip={"Width of the 'perfect' zone centred on the reference range, as a % of the range width.\n\nAt 5%: biomarkers within 5% of the ref boundaries score 100. Larger values mean a wider green zone and slower score decay."} />
@@ -3678,7 +3385,7 @@ function gradeBg(score) {
 // Profile colour palette for multi-profile comparison
 const PROF_COLORS = [C.steel, C.teal, C.fair, C.atRisk, "#8B6FAB"];
 
-function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, exportProfile, activeProfile, aggTab, setAggTab, onNavigateToClient }) {
+function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, exportProfile, activeProfile, aggTab, setAggTab }) {
     const [clientTab, setClientTab] = useState(0);
     const [editOverviewCutoff, setEditOverviewCutoff] = useState(false);
     const [overviewGreen, setOverviewGreen] = useState(91);
@@ -3688,11 +3395,6 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const [histSysId, setHistSysId] = useState(SYSTEMS[0].id);
     const [histProcName, setHistProcName] = useState(Object.keys(SYSTEMS[0].processes)[0]);
     const [flowSysId, setFlowSysId] = useState(SYSTEMS[0].id);
-    const [visibleSystems, setVisibleSystems] = useState(() => new Set(ALL_SYSTEMS.map(s => s.id)));
-    const [showSysFilter, setShowSysFilter] = useState(false);
-    const allProcNames = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))];
-    const [visibleProcs, setVisibleProcs] = useState(() => new Set(allProcNames));
-    const [showProcFilter, setShowProcFilter] = useState(false);
 
     if (!aggregateData || !aggregateData.length) return (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
@@ -3724,7 +3426,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
 
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-            <div data-tutorial="agg-tabs-bar" style={{ display: "flex", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, paddingLeft: 4, height: 38, boxSizing: "border-box" }}>
+            <div data-tutorial="agg-tabs-bar" style={{ display: "flex", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, paddingLeft: 4 }}>
                 {AGG_TABS.map(({ key, label }) => (
                     <button key={key}
                         {...(key === "overview" ? { "data-tutorial": "agg-tab-overview" } : {})}
@@ -3738,9 +3440,9 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             if (key === "export") setTutorialStep(prev => prev === 15 ? 16 : prev);
                         }}
                         style={{
-                            padding: "0 18px", height: 38, fontSize: 12, border: "none", cursor: "pointer",
+                            padding: "10px 18px", fontSize: 12, border: "none", cursor: "pointer",
                             background: "transparent", color: aggTab === key ? C.steel : C.textFaint,
-                            fontWeight: aggTab === key ? 700 : 400, boxSizing: "border-box",
+                            fontWeight: aggTab === key ? 700 : 400,
                             borderBottom: `2px solid ${aggTab === key ? C.steel : "transparent"}`,
                             transition: "all 0.15s"
                         }}>
@@ -3785,93 +3487,12 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
 
                 {aggTab === "overview" && (
                     <div>
-
                         <div data-tutorial="client-scores-table" style={{ marginBottom: 32 }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Client Scores</div>
                             <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
                                 Each cell shows the system score for that client.
                                 {isComparing && clientTab === 0 && <span> Viewing <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> (baseline).</span>}
                                 {isComparing && clientTab > 0 && <span> Viewing <strong style={{ color: PROF_COLORS[clientTab] }}>{aggregateData[clientTab].profile.name}</strong>. ▲▼ deltas vs. baseline.</span>}
-                            </div>
-                            {/* Table controls */}
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-                                <button onClick={() => {
-                                    const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                    const visibleSysList = ALL_SYSTEMS.filter(s => visibleSystems.has(s.id));
-                                    const headers = ["Client", "Flags", ...visibleSysList.map(s => s.name)];
-                                    const csvRows = rows.map(row => {
-                                        const scores = row.systems.map(s => s.score).filter(x => x != null);
-                                        const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
-                                        const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
-                                        const flag = nR > 0 ? (nR + "R" + (nY > 0 ? " " + nY + "Y" : "")) : nY > 0 ? (nY + "Y") : "✓";
-                                        return [row.label ?? row.pid, flag, ...visibleSysList.map(s => {
-                                            const score = row.systems.find(x => x.id === s.id)?.score;
-                                            return score != null ? Math.floor(score) : "";
-                                        })];
-                                    });
-                                    const csv = [headers, ...csvRows].map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
-                                    const a = document.createElement("a");
-                                    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-                                    a.download = "system_scores.csv";
-                                    a.click(); URL.revokeObjectURL(a.href);
-                                }} style={{ fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer", border: `1px solid ${C.teal}66`, background: "transparent", color: C.teal }}>⬇ CSV</button>
-                                <div style={{ position: "relative" }}>
-                                    <button onClick={() => setShowSysFilter(o => !o)} style={{
-                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                        border: `1px solid ${visibleSystems.size < ALL_SYSTEMS.length ? C.steel : C.border}`,
-                                        background: visibleSystems.size < ALL_SYSTEMS.length ? `${C.steel}12` : "transparent",
-                                        color: visibleSystems.size < ALL_SYSTEMS.length ? C.steel : C.textFaint
-                                    }}>⚙ Columns {visibleSystems.size < ALL_SYSTEMS.length ? `(${visibleSystems.size}/${ALL_SYSTEMS.length})` : ""}</button>
-                                    {showSysFilter && (
-                                        <div style={{
-                                            position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 100,
-                                            background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
-                                            boxShadow: "0 6px 24px rgba(24,55,75,0.15)", width: 260, maxHeight: 360,
-                                            overflowY: "auto", padding: "10px 0"
-                                        }} onMouseLeave={() => setShowSysFilter(false)}>
-                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 12px 8px", borderBottom: `1px solid ${C.border}`, marginBottom: 6 }}>
-                                                <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Filter systems</span>
-                                                <div style={{ display: "flex", gap: 8 }}>
-                                                    <button onClick={() => setVisibleSystems(new Set(ALL_SYSTEMS.map(s => s.id)))} style={{ fontSize: 9, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0 }}>All</button>
-                                                    <button onClick={() => setVisibleSystems(new Set())} style={{ fontSize: 9, color: C.textFaint, background: "none", border: "none", cursor: "pointer", padding: 0 }}>None</button>
-                                                </div>
-                                            </div>
-                                            {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Risk", systems: DISEASE_SYSTEMS }].map(({ label, systems }) => (
-                                                <div key={label}>
-                                                    <div style={{ padding: "4px 12px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</div>
-                                                    {systems.map(s => (
-                                                        <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px", cursor: "pointer", fontSize: 11, color: C.textSecond }}>
-                                                            <input type="checkbox" checked={visibleSystems.has(s.id)}
-                                                                onChange={() => setVisibleSystems(prev => { const next = new Set(prev); next.has(s.id) ? next.delete(s.id) : next.add(s.id); return next; })}
-                                                                style={{ accentColor: C.steel }} />
-                                                            {s.name}
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <button onClick={() => setEditOverviewCutoff(o => !o)} style={{
-                                    fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                    border: `1px solid ${editOverviewCutoff ? C.teal : C.border}`,
-                                    background: editOverviewCutoff ? `${C.teal}12` : "transparent",
-                                    color: editOverviewCutoff ? C.teal : C.textFaint
-                                }}>{editOverviewCutoff ? "🔓" : "🔒"} Colour cut-offs</button>
-                                {editOverviewCutoff && <>
-                                    <span style={{ fontSize: 10, color: C.teal }}>Green ≥</span>
-                                    <input type="number" min={overviewYellow + 1} max={100} value={overviewGreen}
-                                        onChange={e => { const v = Math.round(Number(e.target.value)); if (v > overviewYellow && v <= 100) setOverviewGreen(v); }}
-                                        style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.teal}`, borderRadius: 4, textAlign: "center", color: C.teal, fontWeight: 700 }} />
-                                    <span style={{ fontSize: 10, color: C.fair }}>Yellow ≥</span>
-                                    <input type="number" min={1} max={overviewGreen - 1} value={overviewYellow}
-                                        onChange={e => { const v = Math.round(Number(e.target.value)); if (v >= 1 && v < overviewGreen) setOverviewYellow(v); }}
-                                        style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.fair}`, borderRadius: 4, textAlign: "center", color: C.fair, fontWeight: 700 }} />
-                                    {(overviewGreen !== 91 || overviewYellow !== 70) && (
-                                        <button onClick={() => { setOverviewGreen(91); setOverviewYellow(70); }}
-                                            style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer", border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint }}>↺ reset</button>
-                                    )}
-                                </>}
                             </div>
                             {isComparing && (
                                 <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
@@ -3904,7 +3525,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 <tr style={{ background: C.navy }}>
                                                     <th style={{ padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Client</th>
                                                     <th style={{ padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>⚠</th>
-                                                    {ALL_SYSTEMS.filter(s => visibleSystems.has(s.id)).map(s => <th key={s.id} style={{ padding: "10px 6px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, minWidth: 80 }}><div style={{ minWidth: 72, maxWidth: 100, margin: "0 auto", lineHeight: 1.3 }}>{s.name}</div></th>)}
+                                                    {SYSTEMS.map(s => <th key={s.id} style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600 }}><div style={{ maxWidth: 90, margin: "0 auto", lineHeight: 1.3 }}>{s.name}</div></th>)}
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -3912,7 +3533,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                     const baseRow = isComparing && clientTab > 0 ? aggregateData[0].clients.find(r => r.pid === row.pid) : null;
                                                     return (
                                                         <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
-                                                            <td onClick={() => onNavigateToClient(row.pid, row.label ?? row.pid)} style={{ padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.steel, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20`, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55` }}>{row.label ?? row.pid}</td>
+                                                            <td style={{ padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>{row.label ?? row.pid}</td>
                                                             {(() => {
                                                                 const scores = row.systems.map(s => s.score).filter(x => x != null);
                                                                 const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
@@ -3925,7 +3546,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                     </td>
                                                                 );
                                                             })()}
-                                                            {row.systems.filter(s => visibleSystems.has(s.id)).map(s => {
+                                                            {row.systems.map(s => {
                                                                 const baseScore = baseRow?.systems.find(bs => bs.id === s.id)?.score ?? null;
                                                                 const d = s.score != null && baseScore != null ? s.score - baseScore : null;
                                                                 return (
@@ -3945,6 +3566,35 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     </div>
                                 );
                             })()}
+                            {/* Cutoff editor */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+                                <button onClick={() => setEditOverviewCutoff(o => !o)}
+                                    style={{
+                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                        border: `1px solid ${editOverviewCutoff ? C.teal : C.border}`,
+                                        background: editOverviewCutoff ? `${C.teal}12` : "transparent",
+                                        color: editOverviewCutoff ? C.teal : C.textFaint
+                                    }}>
+                                    {editOverviewCutoff ? "🔓" : "🔒"} Colour cut-offs
+                                </button>
+                                {editOverviewCutoff && <>
+                                    <span style={{ fontSize: 10, color: C.teal }}>Green ≥</span>
+                                    <input type="number" min={overviewYellow + 1} max={100} value={overviewGreen}
+                                        onChange={e => { const v = Math.round(Number(e.target.value)); if (v > overviewYellow && v <= 100) setOverviewGreen(v); }}
+                                        style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.teal}`, borderRadius: 4, textAlign: "center", color: C.teal, fontWeight: 700 }} />
+                                    <span style={{ fontSize: 10, color: C.fair }}>Yellow ≥</span>
+                                    <input type="number" min={1} max={overviewGreen - 1} value={overviewYellow}
+                                        onChange={e => { const v = Math.round(Number(e.target.value)); if (v >= 1 && v < overviewGreen) setOverviewYellow(v); }}
+                                        style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.fair}`, borderRadius: 4, textAlign: "center", color: C.fair, fontWeight: 700 }} />
+                                    {(overviewGreen !== 91 || overviewYellow !== 70) && (
+                                        <button onClick={() => { setOverviewGreen(91); setOverviewYellow(70); }}
+                                            style={{
+                                                fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer",
+                                                border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint
+                                            }}>↺ reset</button>
+                                    )}
+                                </>}
+                            </div>
 
                         </div>
                         <div style={{ marginTop: 24 }}>
@@ -3976,7 +3626,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {ALL_SYSTEMS.filter(s => visibleSystems.has(s.id)).map((sys, si) => {
+                                        {SYSTEMS.map((sys, si) => {
                                             const allStats = aggregateData.map(pd => sysStatsForProfile(pd, sys.id));
                                             const baseStats = allStats[0];
                                             const procC = overviewColour(baseStats?.mean);
@@ -4069,93 +3719,12 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     })}
                                 </div>
                             )}
-
                             <div data-tutorial="client-scores-table" style={{ marginBottom: 32 }}>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Client Process Scores</div>
                                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Each cell shows the process score for that client.</div>
-                                {/* Table controls */}
-                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-                                    <button onClick={() => {
-                                        const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                        const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))].filter(p => visibleProcs.has(p));
-                                        const headers = ["Client", "Flags", ...allProcs];
-                                        const csvRows = rows.map(row => {
-                                            const scores = allProcs.map(procName => row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null).filter(x => x != null);
-                                            const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
-                                            const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
-                                            const flag = nR > 0 ? (nR + "R" + (nY > 0 ? " " + nY + "Y" : "")) : nY > 0 ? (nY + "Y") : "✓";
-                                            return [row.label ?? row.pid, flag, ...allProcs.map(procName => {
-                                                const score = row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null;
-                                                return score != null ? Math.floor(score) : "";
-                                            })];
-                                        });
-                                        const csv = [headers, ...csvRows].map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
-                                        const a = document.createElement("a");
-                                        a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-                                        a.download = "process_scores.csv";
-                                        a.click(); URL.revokeObjectURL(a.href);
-                                    }} style={{ fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer", border: `1px solid ${C.teal}66`, background: "transparent", color: C.teal }}>⬇ CSV</button>
-                                    <div style={{ position: "relative" }}>
-                                        <button onClick={() => setShowProcFilter(o => !o)} style={{
-                                            fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                            border: `1px solid ${visibleProcs.size < allProcNames.length ? C.steel : C.border}`,
-                                            background: visibleProcs.size < allProcNames.length ? `${C.steel}12` : "transparent",
-                                            color: visibleProcs.size < allProcNames.length ? C.steel : C.textFaint
-                                        }}>⚙ Columns {visibleProcs.size < allProcNames.length ? `(${visibleProcs.size}/${allProcNames.length})` : ""}</button>
-                                        {showProcFilter && (
-                                            <div style={{
-                                                position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 100,
-                                                background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
-                                                boxShadow: "0 6px 24px rgba(24,55,75,0.15)", width: 260, maxHeight: 400,
-                                                overflowY: "auto", padding: "10px 0"
-                                            }} onMouseLeave={() => setShowProcFilter(false)}>
-                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 12px 8px", borderBottom: `1px solid ${C.border}`, marginBottom: 6 }}>
-                                                    <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Filter processes</span>
-                                                    <div style={{ display: "flex", gap: 8 }}>
-                                                        <button onClick={() => setVisibleProcs(new Set(allProcNames))} style={{ fontSize: 9, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0 }}>All</button>
-                                                        <button onClick={() => setVisibleProcs(new Set())} style={{ fontSize: 9, color: C.textFaint, background: "none", border: "none", cursor: "pointer", padding: 0 }}>None</button>
-                                                    </div>
-                                                </div>
-                                                {SYSTEMS.map(sys => (
-                                                    <div key={sys.id}>
-                                                        <div style={{ padding: "4px 12px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em" }}>{sys.name}</div>
-                                                        {Object.keys(sys.processes).map(proc => (
-                                                            <label key={proc} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px", cursor: "pointer", fontSize: 11, color: C.textSecond }}>
-                                                                <input type="checkbox" checked={visibleProcs.has(proc)}
-                                                                    onChange={() => setVisibleProcs(prev => { const next = new Set(prev); next.has(proc) ? next.delete(proc) : next.add(proc); return next; })}
-                                                                    style={{ accentColor: C.steel }} />
-                                                                {proc}
-                                                            </label>
-                                                        ))}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <button onClick={() => setEditOverviewCutoff(o => !o)} style={{
-                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                        border: `1px solid ${editOverviewCutoff ? C.teal : C.border}`,
-                                        background: editOverviewCutoff ? `${C.teal}12` : "transparent",
-                                        color: editOverviewCutoff ? C.teal : C.textFaint
-                                    }}>{editOverviewCutoff ? "🔓" : "🔒"} Colour cut-offs</button>
-                                    {editOverviewCutoff && <>
-                                        <span style={{ fontSize: 10, color: C.teal }}>Green ≥</span>
-                                        <input type="number" min={overviewYellow + 1} max={100} value={overviewGreen}
-                                            onChange={e => { const v = Math.round(Number(e.target.value)); if (v > overviewYellow && v <= 100) setOverviewGreen(v); }}
-                                            style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.teal}`, borderRadius: 4, textAlign: "center", color: C.teal, fontWeight: 700 }} />
-                                        <span style={{ fontSize: 10, color: C.fair }}>Yellow ≥</span>
-                                        <input type="number" min={1} max={overviewGreen - 1} value={overviewYellow}
-                                            onChange={e => { const v = Math.round(Number(e.target.value)); if (v >= 1 && v < overviewGreen) setOverviewYellow(v); }}
-                                            style={{ width: 48, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.fair}`, borderRadius: 4, textAlign: "center", color: C.fair, fontWeight: 700 }} />
-                                        {(overviewGreen !== 91 || overviewYellow !== 70) && (
-                                            <button onClick={() => { setOverviewGreen(91); setOverviewYellow(70); }}
-                                                style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer", border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint }}>↺ reset</button>
-                                        )}
-                                    </>}
-                                </div>
                                 {(() => {
                                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                    const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))].filter(p => visibleProcs.has(p));
+                                    const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))];
                                     return (
                                         <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                             <table style={{ borderCollapse: "collapse", fontSize: 11, tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
@@ -4174,7 +3743,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 <tbody>
                                                     {rows.map((row, ri) => (
                                                         <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
-                                                            <td onClick={() => onNavigateToClient(row.pid, row.label ?? row.pid)} style={{ padding: "7px 16px", fontFamily: T.mono, fontSize: 10, color: C.steel, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20`, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55` }}>{row.label ?? row.pid}</td>
+                                                            <td style={{ padding: "7px 16px", fontFamily: T.mono, fontSize: 10, color: C.textSecond, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>{row.label ?? row.pid}</td>
                                                             {(() => {
                                                                 const scores = allProcs.map(procName => row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null).filter(x => x != null);
                                                                 const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
@@ -4203,7 +3772,6 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     );
                                 })()}
                             </div>
-
                             <div>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Process Population Summary</div>
                                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Summary statistics per process across all clients.</div>
@@ -4216,7 +3784,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {procNames.filter(p => visibleProcs.has(p)).map((procName, pi) => {
+                                            {procNames.map((procName, pi) => {
                                                 const st = procStatsForProfile(aggregateData[isComparing ? clientTab : 0], procName);
                                                 const procC = overviewColour(st?.mean);
                                                 return (
@@ -4390,7 +3958,7 @@ function Histogram({ scores, title, redCutoff, yellowCutoff }) {
 function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, histSysId, setHistSysId, histProcName, setHistProcName, card }) {
     const DEFAULT_SYS_RED = 70, DEFAULT_SYS_YELLOW = 91;
     const DEFAULT_PROC_RED = 70, DEFAULT_PROC_YELLOW = 91;
-    const selSys = ALL_SYSTEMS.find(s => s.id === histSysId) || ALL_SYSTEMS[0];
+    const selSys = SYSTEMS.find(s => s.id === histSysId) || SYSTEMS[0];
     const procs = Object.keys(selSys.processes);
     const validProc = procs.includes(histProcName) ? histProcName : procs[0];
 
@@ -4415,7 +3983,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>System Scores</div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {sysScores.length} client report{sysScores.length !== 1 ? "s" : ""}.</div>
                 <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-                    {ALL_SYSTEMS.map(s => (
+                    {SYSTEMS.map(s => (
                         <button key={s.id} onClick={() => { setHistSysId(s.id); setHistProcName(Object.keys(s.processes)[0]); }}
                             style={{
                                 padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
@@ -4481,19 +4049,18 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 
 // ─── FlowchartTab ─────────────────────────────────────────────────────────────
 function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }) {
-    const sys = ALL_SYSTEMS.find(s => s.id === flowSysId) || ALL_SYSTEMS[0];
+    const sys = SYSTEMS.find(s => s.id === flowSysId) || SYSTEMS[0];
     const procs = Object.entries(sys.processes);
     const DEFAULT_BIO = { weight: 1, color: "red", level: "high" };
     const DEFAULT_PROC = { weight: 1, color: "red" };
     const allBiomarkers = [...new Set(procs.flatMap(([, bms]) => bms))];
     const isTwoTier = procs.length === 1;
     const svgRef = useRef(null);
-    const [hoveredProc, setHoveredProc] = useState(null);
 
     // Layout — wider columns and gaps for readability
-    const COL1_X = 24, COL1_W = 204;
-    const COL2_X = 374, COL2_W = 228;
-    const COL3_X = 754, COL3_W = 228;
+    const COL1_X = 24, COL1_W = 170;
+    const COL2_X = 290, COL2_W = 190;
+    const COL3_X = 580, COL3_W = 190;
     const PAD_V = 28;
     const PROC_GAP = 14, BIO_GAP = 10;
     const PROC_H = 42, BIO_H = 38;
@@ -4602,7 +4169,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
             {/* System selector + download buttons */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {ALL_SYSTEMS.map(s => (
+                    {SYSTEMS.map(s => (
                         <button key={s.id} onClick={() => setFlowSysId(s.id)}
                             style={{
                                 padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
@@ -4647,30 +4214,21 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                                 fill="none" stroke={C.border} strokeWidth="1" />;
                         })
                     ) : (<>
-                        {procs.map(([procName,], pi) => {
+                        {procs.map(([,], pi) => {
                             const x1 = COL1_X + COL1_W, y1 = sysY;
                             const x2 = COL2_X, y2 = pCY(pi);
                             const mx = (x1 + x2) / 2;
-                            const isActive = hoveredProc === procName;
-                            const dimmed = hoveredProc && !isActive;
                             return <path key={`sp${pi}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
-                                fill="none" stroke={isActive ? C.teal : C.steel}
-                                strokeWidth={isActive ? 2 : 1.2}
-                                opacity={dimmed ? 0.1 : isActive ? 0.9 : 0.4} />;
+                                fill="none" stroke={C.steel} strokeWidth="1.2" opacity="0.4" />;
                         })}
-                        {procs.map(([procName, bms], pi) => bms.map(bmName => {
+                        {procs.map(([, bms], pi) => bms.map(bmName => {
                             const bi = allBiomarkers.indexOf(bmName);
                             if (bi === -1) return null;
                             const x1 = COL2_X + COL2_W, y1 = pCY(pi);
                             const x2 = COL3_X, y2 = bCY(bi);
                             const mx = (x1 + x2) / 2;
-                            const isActive = hoveredProc === procName;
-                            const dimmed = hoveredProc && !isActive;
                             return <path key={`pb${pi}${bmName}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
-                                fill="none"
-                                stroke={isActive ? C.teal : C.border}
-                                strokeWidth={isActive ? 1.8 : 1}
-                                opacity={dimmed ? 0.1 : isActive ? 1 : 1} />;
+                                fill="none" stroke={C.border} strokeWidth="1" />;
                         }))}
                     </>)}
 
@@ -4693,24 +4251,14 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                         const cy = pCY(pi);
                         const h = procHeights[pi];
                         const bCol = isModified ? C.teal : C.steel;
-                        const nameLines = wrapText(procName, 48);
-                        const isActive = hoveredProc === procName;
-                        const dimmed = hoveredProc && !isActive;
+                        const nameLines = wrapText(procName, 22);
                         return (
-                            <g key={procName}
-                                onMouseEnter={() => setHoveredProc(procName)}
-                                onMouseLeave={() => setHoveredProc(null)}
-                                style={{ cursor: "default" }}>
+                            <g key={procName}>
                                 <rect x={COL2_X} y={cy - h / 2} width={COL2_W} height={h} rx="7"
-                                    fill={isActive ? `${C.teal}22` : dimmed ? `${C.steel}05` : `${C.steel}10`}
-                                    stroke={isActive ? C.teal : dimmed ? `${C.steel}40` : bCol}
-                                    strokeWidth={isActive ? 2 : isModified ? 1.5 : 1}
-                                    opacity={dimmed ? 0.4 : 1} />
+                                    fill={`${C.steel}10`} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
                                 {nameLines.map((line, li) => (
                                     <text key={li} x={COL2_X + 12} y={cy - (nameLines.length - 1) * 6 + li * 13 - (isModified ? 8 : 0)}
-                                        fontSize="10" fontWeight="600"
-                                        fill={isActive ? C.teal : dimmed ? C.textFaint : C.navy}
-                                        fontFamily={T.body}>{line}</text>
+                                        fontSize="10" fontWeight="600" fill={C.navy} fontFamily={T.body}>{line}</text>
                                 ))}
                                 {isModified && (() => {
                                     const badges = [];
@@ -4735,30 +4283,25 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                         const cy = bCY(bi);
                         const h = bioHeights[bi];
                         const bCol = isModified ? C.teal : C.border;
-                        const nameLines = wrapText(bmName, 48);
-                        const bioIsActive = hoveredProc && procs.some(([pn, bms]) => pn === hoveredProc && bms.includes(bmName));
-                        const bioDimmed = hoveredProc && !bioIsActive;
-                        return (<g key={bmName}>
-                            <rect x={bioX} y={cy - h / 2} width={COL3_W} height={h} rx="6"
-                                fill={bioIsActive ? `${C.teal}18` : bioDimmed ? `${C.iceLight}60` : C.surface}
-                                stroke={bioIsActive ? C.teal : bioDimmed ? `${C.border}` : bCol}
-                                strokeWidth={bioIsActive ? 2 : isModified ? 1.5 : 1}
-                                opacity={bioDimmed ? 0.35 : 1} />
-                            {nameLines.map((line, li) => (
-                                <text key={li} x={bioX + 10} y={cy - (nameLines.length - 1) * 6 + li * 12 - (isModified ? 6 : 0)}
-                                    fontSize="9" fill={bioIsActive ? C.teal : bioDimmed ? C.textFaint : C.textSecond}
-                                    fontFamily={T.body}>{line}</text>
-                            ))}
-                            {isModified && (() => {
-                                const badges = [];
-                                let bx = bioX + 10;
-                                const by = cy + h / 2 - 14;
-                                if (w !== 1) { badges.push(badge(`x${w}`, C.teal, bx, by)); bx += String(w).length * 5.5 + 20; }
-                                if (col !== "red") { badges.push(badge(col, C.fair, bx, by)); bx += col.length * 5.5 + 16; }
-                                if (lvl !== "high") { badges.push(badge(lvl, C.atRisk, bx, by)); }
-                                return badges;
-                            })()}
-                        </g>
+                        const nameLines = wrapText(bmName, 22);
+                        return (
+                            <g key={bmName}>
+                                <rect x={bioX} y={cy - h / 2} width={COL3_W} height={h} rx="6"
+                                    fill={C.surface} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
+                                {nameLines.map((line, li) => (
+                                    <text key={li} x={bioX + 10} y={cy - (nameLines.length - 1) * 6 + li * 12 - (isModified ? 6 : 0)}
+                                        fontSize="9" fill={C.textSecond} fontFamily={T.body}>{line}</text>
+                                ))}
+                                {isModified && (() => {
+                                    const badges = [];
+                                    let bx = bioX + 10;
+                                    const by = cy + h / 2 - 14;
+                                    if (w !== 1) { badges.push(badge(`x${w}`, C.teal, bx, by)); bx += String(w).length * 5.5 + 20; }
+                                    if (col !== "red") { badges.push(badge(col, C.fair, bx, by)); bx += col.length * 5.5 + 16; }
+                                    if (lvl !== "high") { badges.push(badge(lvl, C.atRisk, bx, by)); }
+                                    return badges;
+                                })()}
+                            </g>
                         );
                     })}
 
