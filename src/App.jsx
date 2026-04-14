@@ -3721,7 +3721,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             )}
                             <div data-tutorial="client-scores-table" style={{ marginBottom: 32 }}>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Client Process Scores</div>
-                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Each cell shows the process score for that client.</div>
+                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
+                                    Each cell shows the process score for that client.
+                                    {isComparing && clientTab === 0 && <span> Viewing <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> (baseline).</span>}
+                                    {isComparing && clientTab > 0 && <span> Viewing <strong style={{ color: PROF_COLORS[clientTab] }}>{aggregateData[clientTab].profile.name}</strong>. ▲▼ deltas vs. baseline.</span>}
+                                </div>
                                 {(() => {
                                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
                                     const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))];
@@ -3741,31 +3745,39 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {rows.map((row, ri) => (
-                                                        <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
-                                                            <td style={{ padding: "7px 16px", fontFamily: T.mono, fontSize: 10, color: C.textSecond, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>{row.label ?? row.pid}</td>
-                                                            {(() => {
-                                                                const scores = allProcs.map(procName => row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null).filter(x => x != null);
-                                                                const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
-                                                                const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
-                                                                return (
-                                                                    <td style={{ padding: "5px 6px", textAlign: "center", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20`, whiteSpace: "nowrap" }}>
-                                                                        {nR > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.critical, marginRight: 2 }}>{nR}R</span>}
-                                                                        {nY > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.fair }}>{nY}Y</span>}
-                                                                        {nR === 0 && nY === 0 && <span style={{ fontSize: 9, color: C.teal }}>✓</span>}
-                                                                    </td>
-                                                                );
-                                                            })()}
-                                                            {allProcs.map(procName => {
-                                                                const score = row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null;
-                                                                return (
-                                                                    <td key={procName} style={{ padding: "5px 4px", textAlign: "center", background: overviewBg(score) }}>
-                                                                        {score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 11, color: overviewColour(score) }}>{Math.floor(score)}</span> : <span style={{ color: C.textFaint, fontSize: 10 }}>—</span>}
-                                                                    </td>
-                                                                );
-                                                            })}
-                                                        </tr>
-                                                    ))}
+                                                    {rows.map((row, ri) => {
+                                                        const baseRow = isComparing && clientTab > 0 ? aggregateData[0].clients.find(r => r.pid === row.pid) : null;
+                                                        return (
+                                                            <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
+                                                                <td style={{ padding: "7px 16px", fontFamily: T.mono, fontSize: 10, color: C.textSecond, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>{row.label ?? row.pid}</td>
+                                                                {(() => {
+                                                                    const scores = allProcs.map(procName => row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null).filter(x => x != null);
+                                                                    const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
+                                                                    const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
+                                                                    return (
+                                                                        <td style={{ padding: "5px 6px", textAlign: "center", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20`, whiteSpace: "nowrap" }}>
+                                                                            {nR > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.critical, marginRight: 2 }}>{nR}R</span>}
+                                                                            {nY > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.fair }}>{nY}Y</span>}
+                                                                            {nR === 0 && nY === 0 && <span style={{ fontSize: 9, color: C.teal }}>✓</span>}
+                                                                        </td>
+                                                                    );
+                                                                })()}
+                                                                {allProcs.map(procName => {
+                                                                    const score = row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null;
+                                                                    const baseScore = baseRow?.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null;
+                                                                    const d = score != null && baseScore != null ? score - baseScore : null;
+                                                                    return (
+                                                                        <td key={procName} style={{ padding: "5px 4px", textAlign: "center", background: overviewBg(score) }}>
+                                                                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                                                                                {score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 11, color: overviewColour(score) }}>{Math.floor(score)}</span> : <span style={{ color: C.textFaint, fontSize: 10 }}>—</span>}
+                                                                                {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, lineHeight: 1, color: d > 0 ? C.teal : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
+                                                                            </div>
+                                                                        </td>
+                                                                    );
+                                                                })}
+                                                            </tr>
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -3774,26 +3786,52 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             </div>
                             <div>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Process Population Summary</div>
-                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Summary statistics per process across all clients.</div>
+                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
+                                    {isComparing ? <>Processes as rows, profiles as column groups. Δ Mean vs. baseline <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong>.</> : "Summary statistics per process across all clients."}
+                                </div>
                                 <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                                         <thead>
+                                            {isComparing && (
+                                                <tr style={{ background: `${C.navy}08`, borderBottom: `1px solid ${C.border}` }}>
+                                                    <th style={{ padding: "8px 16px", textAlign: "left", width: 200 }} />
+                                                    {aggregateData.map(({ profile }, pi) => {
+                                                        const col = PROF_COLORS[pi % PROF_COLORS.length];
+                                                        return <th key={profile.id} colSpan={pi > 0 ? STAT_COLS.length + 1 : STAT_COLS.length} style={{ padding: "8px 10px", textAlign: "center", borderLeft: `2px solid ${col}`, color: col, fontSize: 11, fontWeight: 700 }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: col, display: "inline-block" }} />{profile.name}</span></th>;
+                                                    })}
+                                                </tr>
+                                            )}
                                             <tr style={{ background: C.navy }}>
                                                 <th style={{ padding: "9px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Process</th>
-                                                {STAT_COLS.map(s => <th key={s} style={{ padding: "9px 10px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600 }}>{s}</th>)}
+                                                {aggregateData.map(({ profile }, pi) => {
+                                                    const col = PROF_COLORS[pi % PROF_COLORS.length];
+                                                    return [
+                                                        ...STAT_COLS.map(stat => <th key={`${profile.id}-${stat}`} style={{ padding: "9px 10px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", borderLeft: stat === "Mean" ? `2px solid ${col}40` : undefined }}>{stat}</th>),
+                                                        ...(pi > 0 ? [<th key={`${profile.id}-delta`} style={{ padding: "9px 8px", textAlign: "center", color: `${C.teal}cc`, fontSize: 10, fontWeight: 700 }}>Δ Mean</th>] : [])
+                                                    ];
+                                                })}
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {procNames.map((procName, pi) => {
-                                                const st = procStatsForProfile(aggregateData[isComparing ? clientTab : 0], procName);
-                                                const procC = overviewColour(st?.mean);
+                                                const allStats = aggregateData.map(pd => procStatsForProfile(pd, procName));
+                                                const baseStats = allStats[0];
+                                                const procC = overviewColour(baseStats?.mean);
                                                 return (
                                                     <tr key={procName} style={{ borderTop: `1px solid ${C.border}`, background: pi % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
-                                                        <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${st ? procC : C.border}` }}>{procName}</td>
-                                                        <td style={{ padding: "9px 10px", textAlign: "center", background: st ? overviewBg(st.mean) : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: overviewColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>
-                                                        <td style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>
-                                                        <td style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>
-                                                        <td style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>
+                                                        <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}` }}>{procName}</td>
+                                                        {aggregateData.map(({ profile }, pii) => {
+                                                            const st = allStats[pii];
+                                                            const col = PROF_COLORS[pii % PROF_COLORS.length];
+                                                            const deltaMean = pii > 0 && st && baseStats ? st.mean - baseStats.mean : null;
+                                                            return [
+                                                                <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center", borderLeft: `2px solid ${col}30`, background: st ? overviewBg(st.mean) : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: overviewColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                ...(pii > 0 ? [<td key={`${profile.id}-delta`} style={{ padding: "9px 8px", textAlign: "center" }}>{deltaMean != null ? <span style={{ fontFamily: T.mono, fontSize: 12, fontWeight: 700, color: deltaMean > 0 ? C.teal : deltaMean < 0 ? C.critical : C.textFaint }}>{deltaMean > 0 ? "+" : ""}{deltaMean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>] : [])
+                                                            ];
+                                                        })}
                                                     </tr>
                                                 );
                                             })}
