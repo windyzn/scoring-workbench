@@ -1249,12 +1249,13 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
         const scored = bms.map(name => {
             const key = ALIASES[name] ?? name;
             const m = markers[key] ?? markers[name];
-            if (!m) return { name, missing: true, weight: (bioW[name]?.weight ?? 1), entry: bioW[name] ?? { ...DEFAULT_BIO_ENTRY } };
+            const nsKey = `${sys.id}::${name}`;
+            if (!m) return { name, missing: true, weight: (bioW[nsKey]?.weight ?? 1), entry: bioW[nsKey] ?? { ...DEFAULT_BIO_ENTRY } };
             const s = scoreBM(m.value, m.refLow, m.refHigh, cutoff, gp, curve);
             const zone = calcZone(m.value, m.refLow, m.refHigh, gp);
             const rng = m.refHigh - m.refLow, gL = m.refLow + gp * rng, gH = m.refHigh - gp * rng;
-            const hasEntry = name in bioW;
-            const entry = bioW[name] ?? DEFAULT_BIO_ENTRY;
+            const hasEntry = nsKey in bioW;
+            const entry = bioW[nsKey] ?? DEFAULT_BIO_ENTRY;
             const manualW = typeof entry === "object" ? entry.weight : entry;
             const status = m.value > gH ? "HIGH" : m.value < gL ? "LOW" : "NORMAL";
             const effW = effectiveWeight(entry, hasEntry, zone, status, yellowW, redW);
@@ -1718,16 +1719,17 @@ export default function App() {
         const rows = [];
         const header = ["MYCO_ID", "CATEGORY", "HEALTH_AREA_TYPE", "HEALTH_AREA_ID", "HEALTH_AREA_NAME", "MEASURE_ID", "ITEM_NAME", "COLOR", "LEVEL", "VALUE", "REFERENCES"];
         // Biomarker weights — all explicitly set entries
-        SYSTEMS.forEach(sys => {
+        ALL_SYSTEMS.forEach(sys => {
             Object.entries(sys.processes).forEach(([proc, bms]) => {
                 bms.forEach(bmName => {
-                    const e = p.bioWeights[bmName];
+                    const nsKey = `${sys.id}::${bmName}`;
+                    const e = p.bioWeights[nsKey];
                     if (!e) return;
                     rows.push([
                         "",                    // MYCO_ID — leave blank
                         "biomarker_weight",
                         "",                    // HEALTH_AREA_TYPE
-                        "",                    // HEALTH_AREA_ID
+                        sys.id,                // HEALTH_AREA_ID — used on re-import to reconstruct ns key
                         sys.name,              // HEALTH_AREA_NAME
                         "",                    // MEASURE_ID — leave blank
                         bmName,                // ITEM_NAME
@@ -1832,7 +1834,9 @@ export default function App() {
                     const ref = (row["REFERENCES"] ?? "").trim();
                     if (!name || isNaN(val)) return;
                     if (cat === "biomarker_weight") {
-                        newBioWeights[name] = { weight: val, color, level, ref };
+                        const sysId = (row["HEALTH_AREA_ID"] ?? "").trim();
+                        const nsKey = sysId ? `${sysId}::${name}` : name;
+                        newBioWeights[nsKey] = { weight: val, color, level, ref };
                     } else if (cat === "process_weight") {
                         newProcWeights[name] = { weight: val, color: color || "red", ref };
                     }
@@ -1910,7 +1914,7 @@ export default function App() {
     const oorFlags = useMemo(() => {
         const f = [];
         procResults.forEach(pr => {
-            const sys = SYSTEMS.find(s => Object.keys(s.processes).includes(pr.process));
+            const sys = ALL_SYSTEMS.find(s => Object.keys(s.processes).includes(pr.process));
             pr.biomarkers.forEach(bm => {
                 if (!bm.missing && bm.zone !== "green")
                     f.push({ ...bm, process: pr.process, system: sys?.name ?? "", systemId: sys?.id ?? "" });
@@ -2690,7 +2694,7 @@ export default function App() {
 
                             <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px" }}>
                                 {tab === "weights-proc" && <ProcWeightsTab system={system} procResults={procResults} procWeights={procWeights} setProcWeights={setProcWeights} sysScore={sysScore} selProc={selProc} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
-                                {tab === "weights-bio" && <BioWeightsTab activeProcResult={activeProcResult} selProc={selProc} bioWeights={bioWeights} setBioWeights={setBioWeights} greenPct={greenPct} yellowWeight={yellowWeight} setYellowWeight={setYellowWeight} redWeight={redWeight} setRedWeight={setRedWeight} card={card} editConc={editConc} setEditConc={setEditConc} setConcWarnModal={setConcWarnModal} concOverrides={concOverrides[clientId] ?? {}} setConcOverrides={v => setConcOverrides(prev => ({ ...prev, [clientId]: v }))} clientMarkers={clients[clientId]?.markers ?? {}} />}
+                                {tab === "weights-bio" && <BioWeightsTab activeProcResult={activeProcResult} selProc={selProc} bioWeights={bioWeights} setBioWeights={setBioWeights} greenPct={greenPct} yellowWeight={yellowWeight} setYellowWeight={setYellowWeight} redWeight={redWeight} setRedWeight={setRedWeight} card={card} editConc={editConc} setEditConc={setEditConc} setConcWarnModal={setConcWarnModal} concOverrides={concOverrides[clientId] ?? {}} setConcOverrides={v => setConcOverrides(prev => ({ ...prev, [clientId]: v }))} clientMarkers={clients[clientId]?.markers ?? {}} systemId={systemId} />}
                                 {tab === "curves" && <CurvesTab activeProcResult={activeProcResult} selProc={selProc} cutoff={cutoff} setCutoff={setCutoff} greenPct={greenPct} setGreenPct={setGreenPct} curve={curve} setCurve={setCurve} card={card} />}
                                 {tab === "flags" && <FlagsTab oorFlags={oorFlags} setActiveProc={setActiveProc} setTab={setTab} card={card} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} />}
                                 {tab === "adjustments" && <AdjustmentsTab bioWeights={bioWeights} procWeights={procWeights} setBioWeights={setBioWeights} setProcWeights={setProcWeights} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
@@ -2860,7 +2864,7 @@ function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysS
 }
 
 // ─── Biomarker Weights ────────────────────────────────────────────────────────
-function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, greenPct, yellowWeight, setYellowWeight, redWeight, setRedWeight, card, editConc, setEditConc, setConcWarnModal, concOverrides, setConcOverrides, clientMarkers }) {
+function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, greenPct, yellowWeight, setYellowWeight, redWeight, setRedWeight, card, editConc, setEditConc, setConcWarnModal, concOverrides, setConcOverrides, clientMarkers, systemId }) {
     if (!activeProcResult) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>Select a process from the left panel.</div>;
     return (
         <div>
@@ -3061,7 +3065,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                             })()}
                             <div style={{ marginTop: 10 }} onClick={e => e.stopPropagation()}>
                                 <Slider label="Manual weight" value={bm.entry?.weight ?? 1} min={1} max={10} step={1}
-                                    onChange={v => setBioWeights(prev => ({ ...prev, [bm.name]: { ...(prev[bm.name] ?? {}), weight: v } }))}
+                                    onChange={v => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...(prev[k] ?? {}), weight: v } })); }}
                                     color={C.teal} fmt={v => `${v}×`} />
                                 {/* Color + Level selectors */}
                                 <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 4 }}>
@@ -3071,7 +3075,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                                             const col = opt === "red" ? C.critical : opt === "yellow" ? C.fair : C.textMuted;
                                             const sel = (bm.entry?.color ?? "red") === opt;
                                             return (
-                                                <button key={opt} onClick={() => setBioWeights(prev => ({ ...prev, [bm.name]: { ...(prev[bm.name] ?? {}), color: opt } }))}
+                                                <button key={opt} onClick={() => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...(prev[k] ?? {}), color: opt } })); }}
                                                     style={{
                                                         fontSize: 10, padding: "2px 8px", borderRadius: 4, border: `1px solid ${sel ? col : C.border}`,
                                                         background: sel ? `${col}18` : "transparent", color: sel ? col : C.textFaint,
@@ -3086,7 +3090,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                                             const col = opt === "high" ? C.critical : opt === "low" ? C.steel : C.textMuted;
                                             const sel = (bm.entry?.level ?? "high") === opt;
                                             return (
-                                                <button key={opt} onClick={() => setBioWeights(prev => ({ ...prev, [bm.name]: { ...(prev[bm.name] ?? {}), level: opt } }))}
+                                                <button key={opt} onClick={() => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...(prev[k] ?? {}), level: opt } })); }}
                                                     style={{
                                                         fontSize: 10, padding: "2px 8px", borderRadius: 4, border: `1px solid ${sel ? col : C.border}`,
                                                         background: sel ? `${col}18` : "transparent", color: sel ? col : C.textFaint,
@@ -3098,7 +3102,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                                 </div>
                                 {/* PubMed ref */}
                                 <div style={{ marginTop: 6 }}>
-                                    <input value={bm.entry?.ref ?? ""} onChange={e => setBioWeights(prev => ({ ...prev, [bm.name]: { ...(prev[bm.name] ?? {}), ref: e.target.value } }))}
+                                    <input value={bm.entry?.ref ?? ""} onChange={e => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...(prev[k] ?? {}), ref: e.target.value } })); }}
                                         placeholder="PubMed ID (e.g. 21475195; 23614584)"
                                         style={{
                                             width: "100%", fontSize: 10, padding: "3px 8px", border: `1px solid ${C.border}`, borderRadius: 5,
@@ -3230,11 +3234,12 @@ function FlagsTab({ oorFlags, setActiveProc, setTab, card, bioWeights, cutoff, g
 function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights, setActiveProc, setTab, card }) {
     // Gather non-default biomarker adjustments, grouped by system → process
     const bioAdj = [];
-    SYSTEMS.forEach(sys => {
+    ALL_SYSTEMS.forEach(sys => {
         Object.entries(sys.processes).forEach(([proc, markers]) => {
             markers.forEach(name => {
-                const e = bioWeights[name];
-                if (e) bioAdj.push({ sys: sys.name, sysId: sys.id, proc, name, entry: e });
+                const nsKey = `${sys.id}::${name}`;
+                const e = bioWeights[nsKey];
+                if (e) bioAdj.push({ sys: sys.name, sysId: sys.id, proc, name, nsKey, entry: e });
             });
         });
     });
@@ -3305,9 +3310,7 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
                                         }}>
                                             ×{entry.weight}
                                         </span>
-                                        {["red", "yellow", "both"].map(c => (
-                                            <span key={c} style={pillStyle(entry.color === c, colorMap[c])}>{c}</span>
-                                        ))}
+                                        {(() => { const c = entry.color ?? "red"; return <span style={pillStyle(true, colorMap[c])}>{c}</span>; })()}
                                         <button onClick={ev => { ev.stopPropagation(); setProcWeights(prev => { const n = { ...prev }; delete n[proc]; return n; }); }}
                                             style={{
                                                 background: "none", border: "none", color: C.textFaint, cursor: "pointer",
@@ -3354,13 +3357,9 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
                                         }}>
                                             ×{entry.weight}
                                         </span>
-                                        {["red", "yellow", "both"].map(c => (
-                                            <span key={c} style={pillStyle(entry.color === c, colorMap[c])}>{c}</span>
-                                        ))}
-                                        {["high", "low", "both"].map(l => (
-                                            <span key={l} style={pillStyle(entry.level === l, levelMap[l])}>{l}</span>
-                                        ))}
-                                        <button onClick={ev => { ev.stopPropagation(); setBioWeights(prev => { const n = { ...prev }; delete n[name]; return n; }); }}
+                                        {(() => { const c = entry.color ?? "red"; return <span style={pillStyle(true, colorMap[c])}>{c}</span>; })()}
+                                        {(() => { const l = entry.level ?? "high"; return <span style={pillStyle(true, levelMap[l])}>{l}</span>; })()}
+                                        <button onClick={ev => { ev.stopPropagation(); setBioWeights(prev => { const n = { ...prev }; delete n[nsKey]; return n; }); }}
                                             style={{
                                                 background: "none", border: "none", color: C.textFaint, cursor: "pointer",
                                                 fontSize: 15, lineHeight: 1, padding: "0 0 0 4px"
@@ -3387,11 +3386,12 @@ function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose
 
     // All processes this biomarker belongs to (across all systems)
     const memberships = [];
-    SYSTEMS.forEach(sys => {
+    ALL_SYSTEMS.forEach(sys => {
         Object.entries(sys.processes).forEach(([proc, markers]) => {
             if (markers.includes(bm.name) || markers.includes(Object.keys(ALIASES).find(k => ALIASES[k] === bm.name))) {
-                const entry = bioWeights[bm.name] ?? { ...DEFAULT_BIO_ENTRY };
-                memberships.push({ sys: sys.name, proc, entry });
+                const nsKey = `${sys.id}::${bm.name}`;
+                const entry = bioWeights[nsKey] ?? { ...DEFAULT_BIO_ENTRY };
+                memberships.push({ sys: sys.name, sysId: sys.id, proc, entry });
             }
         });
     });
@@ -4303,7 +4303,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
         return isModified ? 60 : PROC_H;
     });
     const bioHeights = allBiomarkers.map(bmName => {
-        const be = bioWeights[bmName] ?? DEFAULT_BIO;
+        const be = bioWeights[`${sys.id}::${bmName}`] ?? DEFAULT_BIO;
         const isModified = (be.weight ?? 1) !== 1 || (be.color ?? "red") !== "red" || (be.level ?? "high") !== "high";
         return isModified ? 54 : BIO_H;
     });
@@ -4506,7 +4506,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                     {/* Biomarker nodes */}
                     {allBiomarkers.map((bmName, bi) => {
                         const bioX = isTwoTier ? COL2_X : COL3_X;
-                        const be = bioWeights[bmName] ?? DEFAULT_BIO;
+                        const be = bioWeights[`${sys.id}::${bmName}`] ?? DEFAULT_BIO;
                         const w = be.weight ?? 1;
                         const col = be.color ?? "red";
                         const lvl = be.level ?? "high";
@@ -4554,11 +4554,11 @@ function ExportTab({ profiles, activeProfile, exportProfile, card }) {
         const rows = [["System", "Process", "Biomarker", "Bio Weight", "Bio Color", "Bio Level", "Bio PubMed", "Proc Weight", "Proc Color", "Proc PubMed"]];
         const DEFAULT_BIO = { weight: 1, color: "red", level: "high", ref: "" };
         const DEFAULT_PROC = { weight: 1, color: "red", ref: "" };
-        SYSTEMS.forEach(sys => {
+        ALL_SYSTEMS.forEach(sys => {
             Object.entries(sys.processes).forEach(([proc, bms]) => {
                 const pe = profile.procWeights[proc] ?? DEFAULT_PROC;
                 bms.forEach(bmName => {
-                    const be = profile.bioWeights[bmName] ?? DEFAULT_BIO;
+                    const be = profile.bioWeights[`${sys.id}::${bmName}`] ?? DEFAULT_BIO;
                     rows.push([
                         sys.name, proc, bmName,
                         be.weight, be.color, be.level, be.ref ?? "",
