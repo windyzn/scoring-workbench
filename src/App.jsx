@@ -3065,7 +3065,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                             })()}
                             <div style={{ marginTop: 10 }} onClick={e => e.stopPropagation()}>
                                 <Slider label="Manual weight" value={bm.entry?.weight ?? 1} min={1} max={10} step={1}
-                                    onChange={v => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...(prev[k] ?? {}), weight: v } })); }}
+                                    onChange={v => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...DEFAULT_BIO_ENTRY, ...(prev[k] ?? {}), weight: v } })); }}
                                     color={C.teal} fmt={v => `${v}×`} />
                                 {/* Color + Level selectors */}
                                 <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 4 }}>
@@ -3075,7 +3075,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                                             const col = opt === "red" ? C.critical : opt === "yellow" ? C.fair : C.textMuted;
                                             const sel = (bm.entry?.color ?? "red") === opt;
                                             return (
-                                                <button key={opt} onClick={() => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...(prev[k] ?? {}), color: opt } })); }}
+                                                <button key={opt} onClick={() => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...DEFAULT_BIO_ENTRY, ...(prev[k] ?? {}), color: opt } })); }}
                                                     style={{
                                                         fontSize: 10, padding: "2px 8px", borderRadius: 4, border: `1px solid ${sel ? col : C.border}`,
                                                         background: sel ? `${col}18` : "transparent", color: sel ? col : C.textFaint,
@@ -3090,7 +3090,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                                             const col = opt === "high" ? C.critical : opt === "low" ? C.steel : C.textMuted;
                                             const sel = (bm.entry?.level ?? "high") === opt;
                                             return (
-                                                <button key={opt} onClick={() => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...(prev[k] ?? {}), level: opt } })); }}
+                                                <button key={opt} onClick={() => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...DEFAULT_BIO_ENTRY, ...(prev[k] ?? {}), level: opt } })); }}
                                                     style={{
                                                         fontSize: 10, padding: "2px 8px", borderRadius: 4, border: `1px solid ${sel ? col : C.border}`,
                                                         background: sel ? `${col}18` : "transparent", color: sel ? col : C.textFaint,
@@ -3102,7 +3102,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                                 </div>
                                 {/* PubMed ref */}
                                 <div style={{ marginTop: 6 }}>
-                                    <input value={bm.entry?.ref ?? ""} onChange={e => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...(prev[k] ?? {}), ref: e.target.value } })); }}
+                                    <input value={bm.entry?.ref ?? ""} onChange={e => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...DEFAULT_BIO_ENTRY, ...(prev[k] ?? {}), ref: e.target.value } })); }}
                                         placeholder="PubMed ID (e.g. 21475195; 23614584)"
                                         style={{
                                             width: "100%", fontSize: 10, padding: "3px 8px", border: `1px solid ${C.border}`, borderRadius: 5,
