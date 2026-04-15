@@ -2057,120 +2057,120 @@ export default function App() {
                 const closeModal = () => { setUploadModal(false); setUploadModalStage("choose"); setUploadWeightName(""); setUploadWeightFile(null); setUploadWeightErr(""); };
                 const headerTitle = uploadModalStage === "choose" ? "Upload"
                     : uploadModalStage === "weight-name" ? "Import Weight Profile"
-                        : uploadModalStage === "success" ? "Profile Imported"
-                            : "Import Failed";
+                    : uploadModalStage === "success" ? "Profile Imported"
+                    : "Import Failed";
                 return (
+                <div style={{
+                    position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 600,
+                    display: "flex", alignItems: "center", justifyContent: "center"
+                }}>
                     <div style={{
-                        position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 600,
-                        display: "flex", alignItems: "center", justifyContent: "center"
-                    }}>
-                        <div style={{
-                            background: C.surface, borderRadius: 14, width: 400, overflow: "hidden",
-                            boxShadow: "0 12px 48px rgba(24,55,75,0.3)"
-                        }}
-                            onClick={e => e.stopPropagation()}>
-                            <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <span style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>{headerTitle}</span>
-                                <button onClick={closeModal} style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
-                            </div>
-
-                            {/* ── Stage: choose ── */}
-                            {uploadModalStage === "choose" && (
-                                <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
-                                    <button onClick={() => fileRef.current?.click()}
-                                        style={{
-                                            display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 16px", borderRadius: 10,
-                                            border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left"
-                                        }}>
-                                        <span style={{ fontSize: 22, lineHeight: 1 }}>📋</span>
-                                        <div>
-                                            <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Client data</div>
-                                            <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>Upload a biomarker CSV with client concentration values and reference ranges.</div>
-                                        </div>
-                                    </button>
-                                    <button onClick={() => setUploadModalStage("weight-name")}
-                                        style={{
-                                            display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 16px", borderRadius: 10,
-                                            border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left"
-                                        }}>
-                                        <span style={{ fontSize: 22, lineHeight: 1 }}>⚖️</span>
-                                        <div>
-                                            <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Weight profile</div>
-                                            <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>Import a previously exported weight profile CSV. Creates a new profile from the file.</div>
-                                        </div>
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* ── Stage: weight-name ── */}
-                            {uploadModalStage === "weight-name" && (
-                                <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-                                    <div>
-                                        <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecond, display: "block", marginBottom: 6 }}>Profile name</label>
-                                        <input
-                                            autoFocus
-                                            value={uploadWeightName}
-                                            onChange={e => setUploadWeightName(e.target.value)}
-                                            placeholder="e.g. Cardio Risk Profile"
-                                            style={{
-                                                width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 7,
-                                                border: `1px solid ${C.border}`, color: C.textPrimary,
-                                                background: C.white, outline: "none", boxSizing: "border-box"
-                                            }} />
-                                        <div style={{ fontSize: 11, color: C.textFaint, marginTop: 5 }}>
-                                            You can rename it later from the profile manager.
-                                        </div>
-                                    </div>
-                                    {uploadWeightErr && (
-                                        <div style={{ fontSize: 11, color: C.critical, background: `${C.critical}12`, border: `1px solid ${C.critical}33`, borderRadius: 6, padding: "8px 12px" }}>
-                                            {uploadWeightErr}
-                                        </div>
-                                    )}
-                                    <div style={{ display: "flex", gap: 8 }}>
-                                        <button onClick={() => { setUploadModalStage("choose"); setUploadWeightErr(""); }}
-                                            style={{
-                                                flex: 1, padding: "9px 0", borderRadius: 7, fontSize: 12, cursor: "pointer",
-                                                border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted
-                                            }}>← Back</button>
-                                        <button onClick={() => weightFileRef.current?.click()}
-                                            style={{
-                                                flex: 2, padding: "9px 0", borderRadius: 7, fontSize: 12, fontWeight: 700,
-                                                cursor: "pointer", border: "none",
-                                                background: C.navy, color: C.iceLight
-                                            }}>Choose file…</button>
-                                    </div>
-                                    <input ref={weightFileRef} type="file" accept=".csv" style={{ display: "none" }}
-                                        onChange={e => {
-                                            const file = e.target.files[0];
-                                            e.target.value = "";
-                                            if (!file) return;
-                                            const name = uploadWeightName.trim() || file.name.replace(/\.csv$/i, "").replace(/_/g, " ").trim() || "Imported Profile";
-                                            handleWeightFile(
-                                                file, name,
-                                                () => { setUploadWeightName(name); setUploadModalStage("success"); setUploadWeightErr(""); },
-                                                err => setUploadWeightErr(err)
-                                            );
-                                        }} />
-                                </div>
-                            )}
-
-                            {/* ── Stage: success ── */}
-                            {uploadModalStage === "success" && (
-                                <div style={{ padding: "28px 24px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
-                                    <div style={{ fontSize: 36, lineHeight: 1 }}>✅</div>
-                                    <div style={{ fontSize: 15, fontWeight: 700, color: C.textPrimary }}>Profile imported</div>
-                                    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
-                                        <strong style={{ color: C.textSecond }}>{uploadWeightName}</strong> is now active and available in the profile selector and Aggregate Statistics.
-                                    </div>
-                                    <button onClick={closeModal}
-                                        style={{
-                                            marginTop: 8, padding: "9px 28px", borderRadius: 7, fontSize: 12, fontWeight: 700,
-                                            cursor: "pointer", border: "none", background: C.navy, color: C.iceLight
-                                        }}>Done</button>
-                                </div>
-                            )}
+                        background: C.surface, borderRadius: 14, width: 400, overflow: "hidden",
+                        boxShadow: "0 12px 48px rgba(24,55,75,0.3)"
+                    }}
+                        onClick={e => e.stopPropagation()}>
+                        <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>{headerTitle}</span>
+                            <button onClick={closeModal} style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
                         </div>
+
+                        {/* ── Stage: choose ── */}
+                        {uploadModalStage === "choose" && (
+                            <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+                                <button onClick={() => fileRef.current?.click()}
+                                    style={{
+                                        display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 16px", borderRadius: 10,
+                                        border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left"
+                                    }}>
+                                    <span style={{ fontSize: 22, lineHeight: 1 }}>📋</span>
+                                    <div>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Client data</div>
+                                        <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>Upload a biomarker CSV with client concentration values and reference ranges.</div>
+                                    </div>
+                                </button>
+                                <button onClick={() => setUploadModalStage("weight-name")}
+                                    style={{
+                                        display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 16px", borderRadius: 10,
+                                        border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left"
+                                    }}>
+                                    <span style={{ fontSize: 22, lineHeight: 1 }}>⚖️</span>
+                                    <div>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Weight profile</div>
+                                        <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>Import a previously exported weight profile CSV. Creates a new profile from the file.</div>
+                                    </div>
+                                </button>
+                            </div>
+                        )}
+
+                        {/* ── Stage: weight-name ── */}
+                        {uploadModalStage === "weight-name" && (
+                            <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+                                <div>
+                                    <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecond, display: "block", marginBottom: 6 }}>Profile name</label>
+                                    <input
+                                        autoFocus
+                                        value={uploadWeightName}
+                                        onChange={e => setUploadWeightName(e.target.value)}
+                                        placeholder="e.g. Cardio Risk Profile"
+                                        style={{
+                                            width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 7,
+                                            border: `1px solid ${C.border}`, color: C.textPrimary,
+                                            background: C.white, outline: "none", boxSizing: "border-box"
+                                        }} />
+                                    <div style={{ fontSize: 11, color: C.textFaint, marginTop: 5 }}>
+                                        You can rename it later from the profile manager.
+                                    </div>
+                                </div>
+                                {uploadWeightErr && (
+                                    <div style={{ fontSize: 11, color: C.critical, background: `${C.critical}12`, border: `1px solid ${C.critical}33`, borderRadius: 6, padding: "8px 12px" }}>
+                                        {uploadWeightErr}
+                                    </div>
+                                )}
+                                <div style={{ display: "flex", gap: 8 }}>
+                                    <button onClick={() => { setUploadModalStage("choose"); setUploadWeightErr(""); }}
+                                        style={{
+                                            flex: 1, padding: "9px 0", borderRadius: 7, fontSize: 12, cursor: "pointer",
+                                            border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted
+                                        }}>← Back</button>
+                                    <button onClick={() => weightFileRef.current?.click()}
+                                        style={{
+                                            flex: 2, padding: "9px 0", borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                            cursor: "pointer", border: "none",
+                                            background: C.navy, color: C.iceLight
+                                        }}>Choose file…</button>
+                                </div>
+                                <input ref={weightFileRef} type="file" accept=".csv" style={{ display: "none" }}
+                                    onChange={e => {
+                                        const file = e.target.files[0];
+                                        e.target.value = "";
+                                        if (!file) return;
+                                        const name = uploadWeightName.trim() || file.name.replace(/\.csv$/i, "").replace(/_/g, " ").trim() || "Imported Profile";
+                                        handleWeightFile(
+                                            file, name,
+                                            () => { setUploadWeightName(name); setUploadModalStage("success"); setUploadWeightErr(""); },
+                                            err => setUploadWeightErr(err)
+                                        );
+                                    }} />
+                            </div>
+                        )}
+
+                        {/* ── Stage: success ── */}
+                        {uploadModalStage === "success" && (
+                            <div style={{ padding: "28px 24px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
+                                <div style={{ fontSize: 36, lineHeight: 1 }}>✅</div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: C.textPrimary }}>Profile imported</div>
+                                <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
+                                    <strong style={{ color: C.textSecond }}>{uploadWeightName}</strong> is now active and available in the profile selector and Aggregate Statistics.
+                                </div>
+                                <button onClick={closeModal}
+                                    style={{
+                                        marginTop: 8, padding: "9px 28px", borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                        cursor: "pointer", border: "none", background: C.navy, color: C.iceLight
+                                    }}>Done</button>
+                            </div>
+                        )}
                     </div>
+                </div>
                 );
             })()}
 
@@ -2843,7 +2843,7 @@ function SpinnerDots() {
 
 function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, isUploading, loadDemo, personas }) {
     return (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: "24vh", paddingBottom: "14vh", height: "100%", gap: 24 }}>
             <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 26, fontFamily: T.display, color: C.navy, marginBottom: 8 }}>Biomarker Scoring Workbench</div>
                 <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.8, maxWidth: 440 }}>Upload client lab data to score biomarkers across all seven health systems.</div>
