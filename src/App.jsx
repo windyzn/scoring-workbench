@@ -271,7 +271,51 @@ const DISEASE_SYSTEMS = [
     },
 ];
 
-const ALL_SYSTEMS = [...SYSTEMS, ...DISEASE_SYSTEMS];
+
+const CANCER_SYSTEMS = [
+    {
+        id: "cancer_inflammation", name: "Inflammation", processes: {
+            "Inflammation": ["C-reactive protein", "Alpha-1-acid glycoprotein 1", "Alpha-1-antichymotrypsin", "Ceruloplasmin", "Haptoglobin", "Serum amyloid A-1 protein", "Histamine", "Asymmetric dimethylarginine", "Phenylalanine", "Fibrinogen alpha chain", "Fibrinogen beta chain", "Fibrinogen gamma chain", "Coagulation factor XIII A chain", "Coagulation factor XI", "Coagulation factor XIII B chain"],
+        }
+    },
+    {
+        id: "cancer_cell_proliferation", name: "Cell Proliferation", processes: {
+            "Cell Proliferation": ["Putrescine", "Spermidine", "Spermine", "Diacetylspermine", "Sex hormone-binding globulin", "Tyrosine", "Leucine", "Asparagine", "Methionine", "Ornithine", "Phenylethylamine"],
+        }
+    },
+    {
+        id: "cancer_angiogenesis", name: "Angiogenesis", processes: {
+            "Angiogenesis": ["Angiogenin", "Leucine-rich alpha-2-glycoprotein 1", "von Willebrand Factor", "Tetranectin", "Serotonin", "Prothrombin"],
+        }
+    },
+    {
+        id: "cancer_oxidative_stress", name: "Oxidative Stress", processes: {
+            "Oxidative Stress": ["Nitro-Tyrosine", "Methionine-Sulfoxide", "Cotinine", "Serum albumin", "Taurine", "Alpha-amino-N-butyric acid"],
+        }
+    },
+    {
+        id: "cancer_metabolic_dysfunction", name: "Metabolic Dysfunction", processes: {
+            "Metabolic Dysfunction": ["Glutamine", "Glutamic acid", "Glycine", "Serine", "Proline", "Isoleucine", "Valine", "Alanine", "Threonine", "Creatinine", "Apolipoprotein B-100", "Apolipoprotein C-III", "Apolipoprotein A-II", "Choline", "Betaine", "Sarcosine", "Histidine"],
+        }
+    },
+    {
+        id: "cancer_immune_system_evasion", name: "Immune System Evasion", processes: {
+            "Immune System Evasion": ["Tryptophan", "Kynurenine", "Arginine", "Complement factor I", "Complement component C9", "Complement factor B", "CD5 antigen-like", "Ficolin-3", "Mannan-binding lectin serine protease 2", "Complement C1q subcomponent subunit B", "C4b-binding protein alpha chain", "Plasma protease C1 inhibitor", "Transthyretin", "Serotransferrin", "Vitamin D-binding protein"],
+        }
+    },
+    {
+        id: "cancer_matrix_remodelling", name: "Matrix Remodelling", processes: {
+            "Matrix Remodelling": ["Fibronectin", "Vitronectin", "Galectin-3-binding protein", "Alpha-2-macroglobulin", "Alpha-1B-glycoprotein", "Kininogen-1", "Protein AMBP"],
+        }
+    },
+    {
+        id: "cancer_metastasis", name: "Metastasis", processes: {
+            "Metastasis": ["Intercellular adhesion molecule 1", "Gamma-aminobutyric acid", "Apolipoprotein D", "Apolipoprotein M", "Plasma serine protease inhibitor", "Beta-2-glycoprotein 1", "Retinol-binding protein 4", "Apolipoprotein E", "Apolipoprotein C-I", "Complement C1r subcomponent", "Hemopexin", "Alpha-2-HS-glycoprotein", "Apolipoprotein A-I"],
+        }
+    },
+];
+
+const ALL_SYSTEMS = [...SYSTEMS, ...DISEASE_SYSTEMS, ...CANCER_SYSTEMS];
 
 // All biomarker and process weights default to 1.0 — zone-based auto-weighting
 // is handled dynamically at score time using yellowWeight / redWeight globals.
@@ -2635,7 +2679,7 @@ export default function App() {
 
                     {col1Open && <>
                         <div data-tutorial="systems-panel" style={{ overflowY: "auto", flex: 1 }}>
-                            {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Risk", systems: DISEASE_SYSTEMS }].map(({ label, systems }) => (
+                            {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Risk", systems: DISEASE_SYSTEMS }, { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS }].map(({ label, systems }) => (
                                 <div key={label}>
                                     <div style={{ padding: "8px 14px 4px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", borderBottom: `1px solid ${C.border}` }}>{label}</div>
                                     {systems.map(sys => {
