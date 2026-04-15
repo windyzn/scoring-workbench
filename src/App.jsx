@@ -85,7 +85,7 @@ const ALIASES = {
     "Sphingomyelin C16:0": "SM C16:0", "Sphingomyelin C20:2": "SM C20:2",
 };
 
-// ─── Disease Risk Systems ─────────────────────────────────────────────────────
+// ─── Disease Area Systems ────────────────────────────────────────────────────
 // Processes reuse the same biomarker→process mapping as health systems.
 const DISEASE_SYSTEMS = [
     {
@@ -2057,120 +2057,120 @@ export default function App() {
                 const closeModal = () => { setUploadModal(false); setUploadModalStage("choose"); setUploadWeightName(""); setUploadWeightFile(null); setUploadWeightErr(""); };
                 const headerTitle = uploadModalStage === "choose" ? "Upload"
                     : uploadModalStage === "weight-name" ? "Import Weight Profile"
-                    : uploadModalStage === "success" ? "Profile Imported"
-                    : "Import Failed";
+                        : uploadModalStage === "success" ? "Profile Imported"
+                            : "Import Failed";
                 return (
-                <div style={{
-                    position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 600,
-                    display: "flex", alignItems: "center", justifyContent: "center"
-                }}>
                     <div style={{
-                        background: C.surface, borderRadius: 14, width: 400, overflow: "hidden",
-                        boxShadow: "0 12px 48px rgba(24,55,75,0.3)"
-                    }}
-                        onClick={e => e.stopPropagation()}>
-                        <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>{headerTitle}</span>
-                            <button onClick={closeModal} style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
-                        </div>
-
-                        {/* ── Stage: choose ── */}
-                        {uploadModalStage === "choose" && (
-                            <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
-                                <button onClick={() => fileRef.current?.click()}
-                                    style={{
-                                        display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 16px", borderRadius: 10,
-                                        border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left"
-                                    }}>
-                                    <span style={{ fontSize: 22, lineHeight: 1 }}>📋</span>
-                                    <div>
-                                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Client data</div>
-                                        <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>Upload a biomarker CSV with client concentration values and reference ranges.</div>
-                                    </div>
-                                </button>
-                                <button onClick={() => setUploadModalStage("weight-name")}
-                                    style={{
-                                        display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 16px", borderRadius: 10,
-                                        border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left"
-                                    }}>
-                                    <span style={{ fontSize: 22, lineHeight: 1 }}>⚖️</span>
-                                    <div>
-                                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Weight profile</div>
-                                        <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>Import a previously exported weight profile CSV. Creates a new profile from the file.</div>
-                                    </div>
-                                </button>
+                        position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 600,
+                        display: "flex", alignItems: "center", justifyContent: "center"
+                    }}>
+                        <div style={{
+                            background: C.surface, borderRadius: 14, width: 400, overflow: "hidden",
+                            boxShadow: "0 12px 48px rgba(24,55,75,0.3)"
+                        }}
+                            onClick={e => e.stopPropagation()}>
+                            <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>{headerTitle}</span>
+                                <button onClick={closeModal} style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
                             </div>
-                        )}
 
-                        {/* ── Stage: weight-name ── */}
-                        {uploadModalStage === "weight-name" && (
-                            <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-                                <div>
-                                    <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecond, display: "block", marginBottom: 6 }}>Profile name</label>
-                                    <input
-                                        autoFocus
-                                        value={uploadWeightName}
-                                        onChange={e => setUploadWeightName(e.target.value)}
-                                        placeholder="e.g. Cardio Risk Profile"
+                            {/* ── Stage: choose ── */}
+                            {uploadModalStage === "choose" && (
+                                <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+                                    <button onClick={() => fileRef.current?.click()}
                                         style={{
-                                            width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 7,
-                                            border: `1px solid ${C.border}`, color: C.textPrimary,
-                                            background: C.white, outline: "none", boxSizing: "border-box"
+                                            display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 16px", borderRadius: 10,
+                                            border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left"
+                                        }}>
+                                        <span style={{ fontSize: 22, lineHeight: 1 }}>📋</span>
+                                        <div>
+                                            <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Client data</div>
+                                            <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>Upload a biomarker CSV with client concentration values and reference ranges.</div>
+                                        </div>
+                                    </button>
+                                    <button onClick={() => setUploadModalStage("weight-name")}
+                                        style={{
+                                            display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 16px", borderRadius: 10,
+                                            border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left"
+                                        }}>
+                                        <span style={{ fontSize: 22, lineHeight: 1 }}>⚖️</span>
+                                        <div>
+                                            <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Weight profile</div>
+                                            <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>Import a previously exported weight profile CSV. Creates a new profile from the file.</div>
+                                        </div>
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* ── Stage: weight-name ── */}
+                            {uploadModalStage === "weight-name" && (
+                                <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+                                    <div>
+                                        <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecond, display: "block", marginBottom: 6 }}>Profile name</label>
+                                        <input
+                                            autoFocus
+                                            value={uploadWeightName}
+                                            onChange={e => setUploadWeightName(e.target.value)}
+                                            placeholder="e.g. Cardio Risk Profile"
+                                            style={{
+                                                width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 7,
+                                                border: `1px solid ${C.border}`, color: C.textPrimary,
+                                                background: C.white, outline: "none", boxSizing: "border-box"
+                                            }} />
+                                        <div style={{ fontSize: 11, color: C.textFaint, marginTop: 5 }}>
+                                            You can rename it later from the profile manager.
+                                        </div>
+                                    </div>
+                                    {uploadWeightErr && (
+                                        <div style={{ fontSize: 11, color: C.critical, background: `${C.critical}12`, border: `1px solid ${C.critical}33`, borderRadius: 6, padding: "8px 12px" }}>
+                                            {uploadWeightErr}
+                                        </div>
+                                    )}
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                        <button onClick={() => { setUploadModalStage("choose"); setUploadWeightErr(""); }}
+                                            style={{
+                                                flex: 1, padding: "9px 0", borderRadius: 7, fontSize: 12, cursor: "pointer",
+                                                border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted
+                                            }}>← Back</button>
+                                        <button onClick={() => weightFileRef.current?.click()}
+                                            style={{
+                                                flex: 2, padding: "9px 0", borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                                cursor: "pointer", border: "none",
+                                                background: C.navy, color: C.iceLight
+                                            }}>Choose file…</button>
+                                    </div>
+                                    <input ref={weightFileRef} type="file" accept=".csv" style={{ display: "none" }}
+                                        onChange={e => {
+                                            const file = e.target.files[0];
+                                            e.target.value = "";
+                                            if (!file) return;
+                                            const name = uploadWeightName.trim() || file.name.replace(/\.csv$/i, "").replace(/_/g, " ").trim() || "Imported Profile";
+                                            handleWeightFile(
+                                                file, name,
+                                                () => { setUploadWeightName(name); setUploadModalStage("success"); setUploadWeightErr(""); },
+                                                err => setUploadWeightErr(err)
+                                            );
                                         }} />
-                                    <div style={{ fontSize: 11, color: C.textFaint, marginTop: 5 }}>
-                                        You can rename it later from the profile manager.
-                                    </div>
                                 </div>
-                                {uploadWeightErr && (
-                                    <div style={{ fontSize: 11, color: C.critical, background: `${C.critical}12`, border: `1px solid ${C.critical}33`, borderRadius: 6, padding: "8px 12px" }}>
-                                        {uploadWeightErr}
-                                    </div>
-                                )}
-                                <div style={{ display: "flex", gap: 8 }}>
-                                    <button onClick={() => { setUploadModalStage("choose"); setUploadWeightErr(""); }}
-                                        style={{
-                                            flex: 1, padding: "9px 0", borderRadius: 7, fontSize: 12, cursor: "pointer",
-                                            border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted
-                                        }}>← Back</button>
-                                    <button onClick={() => weightFileRef.current?.click()}
-                                        style={{
-                                            flex: 2, padding: "9px 0", borderRadius: 7, fontSize: 12, fontWeight: 700,
-                                            cursor: "pointer", border: "none",
-                                            background: C.navy, color: C.iceLight
-                                        }}>Choose file…</button>
-                                </div>
-                                <input ref={weightFileRef} type="file" accept=".csv" style={{ display: "none" }}
-                                    onChange={e => {
-                                        const file = e.target.files[0];
-                                        e.target.value = "";
-                                        if (!file) return;
-                                        const name = uploadWeightName.trim() || file.name.replace(/\.csv$/i, "").replace(/_/g, " ").trim() || "Imported Profile";
-                                        handleWeightFile(
-                                            file, name,
-                                            () => { setUploadWeightName(name); setUploadModalStage("success"); setUploadWeightErr(""); },
-                                            err => setUploadWeightErr(err)
-                                        );
-                                    }} />
-                            </div>
-                        )}
+                            )}
 
-                        {/* ── Stage: success ── */}
-                        {uploadModalStage === "success" && (
-                            <div style={{ padding: "28px 24px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
-                                <div style={{ fontSize: 36, lineHeight: 1 }}>✅</div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: C.textPrimary }}>Profile imported</div>
-                                <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
-                                    <strong style={{ color: C.textSecond }}>{uploadWeightName}</strong> is now active and available in the profile selector and Aggregate Statistics.
+                            {/* ── Stage: success ── */}
+                            {uploadModalStage === "success" && (
+                                <div style={{ padding: "28px 24px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
+                                    <div style={{ fontSize: 36, lineHeight: 1 }}>✅</div>
+                                    <div style={{ fontSize: 15, fontWeight: 700, color: C.textPrimary }}>Profile imported</div>
+                                    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
+                                        <strong style={{ color: C.textSecond }}>{uploadWeightName}</strong> is now active and available in the profile selector and Aggregate Statistics.
+                                    </div>
+                                    <button onClick={closeModal}
+                                        style={{
+                                            marginTop: 8, padding: "9px 28px", borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                            cursor: "pointer", border: "none", background: C.navy, color: C.iceLight
+                                        }}>Done</button>
                                 </div>
-                                <button onClick={closeModal}
-                                    style={{
-                                        marginTop: 8, padding: "9px 28px", borderRadius: 7, fontSize: 12, fontWeight: 700,
-                                        cursor: "pointer", border: "none", background: C.navy, color: C.iceLight
-                                    }}>Done</button>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
-                </div>
                 );
             })()}
 
@@ -2679,7 +2679,7 @@ export default function App() {
 
                     {col1Open && <>
                         <div data-tutorial="systems-panel" style={{ overflowY: "auto", flex: 1 }}>
-                            {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Risk", systems: DISEASE_SYSTEMS }, { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS }].map(({ label, systems }) => (
+                            {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Area", systems: DISEASE_SYSTEMS }, { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS }].map(({ label, systems }) => (
                                 <div key={label}>
                                     <div style={{ padding: "8px 14px 4px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", borderBottom: `1px solid ${C.border}` }}>{label}</div>
                                     {systems.map(sys => {
@@ -4312,7 +4312,7 @@ function Histogram({ scores, title, redCutoff, yellowCutoff }) {
 function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, histSysId, setHistSysId, histProcName, setHistProcName, card }) {
     const DEFAULT_SYS_RED = 70, DEFAULT_SYS_YELLOW = 91;
     const DEFAULT_PROC_RED = 70, DEFAULT_PROC_YELLOW = 91;
-    const selSys = SYSTEMS.find(s => s.id === histSysId) || SYSTEMS[0];
+    const selSys = ALL_SYSTEMS.find(s => s.id === histSysId) || SYSTEMS[0];
     const procs = Object.keys(selSys.processes);
     const validProc = procs.includes(histProcName) ? histProcName : procs[0];
 
@@ -4336,17 +4336,24 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
             <div data-tutorial="first-sys-histogram" style={{ ...card, padding: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>System Scores</div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {sysScores.length} client report{sysScores.length !== 1 ? "s" : ""}.</div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-                    {SYSTEMS.map(s => (
-                        <button key={s.id} onClick={() => { setHistSysId(s.id); setHistProcName(Object.keys(s.processes)[0]); }}
-                            style={{
-                                padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-                                border: `1px solid ${histSysId === s.id ? C.steel : C.border}`,
-                                background: histSysId === s.id ? `${C.steel}18` : "transparent",
-                                color: histSysId === s.id ? C.steel : C.textMuted, fontWeight: histSysId === s.id ? 700 : 400
-                            }}>
-                            {s.name}
-                        </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
+                    {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Area", systems: DISEASE_SYSTEMS }, { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS }].map(({ label, systems }) => (
+                        <div key={label}>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 5 }}>{label}</div>
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                {systems.map(s => (
+                                    <button key={s.id} onClick={() => { setHistSysId(s.id); setHistProcName(Object.keys(s.processes)[0]); }}
+                                        style={{
+                                            padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+                                            border: `1px solid ${histSysId === s.id ? C.steel : C.border}`,
+                                            background: histSysId === s.id ? `${C.steel}18` : "transparent",
+                                            color: histSysId === s.id ? C.steel : C.textMuted, fontWeight: histSysId === s.id ? 700 : 400
+                                        }}>
+                                        {s.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     ))}
                 </div>
                 <Histogram scores={sysScores} title={selSys.name} redCutoff={sysRedCutoff} yellowCutoff={sysYellowCutoff} />
@@ -4403,7 +4410,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 
 // ─── FlowchartTab ─────────────────────────────────────────────────────────────
 function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }) {
-    const sys = SYSTEMS.find(s => s.id === flowSysId) || SYSTEMS[0];
+    const sys = ALL_SYSTEMS.find(s => s.id === flowSysId) || SYSTEMS[0];
     const procs = Object.entries(sys.processes);
     const DEFAULT_BIO = { weight: 1, color: "red", level: "high" };
     const DEFAULT_PROC = { weight: 1, color: "red" };
@@ -4522,17 +4529,24 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
         <div>
             {/* System selector + download buttons */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {SYSTEMS.map(s => (
-                        <button key={s.id} onClick={() => setFlowSysId(s.id)}
-                            style={{
-                                padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-                                border: `1px solid ${flowSysId === s.id ? C.steel : C.border}`,
-                                background: flowSysId === s.id ? `${C.steel}18` : "transparent",
-                                color: flowSysId === s.id ? C.steel : C.textMuted, fontWeight: flowSysId === s.id ? 700 : 400
-                            }}>
-                            {s.name}
-                        </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Area", systems: DISEASE_SYSTEMS }, { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS }].map(({ label, systems }) => (
+                        <div key={label}>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 5 }}>{label}</div>
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                {systems.map(s => (
+                                    <button key={s.id} onClick={() => setFlowSysId(s.id)}
+                                        style={{
+                                            padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+                                            border: `1px solid ${flowSysId === s.id ? C.steel : C.border}`,
+                                            background: flowSysId === s.id ? `${C.steel}18` : "transparent",
+                                            color: flowSysId === s.id ? C.steel : C.textMuted, fontWeight: flowSysId === s.id ? 700 : 400
+                                        }}>
+                                        {s.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     ))}
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
