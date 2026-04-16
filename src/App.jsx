@@ -3742,7 +3742,15 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const overviewBg = s => s == null ? "transparent" : `${overviewColour(s)}18`;
     const ALL_GROUP_LABELS = ["Health Systems", "Disease Area", "Cancer Hallmarks"];
     const [visibleSysGroups, setVisibleSysGroups] = useState(new Set(ALL_GROUP_LABELS));
-    const [visibleProcGroups, setVisibleProcGroups] = useState(new Set(ALL_GROUP_LABELS));
+    const PROC_GROUPS = [
+        { label: "Health Systems",   systems: SYSTEMS },
+        { label: "Disease Area",     systems: DISEASE_SYSTEMS },
+        { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS },
+    ];
+    const ALL_PROCS_FLAT = [...new Set(ALL_SYSTEMS.flatMap(s => Object.keys(s.processes)))];
+    const [visibleProcs, setVisibleProcs] = useState(new Set(ALL_PROCS_FLAT));
+    const [showProcFilter, setShowProcFilter] = useState(false);
+    const [procFilterSearch, setProcFilterSearch] = useState("");
     const [histSysId, setHistSysId] = useState(SYSTEMS[0].id);
     const [histProcName, setHistProcName] = useState(Object.keys(SYSTEMS[0].processes)[0]);
     const [flowSysId, setFlowSysId] = useState(SYSTEMS[0].id);
@@ -4115,38 +4123,89 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     {isComparing && clientTab === 0 && <span> Viewing <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> (baseline).</span>}
                                     {isComparing && clientTab > 0 && <span> Viewing <strong style={{ color: PROF_COLORS[clientTab] }}>{aggregateData[clientTab].profile.name}</strong>. ▲▼ deltas vs. baseline.</span>}
                                 </div>
-                                {/* Group filter */}
-                                {(() => {
-                                    const toggleProcGroup = lbl => setVisibleProcGroups(prev => { const n = new Set(prev); n.has(lbl) ? n.delete(lbl) : n.add(lbl); return n; });
-                                    const allOn = visibleProcGroups.size === ALL_GROUP_LABELS.length;
-                                    return (
-                                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                                            <span style={{ fontSize: 10, color: C.textFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Columns</span>
-                                            {ALL_GROUP_LABELS.map(lbl => {
-                                                const on = visibleProcGroups.has(lbl);
-                                                return (
-                                                    <button key={lbl} onClick={() => toggleProcGroup(lbl)} style={{
-                                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                                        border: `1px solid ${on ? C.steel : C.border}`,
-                                                        background: on ? `${C.steel}18` : "transparent",
-                                                        color: on ? C.steel : C.textFaint, fontWeight: on ? 700 : 400,
-                                                    }}>{lbl}</button>
-                                                );
-                                            })}
-                                            <button onClick={() => setVisibleProcGroups(allOn ? new Set() : new Set(ALL_GROUP_LABELS))} style={{
-                                                fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                                border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint,
-                                            }}>{allOn ? "Clear all" : "Select all"}</button>
+                                {/* Per-process filter */}
+                                <div style={{ position: "relative", display: "inline-block", marginBottom: 10 }}>
+                                    <button onClick={() => setShowProcFilter(o => !o)} style={{
+                                        display: "flex", alignItems: "center", gap: 5, fontSize: 10, padding: "4px 12px",
+                                        borderRadius: 5, cursor: "pointer",
+                                        border: `1px solid ${showProcFilter ? C.steel : C.border}`,
+                                        background: showProcFilter ? `${C.steel}18` : "transparent",
+                                        color: showProcFilter ? C.steel : C.textMuted, fontWeight: showProcFilter ? 700 : 400,
+                                    }}>
+                                        ⚙ Filter columns
+                                        {visibleProcs.size < ALL_PROCS_FLAT.length && (
+                                            <span style={{ marginLeft: 2, background: C.steel, color: "white", borderRadius: 8, padding: "1px 6px", fontSize: 9, fontWeight: 700 }}>
+                                                {visibleProcs.size}/{ALL_PROCS_FLAT.length}
+                                            </span>
+                                        )}
+                                    </button>
+                                    {showProcFilter && (
+                                        <div style={{
+                                            position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50,
+                                            background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
+                                            boxShadow: "0 8px 32px rgba(24,55,75,0.15)", width: 320, maxHeight: 480,
+                                            display: "flex", flexDirection: "column", overflow: "hidden"
+                                        }}>
+                                            {/* Header */}
+                                            <div style={{ padding: "10px 14px 8px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+                                                <span style={{ fontSize: 11, fontWeight: 700, color: C.textSecond }}>Filter process columns</span>
+                                                <div style={{ display: "flex", gap: 6 }}>
+                                                    <button onClick={() => setVisibleProcs(new Set(ALL_PROCS_FLAT))} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint, cursor: "pointer" }}>All</button>
+                                                    <button onClick={() => setVisibleProcs(new Set())} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint, cursor: "pointer" }}>None</button>
+                                                    <button onClick={() => { setShowProcFilter(false); setProcFilterSearch(""); }} style={{ fontSize: 13, lineHeight: 1, padding: "0 4px", border: "none", background: "none", color: C.textFaint, cursor: "pointer" }}>×</button>
+                                                </div>
+                                            </div>
+                                            {/* Search */}
+                                            <div style={{ padding: "8px 14px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+                                                <input
+                                                    autoFocus
+                                                    value={procFilterSearch}
+                                                    onChange={e => setProcFilterSearch(e.target.value)}
+                                                    placeholder="Search processes…"
+                                                    style={{ width: "100%", fontSize: 11, padding: "5px 10px", border: `1px solid ${C.border}`, borderRadius: 6, color: C.textPrimary, background: C.white, outline: "none", boxSizing: "border-box" }}
+                                                />
+                                            </div>
+                                            {/* Groups + checkboxes */}
+                                            <div style={{ overflowY: "auto", flex: 1, padding: "6px 0" }}>
+                                                {PROC_GROUPS.map(({ label, systems }) => {
+                                                    const groupProcs = [...new Set(systems.flatMap(s => Object.keys(s.processes)))];
+                                                    const filtered = procFilterSearch.trim()
+                                                        ? groupProcs.filter(p => p.toLowerCase().includes(procFilterSearch.toLowerCase()))
+                                                        : groupProcs;
+                                                    if (!filtered.length) return null;
+                                                    const allGroupOn = filtered.every(p => visibleProcs.has(p));
+                                                    return (
+                                                        <div key={label}>
+                                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 14px 3px", borderTop: `1px solid ${C.border}` }}>
+                                                                <span style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em" }}>{label}</span>
+                                                                <button onClick={() => setVisibleProcs(prev => {
+                                                                    const n = new Set(prev);
+                                                                    filtered.forEach(p => allGroupOn ? n.delete(p) : n.add(p));
+                                                                    return n;
+                                                                })} style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint, cursor: "pointer" }}>
+                                                                    {allGroupOn ? "None" : "All"}
+                                                                </button>
+                                                            </div>
+                                                            {filtered.map(p => (
+                                                                <label key={p} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 14px", cursor: "pointer" }}
+                                                                    onMouseEnter={e => e.currentTarget.style.background = `${C.iceLight}60`}
+                                                                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                                                                    <input type="checkbox" checked={visibleProcs.has(p)}
+                                                                        onChange={() => setVisibleProcs(prev => { const n = new Set(prev); n.has(p) ? n.delete(p) : n.add(p); return n; })}
+                                                                        style={{ accentColor: C.steel, flexShrink: 0 }} />
+                                                                    <span style={{ fontSize: 11, color: C.textSecond, lineHeight: 1.4 }}>{p}</span>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
-                                    );
-                                })()}
+                                    )}
+                                </div>
                                 {(() => {
                                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                    const visibleSysForProc = ALL_SYSTEMS.filter(s => {
-                                        const grp = SYSTEMS.find(x => x.id === s.id) ? "Health Systems" : DISEASE_SYSTEMS.find(x => x.id === s.id) ? "Disease Area" : "Cancer Hallmarks";
-                                        return visibleProcGroups.has(grp);
-                                    });
-                                    const allProcs = [...new Set(visibleSysForProc.flatMap(s => Object.keys(s.processes)))];
+                                    const allProcs = ALL_PROCS_FLAT.filter(p => visibleProcs.has(p));
                                     const stickyCell = { position: "sticky", left: 0, zIndex: 2 };
                                     const stickyWarnCell = { position: "sticky", left: 160, zIndex: 2 };
                                     return (
