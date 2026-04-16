@@ -3740,6 +3740,9 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const [overviewYellow, setOverviewYellow] = useState(70);
     const overviewColour = s => s == null ? C.textFaint : Math.floor(s) >= overviewGreen ? C.teal : Math.floor(s) >= overviewYellow ? C.fair : C.critical;
     const overviewBg = s => s == null ? "transparent" : `${overviewColour(s)}18`;
+    const ALL_GROUP_LABELS = ["Health Systems", "Disease Area", "Cancer Hallmarks"];
+    const [visibleSysGroups, setVisibleSysGroups] = useState(new Set(ALL_GROUP_LABELS));
+    const [visibleProcGroups, setVisibleProcGroups] = useState(new Set(ALL_GROUP_LABELS));
     const [histSysId, setHistSysId] = useState(SYSTEMS[0].id);
     const [histProcName, setHistProcName] = useState(Object.keys(SYSTEMS[0].processes)[0]);
     const [flowSysId, setFlowSysId] = useState(SYSTEMS[0].id);
@@ -3864,43 +3867,81 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     })}
                                 </div>
                             )}
+                            {/* Group filter */}
+                            {(() => {
+                                const toggleSysGroup = lbl => setVisibleSysGroups(prev => { const n = new Set(prev); n.has(lbl) ? n.delete(lbl) : n.add(lbl); return n; });
+                                const allOn = visibleSysGroups.size === ALL_GROUP_LABELS.length;
+                                return (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                                        <span style={{ fontSize: 10, color: C.textFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Columns</span>
+                                        {ALL_GROUP_LABELS.map(lbl => {
+                                            const on = visibleSysGroups.has(lbl);
+                                            return (
+                                                <button key={lbl} onClick={() => toggleSysGroup(lbl)} style={{
+                                                    fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                                    border: `1px solid ${on ? C.steel : C.border}`,
+                                                    background: on ? `${C.steel}18` : "transparent",
+                                                    color: on ? C.steel : C.textFaint, fontWeight: on ? 700 : 400,
+                                                }}>{lbl}</button>
+                                            );
+                                        })}
+                                        <button onClick={() => setVisibleSysGroups(allOn ? new Set() : new Set(ALL_GROUP_LABELS))} style={{
+                                            fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                            border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint,
+                                        }}>{allOn ? "Clear all" : "Select all"}</button>
+                                    </div>
+                                );
+                            })()}
                             {(() => {
                                 const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
+                                const visibleSystems = ALL_SYSTEMS.filter(s => {
+                                    const grp = SYSTEMS.find(x => x.id === s.id) ? "Health Systems" : DISEASE_SYSTEMS.find(x => x.id === s.id) ? "Disease Area" : "Cancer Hallmarks";
+                                    return visibleSysGroups.has(grp);
+                                });
+                                const stickyCell = { position: "sticky", left: 0, zIndex: 2 };
+                                const stickyWarnCell = { position: "sticky", left: 160, zIndex: 2 };
                                 return (
                                     <div style={{ ...card, padding: 0, overflow: "auto" }}>
-                                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 700 }}>
+                                        <table style={{ borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
+                                            <colgroup>
+                                                <col style={{ width: 160 }} />
+                                                <col style={{ width: 44 }} />
+                                                {visibleSystems.map(s => <col key={s.id} style={{ width: 88 }} />)}
+                                            </colgroup>
                                             <thead>
                                                 <tr style={{ background: C.navy }}>
-                                                    <th style={{ padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Client</th>
-                                                    <th style={{ padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>⚠</th>
-                                                    {ALL_SYSTEMS.map(s => <th key={s.id} style={{ padding: "10px 6px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, minWidth: 80 }}><div style={{ minWidth: 72, maxWidth: 100, margin: "0 auto", lineHeight: 1.3 }}>{s.name}</div></th>)}
+                                                    <th style={{ ...stickyCell, padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Client</th>
+                                                    <th style={{ ...stickyWarnCell, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>⚠</th>
+                                                    {visibleSystems.map(s => <th key={s.id} style={{ padding: "10px 6px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, minWidth: 80 }}><div style={{ minWidth: 72, maxWidth: 100, margin: "0 auto", lineHeight: 1.3 }}>{s.name}</div></th>)}
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {rows.map((row, ri) => {
                                                     const baseRow = isComparing && clientTab > 0 ? aggregateData[0].clients.find(r => r.pid === row.pid) : null;
+                                                    const rowBg = ri % 2 === 0 ? C.surface : `${C.iceLight}40`;
                                                     return (
                                                         <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
-                                                            <td onClick={() => onNavigate(row.pid)} style={{ padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20`, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="Explore in Adjust Weighting">{row.label ?? row.pid}</td>
+                                                            <td onClick={() => onNavigate(row.pid)} style={{ ...stickyCell, padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: rowBg, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="Explore in Adjust Weighting">{row.label ?? row.pid}</td>
                                                             {(() => {
                                                                 const scores = row.systems.map(s => s.score).filter(x => x != null);
                                                                 const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
                                                                 const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
                                                                 return (
-                                                                    <td style={{ padding: "6px 8px", textAlign: "center", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20`, whiteSpace: "nowrap" }}>
+                                                                    <td style={{ ...stickyWarnCell, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap" }}>
                                                                         {nR > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.critical, marginRight: 2 }}>{nR}R</span>}
                                                                         {nY > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.fair }}>{nY}Y</span>}
                                                                         {nR === 0 && nY === 0 && <span style={{ fontSize: 9, color: C.teal }}>✓</span>}
                                                                     </td>
                                                                 );
                                                             })()}
-                                                            {row.systems.map(s => {
+                                                            {visibleSystems.map(s => {
+                                                                const sData = row.systems.find(rs => rs.id === s.id);
                                                                 const baseScore = baseRow?.systems.find(bs => bs.id === s.id)?.score ?? null;
-                                                                const d = s.score != null && baseScore != null ? s.score - baseScore : null;
+                                                                const d = sData?.score != null && baseScore != null ? sData.score - baseScore : null;
                                                                 return (
-                                                                    <td key={s.id} style={{ padding: "6px 8px", textAlign: "center", background: overviewBg(s.score) }}>
+                                                                    <td key={s.id} style={{ padding: "6px 8px", textAlign: "center", background: overviewBg(sData?.score) }}>
                                                                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                                                                            {s.score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: overviewColour(s.score) }}>{Math.floor(s.score)}</span> : <span style={{ color: C.textFaint }}>—</span>}
+                                                                            {sData?.score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: overviewColour(sData.score) }}>{Math.floor(sData.score)}</span> : <span style={{ color: C.textFaint }}>—</span>}
                                                                             {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, lineHeight: 1, color: d > 0 ? C.green : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
                                                                         </div>
                                                                     </td>
@@ -4074,9 +4115,40 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     {isComparing && clientTab === 0 && <span> Viewing <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> (baseline).</span>}
                                     {isComparing && clientTab > 0 && <span> Viewing <strong style={{ color: PROF_COLORS[clientTab] }}>{aggregateData[clientTab].profile.name}</strong>. ▲▼ deltas vs. baseline.</span>}
                                 </div>
+                                {/* Group filter */}
+                                {(() => {
+                                    const toggleProcGroup = lbl => setVisibleProcGroups(prev => { const n = new Set(prev); n.has(lbl) ? n.delete(lbl) : n.add(lbl); return n; });
+                                    const allOn = visibleProcGroups.size === ALL_GROUP_LABELS.length;
+                                    return (
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                                            <span style={{ fontSize: 10, color: C.textFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Columns</span>
+                                            {ALL_GROUP_LABELS.map(lbl => {
+                                                const on = visibleProcGroups.has(lbl);
+                                                return (
+                                                    <button key={lbl} onClick={() => toggleProcGroup(lbl)} style={{
+                                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                                        border: `1px solid ${on ? C.steel : C.border}`,
+                                                        background: on ? `${C.steel}18` : "transparent",
+                                                        color: on ? C.steel : C.textFaint, fontWeight: on ? 700 : 400,
+                                                    }}>{lbl}</button>
+                                                );
+                                            })}
+                                            <button onClick={() => setVisibleProcGroups(allOn ? new Set() : new Set(ALL_GROUP_LABELS))} style={{
+                                                fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                                border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint,
+                                            }}>{allOn ? "Clear all" : "Select all"}</button>
+                                        </div>
+                                    );
+                                })()}
                                 {(() => {
                                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                    const allProcs = [...new Set(SYSTEMS.flatMap(s => Object.keys(s.processes)))];
+                                    const visibleSysForProc = ALL_SYSTEMS.filter(s => {
+                                        const grp = SYSTEMS.find(x => x.id === s.id) ? "Health Systems" : DISEASE_SYSTEMS.find(x => x.id === s.id) ? "Disease Area" : "Cancer Hallmarks";
+                                        return visibleProcGroups.has(grp);
+                                    });
+                                    const allProcs = [...new Set(visibleSysForProc.flatMap(s => Object.keys(s.processes)))];
+                                    const stickyCell = { position: "sticky", left: 0, zIndex: 2 };
+                                    const stickyWarnCell = { position: "sticky", left: 160, zIndex: 2 };
                                     return (
                                         <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                             <table style={{ borderCollapse: "collapse", fontSize: 11, tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
@@ -4087,23 +4159,24 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 </colgroup>
                                                 <thead>
                                                     <tr style={{ background: C.navy }}>
-                                                        <th style={{ padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Client</th>
-                                                        <th style={{ padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>⚠</th>
+                                                        <th style={{ ...stickyCell, padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Client</th>
+                                                        <th style={{ ...stickyWarnCell, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>⚠</th>
                                                         {allProcs.map(p => <th key={p} style={{ padding: "8px 6px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, overflow: "hidden" }}><div style={{ lineHeight: 1.3, whiteSpace: "normal", wordBreak: "break-word" }}>{p}</div></th>)}
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {rows.map((row, ri) => {
                                                         const baseRow = isComparing && clientTab > 0 ? aggregateData[0].clients.find(r => r.pid === row.pid) : null;
+                                                        const rowBg = ri % 2 === 0 ? C.surface : `${C.iceLight}40`;
                                                         return (
                                                             <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
-                                                                <td onClick={() => onNavigate(row.pid)} style={{ padding: "7px 16px", fontFamily: T.mono, fontSize: 10, color: C.textSecond, whiteSpace: "nowrap", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20`, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="Explore in Adjust Weighting">{row.label ?? row.pid}</td>
+                                                                <td onClick={() => onNavigate(row.pid)} style={{ ...stickyCell, padding: "7px 16px", fontFamily: T.mono, fontSize: 10, color: C.textSecond, whiteSpace: "nowrap", background: rowBg, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="Explore in Adjust Weighting">{row.label ?? row.pid}</td>
                                                                 {(() => {
                                                                     const scores = allProcs.map(procName => row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null).filter(x => x != null);
                                                                     const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
                                                                     const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
                                                                     return (
-                                                                        <td style={{ padding: "5px 6px", textAlign: "center", background: ri % 2 === 0 ? "transparent" : `${C.iceLight}20`, whiteSpace: "nowrap" }}>
+                                                                        <td style={{ ...stickyWarnCell, padding: "5px 6px", textAlign: "center", background: rowBg, whiteSpace: "nowrap" }}>
                                                                             {nR > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.critical, marginRight: 2 }}>{nR}R</span>}
                                                                             {nY > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.fair }}>{nY}Y</span>}
                                                                             {nR === 0 && nY === 0 && <span style={{ fontSize: 9, color: C.teal }}>✓</span>}
