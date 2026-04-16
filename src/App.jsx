@@ -1591,6 +1591,8 @@ export default function App() {
     const [dragOver, setDragOver] = useState(false);
     const [col1Open, setCol1Open] = useState(true);
     const [col2Open, setCol2Open] = useState(true);
+    const [collapsedGroups, setCollapsedGroups] = useState(new Set()); // all expanded by default
+    const sidebarRef = useRef(null);
     const [concOverrides, setConcOverrides] = useState({});  // { [clientId]: { [markerName]: value } }
     const [aggTab, setAggTab] = useState("overview");
     const [sysYellowCutoff, setSysYellowCutoff] = useState(91);
@@ -1678,6 +1680,25 @@ export default function App() {
             ro.disconnect();
         };
     }, [showTutorial, tutorialStep]);
+
+    // Auto-collapse other sidebar groups and smooth-scroll active system into view
+    useEffect(() => {
+        const groups = [
+            { label: "Health Systems", systems: SYSTEMS },
+            { label: "Disease Area", systems: DISEASE_SYSTEMS },
+            { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS },
+        ];
+        const activeGroup = groups.find(g => g.systems.some(s => s.id === systemId));
+        if (activeGroup) {
+            // Collapse all groups except the one containing the active system
+            setCollapsedGroups(new Set(groups.filter(g => g.label !== activeGroup.label).map(g => g.label)));
+        }
+        // Smooth scroll active button into view
+        if (sidebarRef.current) {
+            const activeBtn = sidebarRef.current.querySelector(`[data-sysid="${systemId}"]`);
+            if (activeBtn) activeBtn.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+    }, [systemId]);
 
     const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
     const { bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight } = activeProfile;
@@ -2678,33 +2699,44 @@ export default function App() {
                     </button>
 
                     {col1Open && <>
-                        <div data-tutorial="systems-panel" style={{ overflowY: "auto", flex: 1 }}>
-                            {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Area", systems: DISEASE_SYSTEMS }, { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS }].map(({ label, systems }) => (
-                                <div key={label}>
-                                    <div style={{ padding: "8px 14px 4px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", borderBottom: `1px solid ${C.border}` }}>{label}</div>
-                                    {systems.map(sys => {
-                                        const s = allSysScores.find(x => x.id === sys.id)?.score;
-                                        const active = systemId === sys.id && activeView === "client";
-                                        return (
-                                            <button key={sys.id} onClick={() => { setSystemId(sys.id); setActiveProc(null); setActiveView("client"); }}
-                                                style={{
-                                                    display: "block", width: "100%", textAlign: "left", padding: "10px 14px",
-                                                    border: "none", cursor: "pointer", transition: "all 0.12s",
-                                                    background: active ? `${C.teal}18` : "transparent",
-                                                    borderLeft: `3px solid ${active ? C.teal : "transparent"}`
-                                                }}>
-                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
-                                                    <span style={{ fontSize: 12, color: active ? C.navy : C.textSecond, fontWeight: active ? 700 : 400, lineHeight: 1.3, flex: 1 }}>{sys.name}</span>
-                                                    {s != null
-                                                        ? <span style={{ fontSize: 12, color: procColour(Math.floor(s)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(s)}</span>
-                                                        : <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
-                                                </div>
-                                                {s != null && <div style={{ marginTop: 4 }}><ScoreBar score={s} h={2} /></div>}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            ))}
+                        <div ref={sidebarRef} data-tutorial="systems-panel" style={{ overflowY: "auto", flex: 1 }}>
+                            {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Area", systems: DISEASE_SYSTEMS }, { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS }].map(({ label, systems }) => {
+                                const isCollapsed = collapsedGroups.has(label);
+                                return (
+                                    <div key={label}>
+                                        <button onClick={() => setCollapsedGroups(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n; })}
+                                            style={{
+                                                display: "flex", alignItems: "center", justifyContent: "space-between",
+                                                width: "100%", padding: "8px 14px 6px", border: "none", cursor: "pointer",
+                                                background: "transparent", borderBottom: `1px solid ${C.border}`
+                                            }}>
+                                            <span style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em" }}>{label}</span>
+                                            <span style={{ fontSize: 10, color: C.textFaint, lineHeight: 1, transition: "transform 0.15s", display: "inline-block", transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}>▾</span>
+                                        </button>
+                                        {!isCollapsed && systems.map(sys => {
+                                            const s = allSysScores.find(x => x.id === sys.id)?.score;
+                                            const active = systemId === sys.id && activeView === "client";
+                                            return (
+                                                <button key={sys.id} data-sysid={sys.id} onClick={() => { setSystemId(sys.id); setActiveProc(null); setActiveView("client"); }}
+                                                    style={{
+                                                        display: "block", width: "100%", textAlign: "left", padding: "10px 14px",
+                                                        border: "none", cursor: "pointer", transition: "all 0.12s",
+                                                        background: active ? `${C.teal}18` : "transparent",
+                                                        borderLeft: `3px solid ${active ? C.teal : "transparent"}`
+                                                    }}>
+                                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+                                                        <span style={{ fontSize: 12, color: active ? C.navy : C.textSecond, fontWeight: active ? 700 : 400, lineHeight: 1.3, flex: 1 }}>{sys.name}</span>
+                                                        {s != null
+                                                            ? <span style={{ fontSize: 12, color: procColour(Math.floor(s)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(s)}</span>
+                                                            : <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
+                                                    </div>
+                                                    {s != null && <div style={{ marginTop: 4 }}><ScoreBar score={s} h={2} /></div>}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
                         </div>
 
                         {/* ── Profile params note ── */}
