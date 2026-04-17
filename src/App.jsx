@@ -3848,7 +3848,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                     <div>
                         <div data-tutorial="client-scores-table" style={{ marginBottom: 32 }}>
                             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Scores</div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Scores</div>
+                                    <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>{nonDemoClients.length} reports</span>
+                                </div>
                                 <button onClick={() => document.getElementById("sys-pop-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
                                     style={{ fontSize: 10, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>
                                     Jump to Population Summary ↓
@@ -4059,6 +4062,12 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     </tbody>
                                 </table>
                             </div>
+                            <div style={{ textAlign: "right", marginTop: 8 }}>
+                                <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                                    style={{ fontSize: 10, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>
+                                    ↑ Back to top
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -4129,7 +4138,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             )}
                             <div data-tutorial="client-scores-table" style={{ marginBottom: 32 }}>
                                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Process Scores</div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Process Scores</div>
+                                        <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>{nonDemoClients.length} reports</span>
+                                    </div>
                                     <button onClick={() => document.getElementById("proc-pop-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
                                         style={{ fontSize: 10, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>
                                         Jump to Population Summary ↓
@@ -4335,6 +4347,12 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+                            <div style={{ textAlign: "right", marginTop: 8 }}>
+                                <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                                    style={{ fontSize: 10, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>
+                                    ↑ Back to top
+                                </button>
                             </div>
                         </div>
                     );
