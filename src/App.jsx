@@ -3887,16 +3887,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Scores</div>
                                     <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>{nonDemoClients.length} reports</span>
                                 </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                    <button onClick={downloadSysCSV}
-                                        style={{ fontSize: 10, color: C.teal, background: "none", border: `1px solid ${C.teal}55`, borderRadius: 5, cursor: "pointer", padding: "3px 10px", fontWeight: 600 }}>
-                                        ⬇ CSV
-                                    </button>
-                                    <button onClick={() => document.getElementById("sys-pop-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                                        style={{ fontSize: 10, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>
-                                        Jump to Population Summary ↓
-                                    </button>
-                                </div>
+                                <button onClick={() => document.getElementById("sys-pop-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                                    style={{ fontSize: 10, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>
+                                    Jump to Population Summary ↓
+                                </button>
                             </div>
                             <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
                                 Each cell shows the system score for that client.
@@ -3931,6 +3925,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                 const allOn = visibleSysGroups.size === ALL_GROUP_LABELS.length;
                                 return (
                                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                                        <button onClick={downloadSysCSV} style={{
+                                            fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                            border: `1px solid ${C.teal}55`, background: "transparent", color: C.teal, fontWeight: 600,
+                                        }}>⬇ CSV</button>
                                         <span style={{ fontSize: 10, color: C.textFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Columns</span>
                                         {ALL_GROUP_LABELS.map(lbl => {
                                             const on = visibleSysGroups.has(lbl);
@@ -4183,16 +4181,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Process Scores</div>
                                         <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>{nonDemoClients.length} reports</span>
                                     </div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                        <button onClick={downloadProcCSV}
-                                            style={{ fontSize: 10, color: C.teal, background: "none", border: `1px solid ${C.teal}55`, borderRadius: 5, cursor: "pointer", padding: "3px 10px", fontWeight: 600 }}>
-                                            ⬇ CSV
-                                        </button>
-                                        <button onClick={() => document.getElementById("proc-pop-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                                            style={{ fontSize: 10, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>
-                                            Jump to Population Summary ↓
-                                        </button>
-                                    </div>
+                                    <button onClick={() => document.getElementById("proc-pop-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                                        style={{ fontSize: 10, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>
+                                        Jump to Population Summary ↓
+                                    </button>
                                 </div>
                                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
                                     Each cell shows the process score for that client.
@@ -4200,7 +4192,12 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     {isComparing && clientTab > 0 && <span> Viewing <strong style={{ color: PROF_COLORS[clientTab] }}>{aggregateData[clientTab].profile.name}</strong>. ▲▼ deltas vs. baseline.</span>}
                                 </div>
                                 {/* Per-process filter */}
-                                <div style={{ position: "relative", display: "inline-block", marginBottom: 10 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                                <button onClick={downloadProcCSV} style={{
+                                    fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                    border: `1px solid ${C.teal}55`, background: "transparent", color: C.teal, fontWeight: 600,
+                                }}>⬇ CSV</button>
+                                <div style={{ position: "relative", display: "inline-block" }}>
                                     <button onClick={() => setShowProcFilter(o => !o)} style={{
                                         display: "flex", alignItems: "center", gap: 5, fontSize: 10, padding: "4px 12px",
                                         borderRadius: 5, cursor: "pointer",
@@ -4278,6 +4275,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                             </div>
                                         </div>
                                     )}
+                                </div>
                                 </div>
                                 {(() => {
                                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
