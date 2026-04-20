@@ -4616,6 +4616,26 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
     const allBiomarkers = [...new Set(procs.flatMap(([, bms]) => bms))];
     const isTwoTier = procs.length === 1;
     const svgRef = useRef(null);
+    const [hoveredNode, setHoveredNode] = useState(null);
+
+    // Compute which nodes are "lit" for path highlighting
+    function getActiveSets(hov) {
+        if (!hov) return { activeBios: null, activeProcs: null, activeSys: false };
+        if (hov.type === "sys") return { activeBios: new Set(allBiomarkers), activeProcs: new Set(procs.map(([n]) => n)), activeSys: true };
+        if (hov.type === "proc") {
+            const entry = procs.find(([n]) => n === hov.name);
+            return { activeBios: new Set(entry ? entry[1] : []), activeProcs: new Set([hov.name]), activeSys: true };
+        }
+        if (hov.type === "bio") {
+            const linkedProcs = procs.filter(([, bms]) => bms.includes(hov.name)).map(([n]) => n);
+            return { activeBios: new Set([hov.name]), activeProcs: new Set(linkedProcs), activeSys: true };
+        }
+        return { activeBios: null, activeProcs: null, activeSys: false };
+    }
+    const { activeBios, activeProcs, activeSys } = getActiveSets(hoveredNode);
+    const isHovering = hoveredNode !== null;
+    const nodeDim = (active) => isHovering && !active ? 0.15 : 1;
+    const edgeDim = (active) => isHovering ? (active ? 1 : 0.08) : 1;
 
     // Layout — wider columns and gaps for readability
     const COL1_X = 24, COL1_W = 170;
@@ -4777,37 +4797,52 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                             const x1 = COL1_X + COL1_W, y1 = sysY;
                             const x2 = COL2_X, y2 = bCY(bi);
                             const mx = (x1 + x2) / 2;
+                            const active = !isHovering || activeBios?.has(bmName);
                             return <path key={`sb${bi}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
-                                fill="none" stroke={C.border} strokeWidth="1" />;
+                                fill="none" stroke={active ? C.teal : C.border} strokeWidth={active && isHovering ? 2 : 1}
+                                opacity={edgeDim(active)} style={{ transition: "opacity 0.15s, stroke 0.15s" }} />;
                         })
                     ) : (<>
-                        {procs.map(([,], pi) => {
+                        {procs.map(([procName,], pi) => {
                             const x1 = COL1_X + COL1_W, y1 = sysY;
                             const x2 = COL2_X, y2 = pCY(pi);
                             const mx = (x1 + x2) / 2;
+                            const active = !isHovering || activeProcs?.has(procName);
                             return <path key={`sp${pi}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
-                                fill="none" stroke={C.steel} strokeWidth="1.2" opacity="0.4" />;
+                                fill="none" stroke={active && isHovering ? C.teal : C.steel}
+                                strokeWidth={active && isHovering ? 2 : 1.2}
+                                opacity={isHovering ? edgeDim(active) : 0.4}
+                                style={{ transition: "opacity 0.15s, stroke 0.15s" }} />;
                         })}
-                        {procs.map(([, bms], pi) => bms.map(bmName => {
+                        {procs.map(([procName, bms], pi) => bms.map(bmName => {
                             const bi = allBiomarkers.indexOf(bmName);
                             if (bi === -1) return null;
                             const x1 = COL2_X + COL2_W, y1 = pCY(pi);
                             const x2 = COL3_X, y2 = bCY(bi);
                             const mx = (x1 + x2) / 2;
+                            const active = !isHovering || (activeProcs?.has(procName) && activeBios?.has(bmName));
                             return <path key={`pb${pi}${bmName}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
-                                fill="none" stroke={C.border} strokeWidth="1" />;
+                                fill="none" stroke={active && isHovering ? C.teal : C.border}
+                                strokeWidth={active && isHovering ? 2 : 1}
+                                opacity={edgeDim(active)}
+                                style={{ transition: "opacity 0.15s, stroke 0.15s" }} />;
                         }))}
                     </>)}
 
                     {/* System node */}
-                    <rect x={COL1_X} y={sysY - SYS_H / 2} width={COL1_W} height={SYS_H} rx="8"
-                        fill={`${C.navy}14`} stroke={C.navy} strokeWidth="1.5" />
-                    {wrapText(sys.name, 18).map((line, li, arr) => (
-                        <text key={li} x={COL1_X + COL1_W / 2} y={sysY - (arr.length - 1) * 7 + li * 14 - 5}
-                            textAnchor="middle" fontSize="12" fontWeight="700" fill={C.navy} fontFamily={T.body}>{line}</text>
-                    ))}
-                    <text x={COL1_X + COL1_W / 2} y={sysY + SYS_H / 2 - 10}
-                        textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Health System</text>
+                    <g onMouseEnter={() => setHoveredNode({ type: "sys" })} onMouseLeave={() => setHoveredNode(null)}
+                        style={{ cursor: "default", opacity: nodeDim(activeSys || !isHovering), transition: "opacity 0.15s" }}>
+                        <rect x={COL1_X} y={sysY - SYS_H / 2} width={COL1_W} height={SYS_H} rx="8"
+                            fill={isHovering && activeSys ? `${C.navy}28` : `${C.navy}14`}
+                            stroke={C.navy} strokeWidth={isHovering && activeSys ? 2.5 : 1.5}
+                            style={{ transition: "fill 0.15s, stroke-width 0.15s" }} />
+                        {wrapText(sys.name, 18).map((line, li, arr) => (
+                            <text key={li} x={COL1_X + COL1_W / 2} y={sysY - (arr.length - 1) * 7 + li * 14 - 5}
+                                textAnchor="middle" fontSize="12" fontWeight="700" fill={C.navy} fontFamily={T.body}>{line}</text>
+                        ))}
+                        <text x={COL1_X + COL1_W / 2} y={sysY + SYS_H / 2 - 10}
+                            textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Health System</text>
+                    </g>
 
                     {/* Process nodes — 3-tier only */}
                     {!isTwoTier && procs.map(([procName], pi) => {
@@ -4819,10 +4854,17 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                         const h = procHeights[pi];
                         const bCol = isModified ? C.teal : C.steel;
                         const nameLines = wrapText(procName, 22);
+                        const procActive = !isHovering || activeProcs?.has(procName);
                         return (
-                            <g key={procName}>
+                            <g key={procName}
+                                onMouseEnter={() => setHoveredNode({ type: "proc", name: procName })}
+                                onMouseLeave={() => setHoveredNode(null)}
+                                style={{ cursor: "default", opacity: nodeDim(procActive), transition: "opacity 0.15s" }}>
                                 <rect x={COL2_X} y={cy - h / 2} width={COL2_W} height={h} rx="7"
-                                    fill={`${C.steel}10`} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
+                                    fill={isHovering && procActive ? `${C.steel}22` : `${C.steel}10`}
+                                    stroke={isHovering && procActive ? C.teal : bCol}
+                                    strokeWidth={isHovering && procActive ? 2 : isModified ? 1.5 : 1}
+                                    style={{ transition: "fill 0.15s, stroke 0.15s, stroke-width 0.15s" }} />
                                 {nameLines.map((line, li) => (
                                     <text key={li} x={COL2_X + 12} y={cy - (nameLines.length - 1) * 6 + li * 13 - (isModified ? 8 : 0)}
                                         fontSize="10" fontWeight="600" fill={C.navy} fontFamily={T.body}>{line}</text>
@@ -4851,10 +4893,17 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
                         const h = bioHeights[bi];
                         const bCol = isModified ? C.teal : C.border;
                         const nameLines = wrapText(bmName, 22);
+                        const bioActive = !isHovering || activeBios?.has(bmName);
                         return (
-                            <g key={bmName}>
+                            <g key={bmName}
+                                onMouseEnter={() => setHoveredNode({ type: "bio", name: bmName })}
+                                onMouseLeave={() => setHoveredNode(null)}
+                                style={{ cursor: "default", opacity: nodeDim(bioActive), transition: "opacity 0.15s" }}>
                                 <rect x={bioX} y={cy - h / 2} width={COL3_W} height={h} rx="6"
-                                    fill={C.surface} stroke={bCol} strokeWidth={isModified ? 1.5 : 1} />
+                                    fill={isHovering && bioActive ? `${C.teal}12` : C.surface}
+                                    stroke={isHovering && bioActive ? C.teal : bCol}
+                                    strokeWidth={isHovering && bioActive ? 2 : isModified ? 1.5 : 1}
+                                    style={{ transition: "fill 0.15s, stroke 0.15s, stroke-width 0.15s" }} />
                                 {nameLines.map((line, li) => (
                                     <text key={li} x={bioX + 10} y={cy - (nameLines.length - 1) * 6 + li * 12 - (isModified ? 6 : 0)}
                                         fontSize="9" fill={C.textSecond} fontFamily={T.body}>{line}</text>
