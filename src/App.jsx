@@ -1243,7 +1243,8 @@ function scoreBM(v, lo, hi, cutoff = 0.5, gp = 0.05, curve = "linear") {
     const rng = hi - lo; if (rng <= 0) return null;
     const gL = lo + gp * rng, gH = hi - gp * rng;
     if (v >= gL && v <= gH) return 100;
-    const dist = v > gH ? (v - gH) / rng : (gL - v) / rng;
+    const greenRng = gH - gL;
+    const dist = v > gH ? (v - gH) / greenRng : (gL - v) / greenRng;
     const t = Math.max(0, Math.min(1, dist / cutoff));
     let s = curve === "linear" ? 100 * (1 - t)
         : Math.max(0, 100 * (1 - Math.log2(1 + t)));
