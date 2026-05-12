@@ -1,7 +1,5 @@
 # Molecular You — Biomarker Scoring System
-**Technical Specification · v1.4**
 
----
 
 ## Project Goal
 
