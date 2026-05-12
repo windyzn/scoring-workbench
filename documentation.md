@@ -119,9 +119,23 @@ else:
 
 If `colour = GREEN`, the biomarker scores `100`. No further calculation needed.
 
-### 4.2 Out-of-Range — Distance-Based Decay
+### 4.2 Impact Direction
 
-If the biomarker colour is yellow or red, calculate how far the concentration is outside the **green zone boundary**, expressed as a fraction of the **green range width**:
+Each biomarker–process association has an `impact_dir` field that specifies which direction of deviation from the green zone actually impacts the score.
+
+| `impact_dir` | Behaviour |
+|--------------|-----------|
+| `"both"` (default) | Deviation in either direction reduces the score — both high and low are clinically relevant |
+| `"high"` | Only being above `green_high` reference range value reduces the score. Being below `green_low` has no association — scores 100 |
+| `"low"` | Only being below `green_low` reference range value reduces the score. Being above `green_high` has no association — scores 100 |
+
+> **Example — Glucose:** High glucose is associated with the sugar metabolism process; low glucose has no clinical concern in this context. Setting `impact_dir = "high"` means a participant with glucose below the green reference range scores 100, assuming all other biomarkers are in-range (no impact), while high glucose is penalised normally.
+
+This setting is per biomarker–process association and is controlled by the science team. It defaults to `"both"` if not specified.
+
+### 4.3 Out-of-Range — Distance-Based Decay
+
+If the biomarker colour is yellow or red and the concentration is on the penalised side (per `impact_dir`), calculate how far the concentration is outside the **green zone boundary**, expressed as a fraction of the **green range width**:
 
 ```
 green_range = green_high - green_low
@@ -143,7 +157,7 @@ t = clamp(distance / cutoff, 0, 1)
 
 `clamp(x, 0, 1)` means: if `x < 0` return `0`; if `x > 1` return `1`; otherwise return `x`.
 
-### 4.3 Decay Curves
+### 4.4 Decay Curves
 
 Apply one of two decay curves to `t` to get the score. The curve is controlled by the `curve` parameter (default: `"linear"`).
 
@@ -159,10 +173,10 @@ score = max(0, 100 × (1 - log2(1 + t)))
 
 The decay curve will be decided by the science team. In all cases, clamp the final score to `[0, 100]`.
 
-### 4.4 Pseudocode for Biomarker Scoring
+### 4.5 Pseudocode for Biomarker Scoring
 
 ```
-function biomarker_score(concentration, ref_low, ref_high, green_pct, cutoff, curve):
+function biomarker_score(concentration, ref_low, ref_high, green_pct, cutoff, curve, impact_dir):
 
     range = ref_high - ref_low
     if range <= 0:
@@ -174,6 +188,12 @@ function biomarker_score(concentration, ref_low, ref_high, green_pct, cutoff, cu
 
     if concentration >= green_low AND concentration <= green_high:
         return 100
+
+    if impact_dir = "high" AND concentration < green_low:
+        return 100    # only high impacts — being low has no association
+
+    if impact_dir = "low" AND concentration > green_high:
+        return 100    # only low impacts — being high has no association
 
     if concentration > green_high:
         distance = (concentration - green_high) / green_range
@@ -213,13 +233,16 @@ The default values carry forward from the previous percentage-based scoring syst
 
 ### 5.2 Manual Biomarker Weight
 
-The science team can assign a manual weight override to any biomarker that is more clinically relevant. The manual weight entry has three fields:
+The science team can assign a manual weight override to any biomarker that is more clinically relevant. The manual weight entry has four fields:
 
-| Field | Allowed values | Description |
-|-------|---------------|-------------|
-| `bio_weight` | Integer 1–10 | The weight value itself |
-| `bio_color` | `"red"`, `"yellow"`, `"both"` | Which biomarker colour must be active for this weight to apply |
-| `bio_level` | `"high"`, `"low"`, `"both"` | Which direction must be active for this weight to apply |
+| Field | Allowed values | Default | Description |
+|-------|---------------|---------|-------------|
+| `bio_weight` | Integer 1–10 | `1` | The weight value itself |
+| `bio_color` | `"red"`, `"yellow"`, `"both"` | `"red"` | Which biomarker colour must be active for this weight to apply |
+| `bio_level` | `"high"`, `"low"`, `"both"` | `"high"` | Which direction must be active for this weight to apply |
+| `impact_dir` | `"both"`, `"high"`, `"low"` | `"both"` | Which direction of deviation from the green zone impacts the score — deviations in the non-impacting direction score 100 with no decay (see Section 4.2) |
+
+> **Note:** `impact_dir` is a property of the biomarker–process association, not of the weight override condition. It applies regardless of whether a manual weight is set.
 
 The manual weight only replaces the global multiplier when both conditions are met:
 
@@ -358,6 +381,7 @@ These are the defaults used in the current implementation. They are all adjustab
 | `bio_weight` | `1` | The weight (importance) applied to a biomarker-process relationship. Can be any value 1–10. | |
 | `bio_color` | `"red"` | The colour of the biomarker needed for the manual weight to apply | If `bio_color = "red"`, the `bio_weight` override only activates when biomarker colour is red |
 | `bio_level` | `"high"` | The direction of the biomarker needed for the manual weight to apply | If `bio_level = "high"`, the `bio_weight` override only activates when biomarker direction is high |
+| `impact_dir` | `"both"` | Which direction of deviation impacts the score — deviations in the non-impacting direction score 100 | If `impact_dir = "high"`, only being high reduces the score; being low scores 100 |
 | `proc_weight` | `1` | The weight (importance) applied to a process-system relationship. Can be any value 1–10. | |
 | `proc_color` | `"red"` | The colour of the process needed for the manual weight to apply | If `proc_color = "red"`, the `proc_weight` override only activates when process colour is red |
 

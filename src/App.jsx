@@ -322,7 +322,7 @@ const ALL_SYSTEMS = [...SYSTEMS, ...DISEASE_SYSTEMS, ...CANCER_SYSTEMS];
 // Bio weight entry: { weight, color, level, ref }
 // color: "red"|"yellow"|"both"  level: "high"|"low"|"both"
 // ref: optional PubMed ID string
-const DEFAULT_BIO_ENTRY = { weight: 1, color: "red", level: "high", optimalDir: "both", ref: "" };
+const DEFAULT_BIO_ENTRY = { weight: 1, color: "red", level: "high", impactDir: "both", ref: "" };
 const DEFAULT_PROC_ENTRY = { weight: 1, color: "red", ref: "" };
 
 function makeDefaultBioWeights() {
@@ -1239,12 +1239,12 @@ function procZone(score) {
     return "red";
 }
 
-function scoreBM(v, lo, hi, cutoff = 0.5, gp = 0.05, curve = "linear", optimalDir = "both") {
+function scoreBM(v, lo, hi, cutoff = 0.5, gp = 0.05, curve = "linear", impactDir = "both") {
     const rng = hi - lo; if (rng <= 0) return null;
     const gL = lo + gp * rng, gH = hi - gp * rng;
     if (v >= gL && v <= gH) return 100;
-    if (optimalDir === "high" && v > gH) return 100;  // above green is beneficial — no penalty
-    if (optimalDir === "low"  && v < gL) return 100;  // below green is beneficial — no penalty
+    if (impactDir === "high" && v < gL) return 100;  // only high impacts — being low has no association
+    if (impactDir === "low"  && v > gH) return 100;  // only low impacts — being high has no association
     const greenRng = gH - gL;
     const dist = v > gH ? (v - gH) / greenRng : (gL - v) / greenRng;
     const t = Math.max(0, Math.min(1, dist / cutoff));
@@ -1300,8 +1300,8 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
             if (!m) return { name, missing: true, weight: (bioW[nsKey]?.weight ?? 1), entry: bioW[nsKey] ?? { ...DEFAULT_BIO_ENTRY } };
             const hasEntry = nsKey in bioW;
             const entry = bioW[nsKey] ?? DEFAULT_BIO_ENTRY;
-            const optimalDir = (typeof entry === "object" ? entry.optimalDir : null) ?? "both";
-            const s = scoreBM(m.value, m.refLow, m.refHigh, cutoff, gp, curve, optimalDir);
+            const impactDir = (typeof entry === "object" ? entry.impactDir : null) ?? "both";
+            const s = scoreBM(m.value, m.refLow, m.refHigh, cutoff, gp, curve, impactDir);
             const zone = calcZone(m.value, m.refLow, m.refHigh, gp);
             const rng = m.refHigh - m.refLow, gL = m.refLow + gp * rng, gH = m.refHigh - gp * rng;
             const manualW = typeof entry === "object" ? entry.weight : entry;
@@ -1487,15 +1487,15 @@ function RangeBar({ value, refLow, refHigh, greenPct = 0.05 }) {
     );
 }
 
-function ScoringCurve({ refLow, refHigh, value, cutoff, greenPct, curve, optimalDir = "both" }) {
+function ScoringCurve({ refLow, refHigh, value, cutoff, greenPct, curve, impactDir = "both" }) {
     const rng = refHigh - refLow, margin = rng * 1.0;
     const xMin = Math.max(0, refLow - margin), xMax = refHigh + margin;
     const W = 290, H = 86, pad = { l: 22, r: 6, t: 8, b: 16 };
     const iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
     const sv = (x, y) => [pad.l + ((x - xMin) / (xMax - xMin)) * iW, pad.t + (1 - y / 100) * iH];
-    const pts = Array.from({ length: 120 }, (_, i) => { const x = xMin + (i / 119) * (xMax - xMin); return [x, scoreBM(x, refLow, refHigh, cutoff, greenPct, curve, optimalDir)]; });
+    const pts = Array.from({ length: 120 }, (_, i) => { const x = xMin + (i / 119) * (xMax - xMin); return [x, scoreBM(x, refLow, refHigh, cutoff, greenPct, curve, impactDir)]; });
     const pathD = pts.map(([x, y], i) => { const [sx, sy] = sv(x, y); return `${i === 0 ? "M" : "L"}${sx.toFixed(1)},${sy.toFixed(1)}`; }).join(" ");
-    const cs = scoreBM(value, refLow, refHigh, cutoff, greenPct, curve, optimalDir);
+    const cs = scoreBM(value, refLow, refHigh, cutoff, greenPct, curve, impactDir);
     const [cx, cy] = sv(Math.max(xMin, Math.min(xMax, value)), cs);
     const gL = refLow + greenPct * rng, gH = refHigh - greenPct * rng;
     const [glx] = sv(gL, 0), [ghx] = sv(gH, 0), [rlx] = sv(refLow, 0), [rhx] = sv(refHigh, 0);
@@ -1790,7 +1790,7 @@ export default function App() {
 
     const exportProfile = useCallback((p) => {
         const rows = [];
-        const header = ["MYCO_ID", "CATEGORY", "HEALTH_AREA_TYPE", "HEALTH_AREA_ID", "HEALTH_AREA_NAME", "MEASURE_ID", "ITEM_NAME", "COLOR", "LEVEL", "OPTIMAL_DIR", "VALUE", "REFERENCES"];
+        const header = ["MYCO_ID", "CATEGORY", "HEALTH_AREA_TYPE", "HEALTH_AREA_ID", "HEALTH_AREA_NAME", "MEASURE_ID", "ITEM_NAME", "COLOR", "LEVEL", "IMPACT_DIR", "VALUE", "REFERENCES"];
         // Biomarker weights — all explicitly set entries
         ALL_SYSTEMS.forEach(sys => {
             Object.entries(sys.processes).forEach(([proc, bms]) => {
@@ -1808,7 +1808,7 @@ export default function App() {
                         bmName,                // ITEM_NAME
                         e.color ?? "red",
                         e.level ?? "high",
-                        e.optimalDir ?? "both",
+                        e.impactDir ?? "both",
                         e.weight,
                         e.ref ?? "",
                     ]);
@@ -1903,14 +1903,14 @@ export default function App() {
                     const name = (row["item_name"] ?? "").trim();
                     const color = (row["color"] ?? "red").trim().toLowerCase();
                     const level = (row["level"] ?? "high").trim().toLowerCase();
-                    const optimalDir = (row["optimal_dir"] ?? "both").trim().toLowerCase();
+                    const impactDir = (row["impact_dir"] ?? "both").trim().toLowerCase();
                     const val = parseFloat(row["value"] ?? "1");
                     const ref = (row["references"] ?? "").trim();
                     if (!name || isNaN(val)) return;
                     if (cat === "biomarker_weight") {
                         const sysId = (row["health_area_id"] ?? "").trim();
                         const nsKey = sysId ? `${sysId}::${name}` : name;
-                        newBioWeights[nsKey] = { weight: val, color, level, optimalDir, ref };
+                        newBioWeights[nsKey] = { weight: val, color, level, impactDir, ref };
                     } else if (cat === "process_weight") {
                         newProcWeights[name] = { weight: val, color: color || "red", ref };
                     }
@@ -3261,12 +3261,12 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                                         })}
                                     </div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                        <span style={{ fontSize: 11, color: C.textFaint, minWidth: 60 }}>Optimal</span>
-                                        {[{ val: "both", label: "both ends" }, { val: "high", label: "↑ high" }, { val: "low", label: "↓ low" }].map(({ val, label }) => {
-                                            const col = val === "high" ? C.teal : val === "low" ? C.steel : C.textMuted;
-                                            const sel = (bm.entry?.optimalDir ?? "both") === val;
+                                        <span style={{ fontSize: 11, color: C.textFaint, minWidth: 60 }}>Impact when</span>
+                                        {[{ val: "both", label: "both" }, { val: "high", label: "↑ high" }, { val: "low", label: "↓ low" }].map(({ val, label }) => {
+                                            const col = val === "high" ? C.critical : val === "low" ? C.steel : C.textMuted;
+                                            const sel = (bm.entry?.impactDir ?? "both") === val;
                                             return (
-                                                <button key={val} onClick={() => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...DEFAULT_BIO_ENTRY, ...(prev[k] ?? {}), optimalDir: val } })); }}
+                                                <button key={val} onClick={() => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...DEFAULT_BIO_ENTRY, ...(prev[k] ?? {}), impactDir: val } })); }}
                                                     style={{
                                                         fontSize: 10, padding: "2px 8px", borderRadius: 4, border: `1px solid ${sel ? col : C.border}`,
                                                         background: sel ? `${col}18` : "transparent", color: sel ? col : C.textFaint,
@@ -3357,7 +3357,7 @@ function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, set
                                     <div style={{ fontSize: 17, color: zoneCol, fontWeight: 700 }}>{Math.round(bm.score)}</div>
                                 </div>
                             </div>
-                            <ScoringCurve refLow={bm.refLow} refHigh={bm.refHigh} value={bm.value} cutoff={cutoff} greenPct={greenPct} curve={curve} optimalDir={bm.entry?.optimalDir ?? "both"} />
+                            <ScoringCurve refLow={bm.refLow} refHigh={bm.refHigh} value={bm.value} cutoff={cutoff} greenPct={greenPct} curve={curve} impactDir={bm.entry?.impactDir ?? "both"} />
                             <div style={{ fontSize: 9, color: C.textFaint, marginTop: 5, fontFamily: T.mono }}>{bm.value.toFixed(3)} · ref {bm.refLow.toFixed(2)}–{bm.refHigh.toFixed(2)}</div>
                         </div>
                     );
@@ -3643,7 +3643,7 @@ function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose
                     <div>
                         <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8, fontWeight: 600 }}>Score curve</div>
                         <ScoringCurve refLow={bm.refLow} refHigh={bm.refHigh} value={bm.value}
-                            cutoff={cutoff} greenPct={greenPct} curve={curve} optimalDir={bm.entry?.optimalDir ?? "both"} />
+                            cutoff={cutoff} greenPct={greenPct} curve={curve} impactDir={bm.entry?.impactDir ?? "both"} />
                         <div style={{ fontSize: 9, color: C.textFaint, marginTop: 4 }}>
                             Teal band = green zone · grey bands = yellow · dot = measured value
                         </div>
@@ -3689,10 +3689,10 @@ function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose
                                                 <span key={l} style={pillStyle(entry.level === l, levelMap[l])}>{l}</span>
                                             ))}
                                         </div>
-                                        {(entry.optimalDir ?? "both") !== "both" && (
+                                        {(entry.impactDir ?? "both") !== "both" && (
                                             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                                                <span style={{ fontSize: 10, color: C.textFaint }}>optimal:</span>
-                                                <span style={pillStyle(true, C.teal)}>{entry.optimalDir === "high" ? "↑ high" : "↓ low"}</span>
+                                                <span style={{ fontSize: 10, color: C.textFaint }}>impact when:</span>
+                                                <span style={pillStyle(true, entry.impactDir === "high" ? C.critical : C.steel)}>{entry.impactDir === "high" ? "↑ high" : "↓ low"}</span>
                                             </div>
                                         )}
                                     </div>
@@ -4683,7 +4683,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }) {
     const sys = ALL_SYSTEMS.find(s => s.id === flowSysId) || SYSTEMS[0];
     const procs = Object.entries(sys.processes);
-    const DEFAULT_BIO = { weight: 1, color: "red", level: "high", optimalDir: "both" };
+    const DEFAULT_BIO = { weight: 1, color: "red", level: "high", impactDir: "both" };
     const DEFAULT_PROC = { weight: 1, color: "red" };
     const allBiomarkers = [...new Set(procs.flatMap(([, bms]) => bms))];
     const isTwoTier = procs.length === 1;
@@ -5008,8 +5008,8 @@ function ExportTab({ profiles, activeProfile, exportProfile, card }) {
     const selProfile = profiles.find(p => p.id === selProfileId) ?? profiles[0];
 
     function exportHumanFriendly(profile) {
-        const rows = [["System", "Process", "Biomarker", "Bio Weight", "Bio Color", "Bio Level", "Bio Optimal Dir", "Bio PubMed", "Proc Weight", "Proc Color", "Proc PubMed"]];
-        const DEFAULT_BIO = { weight: 1, color: "red", level: "high", optimalDir: "both", ref: "" };
+        const rows = [["System", "Process", "Biomarker", "Bio Weight", "Bio Color", "Bio Level", "Bio Impact Dir", "Bio PubMed", "Proc Weight", "Proc Color", "Proc PubMed"]];
+        const DEFAULT_BIO = { weight: 1, color: "red", level: "high", impactDir: "both", ref: "" };
         const DEFAULT_PROC = { weight: 1, color: "red", ref: "" };
         ALL_SYSTEMS.forEach(sys => {
             Object.entries(sys.processes).forEach(([proc, bms]) => {
@@ -5018,7 +5018,7 @@ function ExportTab({ profiles, activeProfile, exportProfile, card }) {
                     const be = profile.bioWeights[`${sys.id}::${bmName}`] ?? DEFAULT_BIO;
                     rows.push([
                         sys.name, proc, bmName,
-                        be.weight, be.color, be.level, be.optimalDir ?? "both", be.ref ?? "",
+                        be.weight, be.color, be.level, be.impactDir ?? "both", be.ref ?? "",
                         pe.weight, pe.color, pe.ref ?? "",
                     ]);
                 });
