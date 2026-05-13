@@ -1440,7 +1440,7 @@ function ArcGauge({ score, size = 64, label }) {
                     style={{ transition: "stroke-dasharray 0.5s ease" }} />
                 <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle"
                     fill={score != null ? col : C.textFaint} fontSize={size * 0.23} fontWeight="700" fontFamily={T.body}>
-                    {score != null ? Math.round(score) : "—"}
+                    {score != null ? Math.floor(score) : "—"}
                 </text>
             </svg>
             {label && <div style={{ fontSize: 10, color: C.textFaint, letterSpacing: "0.12em", textTransform: "uppercase" }}>{label}</div>}
@@ -2795,7 +2795,7 @@ export default function App() {
                                     }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
                                         <span style={{ fontSize: 11, color: active ? C.navy : C.textSecond, fontWeight: active ? 600 : 400, lineHeight: 1.3, flex: 1 }}>{pr.process}</span>
-                                        {pr.score != null && <span style={{ fontSize: 11, color: procColour(pr.score), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.round(pr.score)}</span>}
+                                        {pr.score != null && <span style={{ fontSize: 11, color: procColour(pr.score), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(pr.score)}</span>}
                                     </div>
                                     {pr.score == null && <div style={{ fontSize: 9, color: C.textFaint, marginTop: 2, fontStyle: "italic" }}>No data</div>}
                                 </button>
@@ -2963,7 +2963,7 @@ function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysS
                 {sysScore != null && (
                     <div style={{ textAlign: "right" }}>
                         <div style={{ fontSize: 28, color: procColour(sysScore), fontWeight: 800, lineHeight: 1, fontFamily: T.mono }}>
-                            {Math.round(sysScore)}
+                            {Math.floor(sysScore)}
                         </div>
                     </div>
                 )}
@@ -2982,7 +2982,7 @@ function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysS
                                     <div style={{ fontSize: 10, color: C.textFaint }}>{pr.biomarkers.filter(b => !b.missing).length} biomarkers</div>
                                 </div>
                                 {pr.score != null && <div style={{ textAlign: "right", flexShrink: 0 }}>
-                                    <div style={{ fontSize: 26, color: procColour(pr.score), fontWeight: 700, lineHeight: 1 }}>{Math.round(pr.score)}</div>
+                                    <div style={{ fontSize: 26, color: procColour(pr.score), fontWeight: 700, lineHeight: 1 }}>{Math.floor(pr.score)}</div>
                                 </div>}
                                 {pr.score == null && <div style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic" }}>No data</div>}
                             </div>
@@ -3042,7 +3042,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                         </div>
                     </div>
                     {activeProcResult.score != null &&
-                        <div style={{ fontSize: 26, color: procColour(activeProcResult.score), fontWeight: 700 }}>{Math.round(activeProcResult.score)}</div>}
+                        <div style={{ fontSize: 26, color: procColour(activeProcResult.score), fontWeight: 700 }}>{Math.floor(activeProcResult.score)}</div>}
                 </div>
                 {/* Subtext + global weights */}
                 <div style={{ paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
@@ -3152,7 +3152,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                                     </div>
                                 </div>
                                 <div style={{ textAlign: "right", flexShrink: 0 }}>
-                                    <div style={{ fontSize: 22, color: zoneCol, fontWeight: 700, lineHeight: 1 }}>{Math.round(bm.score)}</div>
+                                    <div style={{ fontSize: 22, color: zoneCol, fontWeight: 700, lineHeight: 1 }}>{Math.floor(bm.score)}</div>
                                     <div style={{ fontSize: 9, color: C.textFaint }}>
                                         eff. <span style={{ fontWeight: 700, color: zoneCol }}>{bm.effWeight.toFixed(1)}×</span>
                                     </div>
@@ -3354,7 +3354,7 @@ function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, set
                                     </div>
                                 </div>
                                 <div style={{ textAlign: "right" }}>
-                                    <div style={{ fontSize: 17, color: zoneCol, fontWeight: 700 }}>{Math.round(bm.score)}</div>
+                                    <div style={{ fontSize: 17, color: zoneCol, fontWeight: 700 }}>{Math.floor(bm.score)}</div>
                                 </div>
                             </div>
                             <ScoringCurve refLow={bm.refLow} refHigh={bm.refHigh} value={bm.value} cutoff={cutoff} greenPct={greenPct} curve={curve} impactDir={bm.entry?.impactDir ?? "both"} />
@@ -3618,7 +3618,7 @@ function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose
                         <div style={{ flex: 1, background: C.iceLight, borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
                             <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>Score</div>
                             <div style={{ fontSize: 32, fontWeight: 800, color: colourCol, fontFamily: T.mono, lineHeight: 1 }}>
-                                {Math.round(bm.score)}
+                                {Math.floor(bm.score)}
                             </div>
                         </div>
                         <div style={{ flex: 1, background: C.iceLight, borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
@@ -3723,7 +3723,7 @@ function FlagCard({ bm, bioWeights, cutoff, greenPct, curve, card }) {
                         <div style={{ fontSize: 10, color: C.textFaint, marginTop: 1 }}>{bm.process}</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 17, color: colourCol, fontWeight: 700 }}>{Math.round(bm.score)}</div>
+                        <div style={{ fontSize: 17, color: colourCol, fontWeight: 700 }}>{Math.floor(bm.score)}</div>
                         <ZoneDot zone={bm.zone} />
                     </div>
                 </div>
