@@ -325,9 +325,9 @@ const DEFAULT_ALL_SYSTEMS = [
 // All biomarker and process weights default to 1.0 — zone-based auto-weighting
 // is handled dynamically at score time using yellowWeight / redWeight globals.
 // Bio weight entry: { weight, color, level, ref }
-// color: "red"|"yellow"|"both"  level: "high"|"low"|"both"
+// color: "red"|"yellow"|"both"  level: stored in assocSystems.levels
 // ref: optional PubMed ID string
-const DEFAULT_BIO_ENTRY = { weight: 1, color: "red", level: "both", ref: "" };
+const DEFAULT_BIO_ENTRY = { weight: 1, color: "red", ref: "" };
 const DEFAULT_PROC_ENTRY = { weight: 1, color: "red", ref: "" };
 
 function makeDefaultBioWeights() {
@@ -1276,14 +1276,13 @@ function wavg(pairs) {
 // effectiveWeight: if the biomarker has an explicit entry and its colour/level
 // conditions are met, apply the manual weight (overrides global colour multiplier).
 // If no explicit entry exists, fall back to the global colour multiplier.
-function effectiveWeight(entry, hasEntry, zone, status, yellowW, redW) {
+function effectiveWeight(entry, hasEntry, zone, status, yellowW, redW, level = "both") {
     if (!hasEntry) {
         const zm = zone === "yellow" ? yellowW : zone === "red" ? redW : 1.0;
         return zm;
     }
     const w = typeof entry === "object" ? entry.weight : entry;
     const color = typeof entry === "object" ? (entry.color ?? "both") : "both";
-    const level = typeof entry === "object" ? (entry.level ?? "both") : "both";
     const colorMatch = color === "both"
         || (color === "red" && zone === "red")
         || (color === "yellow" && zone === "yellow");
@@ -1302,20 +1301,22 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
             const key = ALIASES[name] ?? name;
             const m = markers[key] ?? markers[name];
             const nsKey = `${sys.id}::${name}`;
-            if (!m) return { name, missing: true, weight: (bioW[nsKey]?.weight ?? 1), entry: bioW[nsKey] ?? { ...DEFAULT_BIO_ENTRY } };
+            const assocLevel = sys.levels?.[`${proc}::${name}`] ?? "both";
+            if (!m) return { name, missing: true, weight: (bioW[nsKey]?.weight ?? 1), entry: bioW[nsKey] ?? { ...DEFAULT_BIO_ENTRY }, assocLevel, level: assocLevel };
             const hasEntry = nsKey in bioW;
             const entry = bioW[nsKey] ?? DEFAULT_BIO_ENTRY;
-            const level = (typeof entry === "object" ? entry.level : null) ?? "both";
+            // Profile entry.level overrides assoc level; assoc level is the canonical default
+            const level = entry.level ?? assocLevel;
             const s = scoreBM(m.value, m.refLow, m.refHigh, cutoff, gp, curve, level);
             const zone = calcZone(m.value, m.refLow, m.refHigh, gp);
             const rng = m.refHigh - m.refLow, gL = m.refLow + gp * rng, gH = m.refHigh - gp * rng;
             const manualW = typeof entry === "object" ? entry.weight : entry;
             const status = m.value > gH ? "HIGH" : m.value < gL ? "LOW" : "NORMAL";
-            const effW = effectiveWeight(entry, hasEntry, zone, status, yellowW, redW);
+            const effW = effectiveWeight(entry, hasEntry, zone, status, yellowW, redW, level);
             return {
                 name, value: m.value, refLow: m.refLow, refHigh: m.refHigh,
                 score: s, zone, weight: manualW, effWeight: effW, missing: false,
-                status, entry,
+                status, entry, assocLevel, level,
             };
         });
         const valid = scored.filter(b => !b.missing);
@@ -3281,18 +3282,8 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                                     </div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                         <span style={{ fontSize: 11, color: C.textFaint, minWidth: 60 }}>Impact when</span>
-                                        {[{ val: "both", label: "both" }, { val: "high", label: "↑ high" }, { val: "low", label: "↓ low" }].map(({ val, label }) => {
-                                            const col = val === "high" ? C.critical : val === "low" ? C.steel : C.textMuted;
-                                            const sel = (bm.entry?.level ?? "both") === val;
-                                            return (
-                                                <button key={val} onClick={() => { const k = `${systemId}::${bm.name}`; setBioWeights(prev => ({ ...prev, [k]: { ...DEFAULT_BIO_ENTRY, ...(prev[k] ?? {}), level: val } })); }}
-                                                    style={{
-                                                        fontSize: 10, padding: "2px 8px", borderRadius: 4, border: `1px solid ${sel ? col : C.border}`,
-                                                        background: sel ? `${col}18` : "transparent", color: sel ? col : C.textFaint,
-                                                        cursor: "pointer", fontWeight: sel ? 700 : 400
-                                                    }}>{label}</button>
-                                            );
-                                        })}
+                                        {(() => { const lv = bm.level ?? "both"; const col = lv === "high" ? C.critical : lv === "low" ? C.steel : C.textMuted; return <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, border: `1px solid ${col}`, background: `${col}18`, color: col, fontWeight: 700 }}>{lv === "high" ? "↑ high" : lv === "low" ? "↓ low" : "both"}</span>; })()}
+                                        <span style={{ fontSize: 10, color: C.textFaint }}>(set in Associations tab)</span>
                                     </div>
                                 </div>
                                 {/* PubMed ref */}
@@ -3376,7 +3367,7 @@ function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, set
                                     <div style={{ fontSize: 17, color: zoneCol, fontWeight: 700 }}>{Math.floor(bm.score)}</div>
                                 </div>
                             </div>
-                            <ScoringCurve refLow={bm.refLow} refHigh={bm.refHigh} value={bm.value} cutoff={cutoff} greenPct={greenPct} curve={curve} level={bm.entry?.level ?? "both"} />
+                            <ScoringCurve refLow={bm.refLow} refHigh={bm.refHigh} value={bm.value} cutoff={cutoff} greenPct={greenPct} curve={curve} level={bm.level ?? "both"} />
                             <div style={{ fontSize: 9, color: C.textFaint, marginTop: 5, fontFamily: T.mono }}>{bm.value.toFixed(3)} · ref {bm.refLow.toFixed(2)}–{bm.refHigh.toFixed(2)}</div>
                         </div>
                     );
@@ -3434,7 +3425,7 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
             markers.forEach(name => {
                 const nsKey = `${sys.id}::${name}`;
                 const e = bioWeights[nsKey];
-                if (e) bioAdj.push({ sys: sys.name, sysId: sys.id, proc, name, nsKey, entry: e });
+                if (e) bioAdj.push({ sys: sys.name, sysId: sys.id, proc, name, nsKey, entry: e, assocLevel: sys.levels?.[`${proc}::${name}`] ?? "both" });
             });
         });
     });
@@ -3532,7 +3523,7 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
                         Biomarker Weights ({bioAdj.length})
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {bioAdj.map(({ sys, proc, name, entry }) => (
+                        {bioAdj.map(({ sys, proc, name, entry, assocLevel }) => (
                             <div key={name} style={{
                                 ...card, padding: "10px 14px", cursor: "pointer",
                                 borderLeft: `3px solid ${C.teal}`
@@ -3552,7 +3543,7 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
                                             ×{entry.weight}
                                         </span>
                                         {(() => { const c = entry.color ?? "red"; return <span style={pillStyle(true, colorMap[c])}>{c}</span>; })()}
-                                        {(() => { const d = entry.level ?? "both"; return d !== "both" ? <span style={pillStyle(true, d === "high" ? C.critical : C.steel)}>{d === "high" ? "↑ high" : "↓ low"}</span> : null; })()}
+                                        {(() => { const d = entry.level ?? assocLevel; return d !== "both" ? <span style={pillStyle(true, d === "high" ? C.critical : C.steel)}>{d === "high" ? "↑ high" : "↓ low"}</span> : null; })()}
                                         <button onClick={ev => { ev.stopPropagation(); setBioWeights(prev => { const n = { ...prev }; delete n[nsKey]; return n; }); }}
                                             style={{
                                                 background: "none", border: "none", color: C.textFaint, cursor: "pointer",
@@ -3585,7 +3576,8 @@ function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose
             if (markers.includes(bm.name) || markers.includes(Object.keys(ALIASES).find(k => ALIASES[k] === bm.name))) {
                 const nsKey = `${sys.id}::${bm.name}`;
                 const entry = bioWeights[nsKey] ?? { ...DEFAULT_BIO_ENTRY };
-                memberships.push({ sys: sys.name, sysId: sys.id, proc, entry });
+                const assocLevel = sys.levels?.[`${proc}::${bm.name}`] ?? "both";
+                memberships.push({ sys: sys.name, sysId: sys.id, proc, entry, assocLevel });
             }
         });
     });
@@ -3660,7 +3652,7 @@ function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose
                     <div>
                         <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8, fontWeight: 600 }}>Score curve</div>
                         <ScoringCurve refLow={bm.refLow} refHigh={bm.refHigh} value={bm.value}
-                            cutoff={cutoff} greenPct={greenPct} curve={curve} level={bm.entry?.level ?? "both"} />
+                            cutoff={cutoff} greenPct={greenPct} curve={curve} level={bm.level ?? "both"} />
                         <div style={{ fontSize: 9, color: C.textFaint, marginTop: 4 }}>
                             Teal band = green zone · grey bands = yellow · dot = measured value
                         </div>
@@ -3687,7 +3679,7 @@ function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose
                     <div>
                         <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8, fontWeight: 600 }}>Weight settings</div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            {memberships.map(({ proc, entry }, i) => (
+                            {memberships.map(({ proc, entry, assocLevel }, i) => (
                                 <div key={i} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px" }}>
                                     <div style={{ fontSize: 10, color: C.textFaint, marginBottom: 7 }}>{proc}</div>
                                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -3701,9 +3693,7 @@ function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose
                                                 <span key={c} style={pillStyle(entry.color === c, colorMap[c])}>{c}</span>
                                             ))}
                                         </div>
-                                        {(entry.level ?? "both") !== "both" && (
-                                            <span style={pillStyle(true, entry.level === "high" ? C.critical : C.steel)}>{entry.level === "high" ? "↑ high" : "↓ low"}</span>
-                                        )}
+                                        {(() => { const d = entry.level ?? assocLevel; return d !== "both" ? <span style={pillStyle(true, d === "high" ? C.critical : C.steel)}>{d === "high" ? "↑ high" : "↓ low"}</span> : null; })()}
                                     </div>
                                     {entry.ref && (
                                         <div style={{ fontSize: 10, color: C.textFaint, marginTop: 6 }}>PubMed: {entry.ref}</div>
@@ -5011,68 +5001,104 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card, 
 // ─── AssociationsTab ─────────────────────────────────────────────────────────
 function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSystems, card }) {
     const [search, setSearch] = useState("");
-    const [groupFilter, setGroupFilter] = useState("all");
+    const [systemFilter, setSystemFilter] = useState("all");
+    const [assocView, setAssocView] = useState("table"); // "table" | "flow"
     const [modal, setModal] = useState(null); // null | { mode: "add"|"edit", row?: assocRow }
     const [resetConfirm, setResetConfirm] = useState(false);
     const assocImportRef = useRef();
 
-    // Flatten all systems into table rows
+    // Flatten all systems into table rows (include level from sys.levels)
     const allRows = assocSystems.flatMap(sys =>
         Object.entries(sys.processes).flatMap(([proc, bms]) =>
-            bms.map(bm => ({ systemId: sys.id, systemName: sys.name, group: sys.group, process: proc, biomarker: bm }))
+            bms.map(bm => ({
+                systemId: sys.id, systemName: sys.name, group: sys.group,
+                process: proc, biomarker: bm,
+                level: sys.levels?.[`${proc}::${bm}`] ?? "both",
+            }))
         )
     );
 
     const groupLabel = g => g === "health" ? "Health Systems" : g === "disease" ? "Disease Area" : "Cancer Hallmarks";
 
     const filtered = allRows.filter(r => {
-        if (groupFilter !== "all" && r.group !== groupFilter) return false;
+        if (systemFilter !== "all") {
+            if (systemFilter.startsWith("group:") && r.group !== systemFilter.slice(6)) return false;
+            if (!systemFilter.startsWith("group:") && r.systemId !== systemFilter) return false;
+        }
         if (!search.trim()) return true;
         const q = search.toLowerCase();
         return r.systemName.toLowerCase().includes(q) || r.process.toLowerCase().includes(q) || r.biomarker.toLowerCase().includes(q);
     });
 
     // ── Mutations ──
+    function applyLevelChange(systemId, process, biomarker, newLevel) {
+        setAssocSystems(prev => prev.map(s => {
+            if (s.id !== systemId) return s;
+            const levels = { ...(s.levels ?? {}) };
+            const key = `${process}::${biomarker}`;
+            if (newLevel === "both") delete levels[key];
+            else levels[key] = newLevel;
+            return { ...s, levels };
+        }));
+    }
+
     function applyDelete(systemId, process, biomarker) {
         setAssocSystems(prev =>
-            prev.map(s => s.id !== systemId ? s : {
-                ...s,
-                processes: Object.fromEntries(
-                    Object.entries(s.processes)
-                        .map(([p, bms]) => [p, p === process ? bms.filter(b => b !== biomarker) : bms])
-                        .filter(([, bms]) => bms.length > 0)
-                )
+            prev.map(s => {
+                if (s.id !== systemId) return s;
+                const levels = { ...(s.levels ?? {}) };
+                delete levels[`${process}::${biomarker}`];
+                return {
+                    ...s,
+                    levels,
+                    processes: Object.fromEntries(
+                        Object.entries(s.processes)
+                            .map(([p, bms]) => [p, p === process ? bms.filter(b => b !== biomarker) : bms])
+                            .filter(([, bms]) => bms.length > 0)
+                    )
+                };
             }).filter(s => Object.keys(s.processes).length > 0)
         );
     }
 
-    function applyUpsert(group, systemName, process, biomarker, oldRow) {
+    function applyUpsert(group, systemName, process, biomarker, level, oldRow) {
         setAssocSystems(prev => {
             let updated = prev;
             // Remove old entry if editing
             if (oldRow) {
-                updated = updated.map(s => s.id !== oldRow.systemId ? s : {
-                    ...s,
-                    processes: Object.fromEntries(
-                        Object.entries(s.processes)
-                            .map(([p, bms]) => [p, p === oldRow.process ? bms.filter(b => b !== oldRow.biomarker) : bms])
-                            .filter(([, bms]) => bms.length > 0)
-                    )
+                updated = updated.map(s => {
+                    if (s.id !== oldRow.systemId) return s;
+                    const levels = { ...(s.levels ?? {}) };
+                    delete levels[`${oldRow.process}::${oldRow.biomarker}`];
+                    return {
+                        ...s,
+                        levels,
+                        processes: Object.fromEntries(
+                            Object.entries(s.processes)
+                                .map(([p, bms]) => [p, p === oldRow.process ? bms.filter(b => b !== oldRow.biomarker) : bms])
+                                .filter(([, bms]) => bms.length > 0)
+                        )
+                    };
                 }).filter(s => Object.keys(s.processes).length > 0);
             }
             // Add new entry
             const target = updated.find(s => s.name.toLowerCase() === systemName.toLowerCase() && s.group === group);
             if (target) {
-                updated = updated.map(s => s.id !== target.id ? s : {
-                    ...s,
-                    processes: {
-                        ...s.processes,
-                        [process]: [...(s.processes[process] ?? []), biomarker],
-                    }
+                updated = updated.map(s => {
+                    if (s.id !== target.id) return s;
+                    const levels = { ...(s.levels ?? {}) };
+                    if (level !== "both") levels[`${process}::${biomarker}`] = level;
+                    return {
+                        ...s,
+                        levels,
+                        processes: { ...s.processes, [process]: [...(s.processes[process] ?? []), biomarker] }
+                    };
                 });
             } else {
                 const newId = systemName.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 30) + "_" + Date.now().toString(36).slice(-4);
-                updated = [...updated, { id: newId, name: systemName, group, processes: { [process]: [biomarker] } }];
+                const levels = {};
+                if (level !== "both") levels[`${process}::${biomarker}`] = level;
+                updated = [...updated, { id: newId, name: systemName, group, processes: { [process]: [biomarker] }, levels }];
             }
             return updated;
         });
@@ -5080,8 +5106,8 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
 
     // ── CSV Export ──
     function exportAssocCSV() {
-        const header = ["GROUP", "SYSTEM_ID", "SYSTEM_NAME", "PROCESS", "BIOMARKER"];
-        const rows = allRows.map(r => [r.group, r.systemId, r.systemName, r.process, r.biomarker]);
+        const header = ["GROUP", "SYSTEM_ID", "SYSTEM_NAME", "PROCESS", "BIOMARKER", "LEVEL"];
+        const rows = allRows.map(r => [r.group, r.systemId, r.systemName, r.process, r.biomarker, r.level]);
         const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
         const a = document.createElement("a");
         a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -5104,15 +5130,18 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
                     const sysName = (row["system_name"] ?? "").trim();
                     const proc   = (row["process"] ?? "").trim();
                     const bm     = (row["biomarker"] ?? "").trim();
+                    const lvl    = (row["level"] ?? "both").trim().toLowerCase();
                     if (!sysName || !proc || !bm) return;
                     const validGroup = ["health", "disease", "cancer"].includes(group) ? group : "health";
+                    const validLevel = ["high", "low", "both"].includes(lvl) ? lvl : "both";
                     let sys = rebuilt.find(s => s.name === sysName && s.group === validGroup);
                     if (!sys) {
-                        sys = { id: sysId || sysName.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 30), name: sysName, group: validGroup, processes: {} };
+                        sys = { id: sysId || sysName.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 30), name: sysName, group: validGroup, processes: {}, levels: {} };
                         rebuilt.push(sys);
                     }
                     if (!sys.processes[proc]) sys.processes[proc] = [];
                     if (!sys.processes[proc].includes(bm)) sys.processes[proc].push(bm);
+                    if (validLevel !== "both") sys.levels[`${proc}::${bm}`] = validLevel;
                 });
                 if (!rebuilt.length) throw new Error("No valid association rows found.");
                 setAssocSystems(rebuilt);
@@ -5124,7 +5153,8 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
     }
 
     const btnBase = { fontSize: 11, padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontWeight: 600, border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted };
-    const groupPills = [["all", "All"], ["health", "Health Systems"], ["disease", "Disease Area"], ["cancer", "Cancer Hallmarks"]];
+    const levelColor = lv => lv === "high" ? C.critical : lv === "low" ? C.steel : C.textFaint;
+    const levelLabel = lv => lv === "high" ? "↑ high" : lv === "low" ? "↓ low" : "both";
 
     return (
         <div style={{ padding: 24, display: "flex", flexDirection: "column", height: "100%", boxSizing: "border-box" }}>
@@ -5133,16 +5163,33 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
                 <input
                     value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Search system, process, biomarker…"
-                    style={{ fontSize: 12, padding: "6px 12px", borderRadius: 7, border: `1px solid ${C.border}`, outline: "none", minWidth: 260, color: C.textPrimary, background: C.surface }}
+                    style={{ fontSize: 12, padding: "6px 12px", borderRadius: 7, border: `1px solid ${C.border}`, outline: "none", minWidth: 240, color: C.textPrimary, background: C.surface }}
                 />
-                <div style={{ display: "flex", gap: 5 }}>
-                    {groupPills.map(([val, label]) => (
-                        <button key={val} onClick={() => setGroupFilter(val)} style={{
-                            ...btnBase,
-                            border: `1px solid ${groupFilter === val ? C.teal : C.border}`,
-                            background: groupFilter === val ? `${C.teal}18` : "transparent",
-                            color: groupFilter === val ? C.teal : C.textMuted,
-                        }}>{label}</button>
+                {/* Dropdown filter with optgroups */}
+                <select
+                    value={systemFilter} onChange={e => setSystemFilter(e.target.value)}
+                    style={{ fontSize: 11, padding: "6px 10px", borderRadius: 7, border: `1px solid ${systemFilter !== "all" ? C.teal : C.border}`, color: systemFilter !== "all" ? C.teal : C.textMuted, background: C.surface, cursor: "pointer", outline: "none" }}
+                >
+                    <option value="all">All Groups</option>
+                    {sysGroups.map(({ label, systems }) => {
+                        const gKey = label === "Health Systems" ? "health" : label === "Disease Area" ? "disease" : "cancer";
+                        return (
+                            <optgroup key={gKey} label={label}>
+                                <option value={`group:${gKey}`}>— All {label} —</option>
+                                {systems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </optgroup>
+                        );
+                    })}
+                </select>
+                {/* View toggle */}
+                <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: `1px solid ${C.border}` }}>
+                    {[["table", "Table"], ["flow", "Flowchart"]].map(([v, l]) => (
+                        <button key={v} onClick={() => setAssocView(v)} style={{
+                            fontSize: 11, padding: "5px 12px", cursor: "pointer", fontWeight: assocView === v ? 700 : 400,
+                            background: assocView === v ? C.navy : "transparent",
+                            color: assocView === v ? C.iceLight : C.textMuted,
+                            border: "none", borderRight: v === "table" ? `1px solid ${C.border}` : "none",
+                        }}>{l}</button>
                     ))}
                 </div>
                 <div style={{ flex: 1 }} />
@@ -5160,43 +5207,59 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
                 }
             </div>
 
-            {/* Table */}
-            <div style={{ flex: 1, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                    <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
-                        <tr style={{ background: C.navy }}>
-                            {["Group", "System", "Process", "Biomarker", "", ""].map((h, i) => (
-                                <th key={i} style={{ padding: "9px 14px", textAlign: "left", color: C.iceLight, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap", width: i >= 4 ? 32 : "auto" }}>{h}</th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filtered.length === 0 && (
-                            <tr><td colSpan={6} style={{ padding: "24px 16px", textAlign: "center", color: C.textFaint, fontStyle: "italic" }}>No associations match your filter.</td></tr>
-                        )}
-                        {filtered.map((row, i) => (
-                            <tr key={`${row.systemId}::${row.process}::${row.biomarker}`}
-                                style={{ background: i % 2 === 0 ? "transparent" : `${C.iceLight}40`, borderTop: `1px solid ${C.border}` }}>
-                                <td style={{ padding: "7px 14px", color: C.textFaint, fontSize: 10, whiteSpace: "nowrap" }}>
-                                    <span style={{ padding: "2px 7px", borderRadius: 4, background: row.group === "health" ? `${C.teal}18` : row.group === "disease" ? `${C.fair}18` : `${C.steel}18`, color: row.group === "health" ? C.teal : row.group === "disease" ? C.fair : C.steel, fontWeight: 600 }}>
-                                        {groupLabel(row.group)}
-                                    </span>
-                                </td>
-                                <td style={{ padding: "7px 14px", color: C.textSecond, fontWeight: 500 }}>{row.systemName}</td>
-                                <td style={{ padding: "7px 14px", color: C.textMuted }}>{row.process}</td>
-                                <td style={{ padding: "7px 14px", color: C.textPrimary, fontFamily: T.body }}>{row.biomarker}</td>
-                                <td style={{ padding: "4px 6px", textAlign: "center" }}>
-                                    <button onClick={() => setModal({ mode: "edit", row })} style={{ background: "none", border: "none", cursor: "pointer", color: C.steel, fontSize: 14, padding: "2px 5px" }} title="Edit">✎</button>
-                                </td>
-                                <td style={{ padding: "4px 6px", textAlign: "center" }}>
-                                    <button onClick={() => applyDelete(row.systemId, row.process, row.biomarker)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textFaint, fontSize: 15, padding: "2px 5px", lineHeight: 1 }} title="Delete">×</button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            <div style={{ marginTop: 8, fontSize: 11, color: C.textFaint }}>{filtered.length} association{filtered.length !== 1 ? "s" : ""}{search || groupFilter !== "all" ? ` (filtered from ${allRows.length})` : ""}</div>
+            {assocView === "table" ? (
+                <>
+                    {/* Table */}
+                    <div style={{ flex: 1, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                            <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
+                                <tr style={{ background: C.navy }}>
+                                    {["Group", "System", "Process", "Biomarker", "Level", "", ""].map((h, i) => (
+                                        <th key={i} style={{ padding: "9px 14px", textAlign: "left", color: C.iceLight, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap", width: i >= 5 ? 32 : "auto" }}>{h}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filtered.length === 0 && (
+                                    <tr><td colSpan={7} style={{ padding: "24px 16px", textAlign: "center", color: C.textFaint, fontStyle: "italic" }}>No associations match your filter.</td></tr>
+                                )}
+                                {filtered.map((row, i) => (
+                                    <tr key={`${row.systemId}::${row.process}::${row.biomarker}`}
+                                        style={{ background: i % 2 === 0 ? "transparent" : `${C.iceLight}40`, borderTop: `1px solid ${C.border}` }}>
+                                        <td style={{ padding: "7px 14px", color: C.textFaint, fontSize: 10, whiteSpace: "nowrap" }}>
+                                            <span style={{ padding: "2px 7px", borderRadius: 4, background: row.group === "health" ? `${C.teal}18` : row.group === "disease" ? `${C.fair}18` : `${C.steel}18`, color: row.group === "health" ? C.teal : row.group === "disease" ? C.fair : C.steel, fontWeight: 600 }}>
+                                                {groupLabel(row.group)}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: "7px 14px", color: C.textSecond, fontWeight: 500 }}>{row.systemName}</td>
+                                        <td style={{ padding: "7px 14px", color: C.textMuted }}>{row.process}</td>
+                                        <td style={{ padding: "7px 14px", color: C.textPrimary, fontFamily: T.body }}>{row.biomarker}</td>
+                                        <td style={{ padding: "4px 10px", whiteSpace: "nowrap" }}>
+                                            <div style={{ display: "flex", gap: 3 }}>
+                                                {["both", "high", "low"].map(lv => (
+                                                    <button key={lv} onClick={() => applyLevelChange(row.systemId, row.process, row.biomarker, lv)}
+                                                        style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, cursor: "pointer", border: `1px solid ${row.level === lv ? levelColor(lv) : C.border}`, background: row.level === lv ? `${levelColor(lv)}18` : "transparent", color: row.level === lv ? levelColor(lv) : C.textFaint, fontWeight: row.level === lv ? 700 : 400 }}>
+                                                        {levelLabel(lv)}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: "4px 6px", textAlign: "center" }}>
+                                            <button onClick={() => setModal({ mode: "edit", row })} style={{ background: "none", border: "none", cursor: "pointer", color: C.steel, fontSize: 14, padding: "2px 5px" }} title="Edit">✎</button>
+                                        </td>
+                                        <td style={{ padding: "4px 6px", textAlign: "center" }}>
+                                            <button onClick={() => applyDelete(row.systemId, row.process, row.biomarker)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textFaint, fontSize: 15, padding: "2px 5px", lineHeight: 1 }} title="Delete">×</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: 11, color: C.textFaint }}>{filtered.length} association{filtered.length !== 1 ? "s" : ""}{search || systemFilter !== "all" ? ` (filtered from ${allRows.length})` : ""}</div>
+                </>
+            ) : (
+                <AssocFlowchart assocSystems={assocSystems} systemFilter={systemFilter} search={search} sysGroups={sysGroups} />
+            )}
 
             {/* Add / Edit Modal */}
             {modal && (
@@ -5205,8 +5268,8 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
                     initialRow={modal.row}
                     assocSystems={assocSystems}
                     sysGroups={sysGroups}
-                    onSave={(group, systemName, process, biomarker) => {
-                        applyUpsert(group, systemName, process, biomarker, modal.mode === "edit" ? modal.row : null);
+                    onSave={(group, systemName, process, biomarker, level) => {
+                        applyUpsert(group, systemName, process, biomarker, level, modal.mode === "edit" ? modal.row : null);
                         setModal(null);
                     }}
                     onClose={() => setModal(null)}
@@ -5221,6 +5284,7 @@ function AssocModal({ mode, initialRow, assocSystems, sysGroups, onSave, onClose
     const [sysName, setSysName]   = useState(initialRow?.systemName ?? "");
     const [process, setProcess]   = useState(initialRow?.process ?? "");
     const [biomarker, setBiomarker] = useState(initialRow?.biomarker ?? "");
+    const [level, setLevel]       = useState(initialRow?.level ?? "both");
     const [err, setErr] = useState("");
 
     const systemsInGroup = assocSystems.filter(s => s.group === group);
@@ -5231,7 +5295,7 @@ function AssocModal({ mode, initialRow, assocSystems, sysGroups, onSave, onClose
         if (!sysName.trim()) { setErr("System name is required."); return; }
         if (!process.trim()) { setErr("Process is required."); return; }
         if (!biomarker.trim()) { setErr("Biomarker is required."); return; }
-        onSave(group, sysName.trim(), process.trim(), biomarker.trim());
+        onSave(group, sysName.trim(), process.trim(), biomarker.trim(), level);
     }
 
     const groupOptions = [["health", "Health Systems"], ["disease", "Disease Area"], ["cancer", "Cancer Hallmarks"]];
@@ -5268,7 +5332,20 @@ function AssocModal({ mode, initialRow, assocSystems, sysGroups, onSave, onClose
                     </div>
                     <div>
                         <label style={labelStyle}>Biomarker</label>
-                        <input value={biomarker} onChange={e => setBiomarker(e.target.value)} placeholder="Biomarker name" style={inputStyle} onKeyDown={e => e.key === "Enter" && handleSave()} />
+                        <input value={biomarker} onChange={e => setBiomarker(e.target.value)} placeholder="Biomarker name" style={inputStyle} />
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Biomarker Level</label>
+                        <div style={{ display: "flex", gap: 8 }}>
+                            {[["both", "both"], ["high", "↑ high"], ["low", "↓ low"]].map(([v, l]) => {
+                                const col = v === "high" ? C.critical : v === "low" ? C.steel : C.textMuted;
+                                const sel = level === v;
+                                return (
+                                    <button key={v} onClick={() => setLevel(v)} style={{ fontSize: 11, padding: "5px 14px", borderRadius: 6, border: `1px solid ${sel ? col : C.border}`, background: sel ? `${col}18` : "transparent", color: sel ? col : C.textFaint, cursor: "pointer", fontWeight: sel ? 700 : 400 }}>{l}</button>
+                                );
+                            })}
+                        </div>
+                        <div style={{ fontSize: 10, color: C.textFaint, marginTop: 5 }}>Impact when biomarker is high / low / either direction</div>
                     </div>
                     {err && <div style={{ fontSize: 11, color: C.critical, background: `${C.critical}12`, border: `1px solid ${C.critical}33`, borderRadius: 6, padding: "7px 10px" }}>{err}</div>}
                     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
@@ -5281,6 +5358,113 @@ function AssocModal({ mode, initialRow, assocSystems, sysGroups, onSave, onClose
     );
 }
 
+// ─── AssocFlowchart ──────────────────────────────────────────────────────────
+function AssocFlowchart({ assocSystems, systemFilter, search, sysGroups }) {
+    const [collapsed, setCollapsed] = useState({});
+    const toggle = key => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
+
+    const levelColor = lv => lv === "high" ? C.critical : lv === "low" ? C.steel : C.textFaint;
+    const levelLabel = lv => lv === "high" ? "↑" : lv === "low" ? "↓" : null;
+
+    // Filter systems matching systemFilter
+    const visibleSystems = assocSystems.filter(sys => {
+        if (systemFilter === "all") return true;
+        if (systemFilter.startsWith("group:")) return sys.group === systemFilter.slice(6);
+        return sys.id === systemFilter;
+    });
+
+    const q = search.trim().toLowerCase();
+
+    // Build grouped tree
+    const groups = [
+        { key: "health", label: "Health Systems", color: C.teal },
+        { key: "disease", label: "Disease Area", color: C.fair },
+        { key: "cancer", label: "Cancer Hallmarks", color: C.steel },
+    ];
+
+    return (
+        <div style={{ flex: 1, overflowY: "auto" }}>
+            {groups.map(g => {
+                const gSystems = visibleSystems.filter(s => s.group === g.key);
+                if (!gSystems.length) return null;
+                const gCollapsed = collapsed[`g:${g.key}`];
+                return (
+                    <div key={g.key} style={{ marginBottom: 16 }}>
+                        {/* Group header */}
+                        <div onClick={() => toggle(`g:${g.key}`)}
+                            style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: C.navy, borderRadius: 8, cursor: "pointer", userSelect: "none" }}>
+                            <span style={{ fontSize: 11, color: g.color, fontWeight: 700 }}>{gCollapsed ? "▶" : "▼"}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: C.iceLight, fontFamily: T.display }}>{g.label}</span>
+                            <span style={{ fontSize: 10, color: C.iceMid, marginLeft: "auto" }}>{gSystems.length} systems</span>
+                        </div>
+                        {!gCollapsed && (
+                            <div style={{ paddingLeft: 16, paddingTop: 6 }}>
+                                {gSystems.map(sys => {
+                                    const sCollapsed = collapsed[`s:${sys.id}`];
+                                    const totalBms = Object.values(sys.processes).reduce((n, bms) => n + bms.length, 0);
+                                    return (
+                                        <div key={sys.id} style={{ marginBottom: 10, borderLeft: `2px solid ${g.color}40`, paddingLeft: 12 }}>
+                                            {/* System header */}
+                                            <div onClick={() => toggle(`s:${sys.id}`)}
+                                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", cursor: "pointer", userSelect: "none" }}>
+                                                <span style={{ fontSize: 10, color: g.color }}>{sCollapsed ? "▶" : "▼"}</span>
+                                                <span style={{ fontSize: 12, fontWeight: 700, color: C.textPrimary }}>{sys.name}</span>
+                                                <span style={{ fontSize: 10, color: C.textFaint, marginLeft: 4 }}>{Object.keys(sys.processes).length} processes · {totalBms} biomarkers</span>
+                                            </div>
+                                            {!sCollapsed && (
+                                                <div style={{ paddingLeft: 16 }}>
+                                                    {Object.entries(sys.processes).map(([proc, bms]) => {
+                                                        const pKey = `p:${sys.id}:${proc}`;
+                                                        const pCollapsed = collapsed[pKey];
+                                                        // Filter biomarkers by search
+                                                        const visibleBms = q ? bms.filter(bm => bm.toLowerCase().includes(q) || proc.toLowerCase().includes(q) || sys.name.toLowerCase().includes(q)) : bms;
+                                                        if (q && !visibleBms.length) return null;
+                                                        return (
+                                                            <div key={proc} style={{ marginBottom: 6, borderLeft: `2px solid ${C.iceLight}`, paddingLeft: 12 }}>
+                                                                {/* Process header */}
+                                                                <div onClick={() => toggle(pKey)}
+                                                                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", cursor: "pointer", userSelect: "none" }}>
+                                                                    <span style={{ fontSize: 9, color: C.textFaint }}>{pCollapsed ? "▶" : "▼"}</span>
+                                                                    <span style={{ fontSize: 11, fontWeight: 600, color: C.textSecond }}>{proc}</span>
+                                                                    <span style={{ fontSize: 10, color: C.textFaint }}>({visibleBms.length})</span>
+                                                                </div>
+                                                                {!pCollapsed && (
+                                                                    <div style={{ paddingLeft: 14, display: "flex", flexWrap: "wrap", gap: 5, paddingBottom: 4 }}>
+                                                                        {visibleBms.map(bm => {
+                                                                            const lv = sys.levels?.[`${proc}::${bm}`] ?? "both";
+                                                                            const lv_arrow = levelLabel(lv);
+                                                                            return (
+                                                                                <span key={bm} style={{
+                                                                                    fontSize: 10, padding: "3px 8px", borderRadius: 12,
+                                                                                    background: lv !== "both" ? `${levelColor(lv)}12` : `${C.iceLight}80`,
+                                                                                    border: `1px solid ${lv !== "both" ? levelColor(lv) + "44" : C.border}`,
+                                                                                    color: lv !== "both" ? levelColor(lv) : C.textPrimary,
+                                                                                    display: "inline-flex", alignItems: "center", gap: 4,
+                                                                                }}>
+                                                                                    {lv_arrow && <span style={{ fontWeight: 700, fontSize: 9 }}>{lv_arrow}</span>}
+                                                                                    {bm}
+                                                                                </span>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
 // ─── ExportTab ────────────────────────────────────────────────────────────────
 function ExportTab({ profiles, activeProfile, exportProfile, card, assocSystems }) {
     const [selProfileId, setSelProfileId] = useState(activeProfile?.id ?? profiles[0]?.id);
@@ -5288,16 +5472,17 @@ function ExportTab({ profiles, activeProfile, exportProfile, card, assocSystems 
 
     function exportHumanFriendly(profile) {
         const rows = [["System", "Process", "Biomarker", "Bio Weight", "Bio Color", "Bio Level", "Bio PubMed", "Proc Weight", "Proc Color", "Proc PubMed"]];
-        const DEFAULT_BIO = { weight: 1, color: "red", level: "both", ref: "" };
+        const DEFAULT_BIO = { weight: 1, color: "red", ref: "" };
         const DEFAULT_PROC = { weight: 1, color: "red", ref: "" };
         assocSystems.forEach(sys => {
             Object.entries(sys.processes).forEach(([proc, bms]) => {
                 const pe = profile.procWeights[proc] ?? DEFAULT_PROC;
                 bms.forEach(bmName => {
                     const be = profile.bioWeights[`${sys.id}::${bmName}`] ?? DEFAULT_BIO;
+                    const assocLevel = sys.levels?.[`${proc}::${bmName}`] ?? "both";
                     rows.push([
                         sys.name, proc, bmName,
-                        be.weight, be.color, be.level ?? "both", be.ref ?? "",
+                        be.weight, be.color, be.level ?? assocLevel, be.ref ?? "",
                         pe.weight, pe.color, pe.ref ?? "",
                     ]);
                 });
