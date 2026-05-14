@@ -79,7 +79,6 @@ const SYSTEMS = [
     },
 ];
 
-const ALL_MARKERS = SYSTEMS.flatMap(s => Object.values(s.processes).flat());
 const ALIASES = {
     "Asymmetric dimethylarginine": "ADMA", "Hydroxysphingomyelin C14:1": "SM (OH) C14:1",
     "Sphingomyelin C16:0": "SM C16:0", "Sphingomyelin C20:2": "SM C20:2",
@@ -316,6 +315,12 @@ const CANCER_SYSTEMS = [
 ];
 
 const ALL_SYSTEMS = [...SYSTEMS, ...DISEASE_SYSTEMS, ...CANCER_SYSTEMS];
+
+const DEFAULT_ALL_SYSTEMS = [
+    ...SYSTEMS.map(s => ({ ...s, group: "health" })),
+    ...DISEASE_SYSTEMS.map(s => ({ ...s, group: "disease" })),
+    ...CANCER_SYSTEMS.map(s => ({ ...s, group: "cancer" })),
+];
 
 // All biomarker and process weights default to 1.0 — zone-based auto-weighting
 // is handled dynamically at score time using yellowWeight / redWeight globals.
@@ -1613,6 +1618,25 @@ export default function App() {
     const [uploadWeightFile, setUploadWeightFile] = useState(null);
     const [uploadWeightErr, setUploadWeightErr] = useState("");
 
+    const [assocSystems, setAssocSystems] = useState(() => {
+        try {
+            const saved = localStorage.getItem("myco_assoc_systems");
+            if (saved) return JSON.parse(saved);
+        } catch {}
+        return DEFAULT_ALL_SYSTEMS;
+    });
+    useEffect(() => {
+        localStorage.setItem("myco_assoc_systems", JSON.stringify(assocSystems));
+    }, [assocSystems]);
+    const healthSystems  = useMemo(() => assocSystems.filter(s => s.group === "health"),  [assocSystems]);
+    const diseaseSystems = useMemo(() => assocSystems.filter(s => s.group === "disease"), [assocSystems]);
+    const cancerSystems  = useMemo(() => assocSystems.filter(s => s.group === "cancer"),  [assocSystems]);
+    const sysGroups = useMemo(() => [
+        { label: "Health Systems",   systems: healthSystems  },
+        { label: "Disease Area",     systems: diseaseSystems },
+        { label: "Cancer Hallmarks", systems: cancerSystems  },
+    ], [healthSystems, diseaseSystems, cancerSystems]);
+
     const [profiles, setProfiles] = useState([makeProfile("default", "Default")]);
     const [activeProfileId, setActiveProfileId] = useState("default");
     const [compareIds, setCompareIds] = useState([]);
@@ -1687,22 +1711,17 @@ export default function App() {
 
     // Auto-collapse other sidebar groups and smooth-scroll active system into view
     useEffect(() => {
-        const groups = [
-            { label: "Health Systems", systems: SYSTEMS },
-            { label: "Disease Area", systems: DISEASE_SYSTEMS },
-            { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS },
-        ];
-        const activeGroup = groups.find(g => g.systems.some(s => s.id === systemId));
+        const activeGroup = sysGroups.find(g => g.systems.some(s => s.id === systemId));
         if (activeGroup) {
             // Collapse all groups except the one containing the active system
-            setCollapsedGroups(new Set(groups.filter(g => g.label !== activeGroup.label).map(g => g.label)));
+            setCollapsedGroups(new Set(sysGroups.filter(g => g.label !== activeGroup.label).map(g => g.label)));
         }
         // Smooth scroll active button into view
         if (sidebarRef.current) {
             const activeBtn = sidebarRef.current.querySelector(`[data-sysid="${systemId}"]`);
             if (activeBtn) activeBtn.scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
-    }, [systemId]);
+    }, [systemId, sysGroups]);
 
     const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
     const { bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight } = activeProfile;
@@ -1792,7 +1811,7 @@ export default function App() {
         const rows = [];
         const header = ["MYCO_ID", "CATEGORY", "HEALTH_AREA_TYPE", "HEALTH_AREA_ID", "HEALTH_AREA_NAME", "MEASURE_ID", "ITEM_NAME", "COLOR", "LEVEL", "VALUE", "REFERENCES"];
         // Biomarker weights — all explicitly set entries
-        ALL_SYSTEMS.forEach(sys => {
+        assocSystems.forEach(sys => {
             Object.entries(sys.processes).forEach(([proc, bms]) => {
                 bms.forEach(bmName => {
                     const nsKey = `${sys.id}::${bmName}`;
@@ -1815,7 +1834,7 @@ export default function App() {
             });
         });
         // Process weights — all explicitly set entries
-        SYSTEMS.forEach(sys => {
+        healthSystems.forEach(sys => {
             Object.keys(sys.processes).forEach(proc => {
                 const e = p.procWeights[proc];
                 if (!e) return;
@@ -1928,7 +1947,7 @@ export default function App() {
         r.readAsText(file);
     }, []);
 
-    const system = ALL_SYSTEMS.find(s => s.id === systemId) || SYSTEMS[0];
+    const system = assocSystems.find(s => s.id === systemId) || healthSystems[0] || assocSystems[0];
     const markers = useMemo(() => {
         if (!clientId || !clients[clientId]) return {};
         const base = clients[clientId].markers;
@@ -1948,7 +1967,7 @@ export default function App() {
         return computeSystem(system, markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight);
     }, [system, markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight]);
 
-    const allSysScores = useMemo(() => ALL_SYSTEMS.map(s => ({
+    const allSysScores = useMemo(() => assocSystems.map(s => ({
         id: s.id, name: s.name,
         score: Object.keys(markers).length
             ? computeSystem(s, markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight).sysScore
@@ -1965,7 +1984,7 @@ export default function App() {
             profile: prof,
             clients: pids.map(pid => {
                 const m = clients[pid].markers;
-                const syss = ALL_SYSTEMS.map(s => {
+                const syss = assocSystems.map(s => {
                     const res = computeSystem(s, m, prof.bioWeights, prof.procWeights,
                         prof.cutoff ?? DEFAULT_PARAMS.cutoff,
                         prof.greenPct ?? DEFAULT_PARAMS.greenPct,
@@ -1985,7 +2004,7 @@ export default function App() {
     const oorFlags = useMemo(() => {
         const f = [];
         procResults.forEach(pr => {
-            const sys = ALL_SYSTEMS.find(s => Object.keys(s.processes).includes(pr.process));
+            const sys = assocSystems.find(s => Object.keys(s.processes).includes(pr.process));
             pr.biomarkers.forEach(bm => {
                 if (!bm.missing && bm.zone !== "green")
                     f.push({ ...bm, process: pr.process, system: sys?.name ?? "", systemId: sys?.id ?? "" });
@@ -2026,7 +2045,7 @@ export default function App() {
                 <div style={{ width: 1, height: 20, background: "#ffffff22" }} />
                 <span style={{ fontSize: 10, color: C.iceLight, letterSpacing: "0.18em", textTransform: "uppercase" }}>Scoring Workbench</span>
                 <div data-tutorial="view-toggle" style={{ display: "flex", background: "#1a3e55", borderRadius: 6, padding: 2, marginLeft: 8 }}>
-                    {[["client", "Adjust Weighting"], ["aggregate", "Aggregate Statistics"]].map(([v, l]) => (
+                    {[["client", "Adjust Weighting"], ["aggregate", "Aggregate Statistics"], ["associations", "Associations"]].map(([v, l]) => (
                         <button key={v} onClick={() => {
                             // If Default profile has unsaved changes and user is heading to Aggregate, intercept
                             if (v === "aggregate" && isDefaultDirty) {
@@ -2704,7 +2723,7 @@ export default function App() {
 
                     {col1Open && <>
                         <div ref={sidebarRef} data-tutorial="systems-panel" style={{ overflowY: "auto", flex: 1 }}>
-                            {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Area", systems: DISEASE_SYSTEMS }, { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS }].map(({ label, systems }) => {
+                            {sysGroups.map(({ label, systems }) => {
                                 const isCollapsed = collapsedGroups.has(label);
                                 return (
                                     <div key={label}>
@@ -2806,8 +2825,10 @@ export default function App() {
                 <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minWidth: 0 }}>
                     {!hasData ? (
                         <UploadPrompt fileRef={fileRef} dragOver={dragOver} setDragOver={setDragOver} handleFile={handleFile} uploadErr={uploadErr} isUploading={isUploading} loadDemo={loadDemo} personas={DEMO_PERSONAS} />
+                    ) : activeView === "associations" ? (
+                        <AssociationsTab assocSystems={assocSystems} setAssocSystems={setAssocSystems} sysGroups={sysGroups} defaultSystems={DEFAULT_ALL_SYSTEMS} card={card} />
                     ) : activeView === "aggregate" ? (
-                        <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} aggTab={aggTab} setAggTab={setAggTab} onNavigate={(pid) => { setClientId(pid); setActiveView("client"); }} />
+                        <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} aggTab={aggTab} setAggTab={setAggTab} onNavigate={(pid) => { setClientId(pid); setActiveView("client"); }} assocSystems={assocSystems} sysGroups={sysGroups} />
                     ) : (
                         <>
                             {/* Header: system name + breadcrumb + dual gauges */}
@@ -2855,8 +2876,8 @@ export default function App() {
                                 {tab === "weights-proc" && <ProcWeightsTab system={system} procResults={procResults} procWeights={procWeights} setProcWeights={setProcWeights} sysScore={sysScore} selProc={selProc} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
                                 {tab === "weights-bio" && <BioWeightsTab activeProcResult={activeProcResult} selProc={selProc} bioWeights={bioWeights} setBioWeights={setBioWeights} greenPct={greenPct} yellowWeight={yellowWeight} setYellowWeight={setYellowWeight} redWeight={redWeight} setRedWeight={setRedWeight} card={card} editConc={editConc} setEditConc={setEditConc} setConcWarnModal={setConcWarnModal} concOverrides={concOverrides[clientId] ?? {}} setConcOverrides={v => setConcOverrides(prev => ({ ...prev, [clientId]: v }))} clientMarkers={clients[clientId]?.markers ?? {}} systemId={systemId} />}
                                 {tab === "curves" && <CurvesTab activeProcResult={activeProcResult} selProc={selProc} cutoff={cutoff} setCutoff={setCutoff} greenPct={greenPct} setGreenPct={setGreenPct} curve={curve} setCurve={setCurve} card={card} />}
-                                {tab === "flags" && <FlagsTab oorFlags={oorFlags} setActiveProc={setActiveProc} setTab={setTab} card={card} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} />}
-                                {tab === "adjustments" && <AdjustmentsTab bioWeights={bioWeights} procWeights={procWeights} setBioWeights={setBioWeights} setProcWeights={setProcWeights} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
+                                {tab === "flags" && <FlagsTab oorFlags={oorFlags} setActiveProc={setActiveProc} setTab={setTab} card={card} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} assocSystems={assocSystems} />}
+                                {tab === "adjustments" && <AdjustmentsTab bioWeights={bioWeights} procWeights={procWeights} setBioWeights={setBioWeights} setProcWeights={setProcWeights} setActiveProc={setActiveProc} setTab={setTab} card={card} assocSystems={assocSystems} healthSystems={healthSystems} />}
                             </div>
                         </>
                     )}
@@ -3366,7 +3387,7 @@ function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, set
 }
 
 // ─── Biomarker Flags ──────────────────────────────────────────────────────────
-function FlagsTab({ oorFlags, setActiveProc, setTab, card, bioWeights, cutoff, greenPct, curve }) {
+function FlagsTab({ oorFlags, setActiveProc, setTab, card, bioWeights, cutoff, greenPct, curve, assocSystems }) {
     const red = oorFlags.filter(f => f.zone === "red"), yellow = oorFlags.filter(f => f.zone === "yellow");
     if (!oorFlags.length) return (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60%", gap: 10, textAlign: "center" }}>
@@ -3384,7 +3405,7 @@ function FlagsTab({ oorFlags, setActiveProc, setTab, card, bioWeights, cutoff, g
                         <span style={{ fontSize: 11, color: C.textMuted }}>— outside reference + yellow zone</span>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
-                        {red.map(bm => <FlagCard key={`${bm.process}-${bm.name}`} bm={bm} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} card={card} />)}
+                        {red.map(bm => <FlagCard key={`${bm.process}-${bm.name}`} bm={bm} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} card={card} assocSystems={assocSystems} />)}
                     </div>
                 </div>
             )}
@@ -3396,7 +3417,7 @@ function FlagsTab({ oorFlags, setActiveProc, setTab, card, bioWeights, cutoff, g
                         <span style={{ fontSize: 11, color: C.textMuted }}>— within yellow boundary</span>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
-                        {yellow.map(bm => <FlagCard key={`${bm.process}-${bm.name}`} bm={bm} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} card={card} />)}
+                        {yellow.map(bm => <FlagCard key={`${bm.process}-${bm.name}`} bm={bm} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} card={card} assocSystems={assocSystems} />)}
                     </div>
                 </div>
             )}
@@ -3405,10 +3426,10 @@ function FlagsTab({ oorFlags, setActiveProc, setTab, card, bioWeights, cutoff, g
 }
 
 // ─── Active Adjustments Tab ───────────────────────────────────────────────────
-function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights, setActiveProc, setTab, card }) {
+function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights, setActiveProc, setTab, card, assocSystems, healthSystems }) {
     // Gather non-default biomarker adjustments, grouped by system → process
     const bioAdj = [];
-    ALL_SYSTEMS.forEach(sys => {
+    assocSystems.forEach(sys => {
         Object.entries(sys.processes).forEach(([proc, markers]) => {
             markers.forEach(name => {
                 const nsKey = `${sys.id}::${name}`;
@@ -3420,7 +3441,7 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
 
     // Gather non-default process adjustments
     const procAdj = [];
-    SYSTEMS.forEach(sys => {
+    healthSystems.forEach(sys => {
         Object.keys(sys.processes).forEach(proc => {
             const e = procWeights[proc];
             if (e) procAdj.push({ sys: sys.name, sysId: sys.id, proc, entry: e });
@@ -3553,13 +3574,13 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
     );
 }
 
-function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose }) {
+function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose, assocSystems }) {
     const colourCol = bm.zone === "green" ? C.teal : bm.zone === "yellow" ? C.fair : C.critical;
     const colourLabel = bm.zone === "green" ? "Green" : bm.zone === "yellow" ? "Yellow" : "Red";
 
     // All processes this biomarker belongs to (across all systems)
     const memberships = [];
-    ALL_SYSTEMS.forEach(sys => {
+    assocSystems.forEach(sys => {
         Object.entries(sys.processes).forEach(([proc, markers]) => {
             if (markers.includes(bm.name) || markers.includes(Object.keys(ALIASES).find(k => ALIASES[k] === bm.name))) {
                 const nsKey = `${sys.id}::${bm.name}`;
@@ -3698,7 +3719,7 @@ function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose
     );
 }
 
-function FlagCard({ bm, bioWeights, cutoff, greenPct, curve, card }) {
+function FlagCard({ bm, bioWeights, cutoff, greenPct, curve, card, assocSystems }) {
     const [showModal, setShowModal] = useState(false);
     const colourCol = bm.zone === "green" ? C.teal : bm.zone === "yellow" ? C.fair : C.critical;
     return (
@@ -3724,7 +3745,7 @@ function FlagCard({ bm, bioWeights, cutoff, greenPct, curve, card }) {
             </div>
             {showModal && (
                 <BiomarkerDetailModal bm={bm} bioWeights={bioWeights} cutoff={cutoff}
-                    greenPct={greenPct} curve={curve} onClose={() => setShowModal(false)} />
+                    greenPct={greenPct} curve={curve} onClose={() => setShowModal(false)} assocSystems={assocSystems} />
             )}
         </>
     );
@@ -3748,7 +3769,7 @@ function gradeBg(score) {
 // Profile colour palette for multi-profile comparison
 const PROF_COLORS = [C.steel, C.teal, C.fair, C.atRisk, "#8B6FAB"];
 
-function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, exportProfile, activeProfile, aggTab, setAggTab, onNavigate }) {
+function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, exportProfile, activeProfile, aggTab, setAggTab, onNavigate, assocSystems, sysGroups }) {
     const [clientTab, setClientTab] = useState(0);
     const [editOverviewCutoff, setEditOverviewCutoff] = useState(false);
     const [overviewGreen, setOverviewGreen] = useState(91);
@@ -3757,18 +3778,15 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const overviewBg = s => s == null ? "transparent" : `${overviewColour(s)}18`;
     const ALL_GROUP_LABELS = ["Health Systems", "Disease Area", "Cancer Hallmarks"];
     const [visibleSysGroups, setVisibleSysGroups] = useState(new Set(ALL_GROUP_LABELS));
-    const PROC_GROUPS = [
-        { label: "Health Systems", systems: SYSTEMS },
-        { label: "Disease Area", systems: DISEASE_SYSTEMS },
-        { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS },
-    ];
-    const ALL_PROCS_FLAT = [...new Set(ALL_SYSTEMS.flatMap(s => Object.keys(s.processes)))];
+    const PROC_GROUPS = sysGroups;
+    const ALL_PROCS_FLAT = [...new Set(assocSystems.flatMap(s => Object.keys(s.processes)))];
     const [visibleProcs, setVisibleProcs] = useState(new Set(ALL_PROCS_FLAT));
     const [showProcFilter, setShowProcFilter] = useState(false);
     const [procFilterSearch, setProcFilterSearch] = useState("");
-    const [histSysId, setHistSysId] = useState(SYSTEMS[0].id);
-    const [histProcName, setHistProcName] = useState(Object.keys(SYSTEMS[0].processes)[0]);
-    const [flowSysId, setFlowSysId] = useState(SYSTEMS[0].id);
+    const healthSystems = sysGroups[0]?.systems ?? [];
+    const [histSysId, setHistSysId] = useState(healthSystems[0]?.id ?? "");
+    const [histProcName, setHistProcName] = useState(Object.keys(healthSystems[0]?.processes ?? {})[0] ?? "");
+    const [flowSysId, setFlowSysId] = useState(healthSystems[0]?.id ?? "");
 
     if (!aggregateData || !aggregateData.length) return (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
@@ -3793,8 +3811,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
 
     const downloadSysCSV = () => {
         const rows = aggregateData[isComparing ? clientTab : 0].clients;
-        const visSystems = ALL_SYSTEMS.filter(s => {
-            const grp = SYSTEMS.find(x => x.id === s.id) ? "Health Systems" : DISEASE_SYSTEMS.find(x => x.id === s.id) ? "Disease Area" : "Cancer Hallmarks";
+        const visSystems = assocSystems.filter(s => {
+            const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Disease Area" : "Cancer Hallmarks";
             return visibleSysGroups.has(grp);
         });
         const header = ["Client", ...visSystems.map(s => s.name)];
@@ -3965,8 +3983,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             })()}
                             {(() => {
                                 const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                const visibleSystems = ALL_SYSTEMS.filter(s => {
-                                    const grp = SYSTEMS.find(x => x.id === s.id) ? "Health Systems" : DISEASE_SYSTEMS.find(x => x.id === s.id) ? "Disease Area" : "Cancer Hallmarks";
+                                const visibleSystems = assocSystems.filter(s => {
+                                    const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Disease Area" : "Cancer Hallmarks";
                                     return visibleSysGroups.has(grp);
                                 });
                                 const stickyCell = { position: "sticky", left: 0, zIndex: 2 };
@@ -4086,7 +4104,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Area", systems: DISEASE_SYSTEMS }, { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS }].map(({ label, systems }) => [
+                                        {sysGroups.map(({ label, systems }) => [
                                             <tr key={`group-${label}`}>
                                                 <td colSpan={1 + aggregateData.length * STAT_COLS.length + Math.max(0, aggregateData.length - 1)} style={{ padding: "5px 16px 3px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", background: `${C.iceLight}40`, borderTop: `1px solid ${C.border}` }}>{label}</td>
                                             </tr>,
@@ -4127,7 +4145,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                 )}
 
                 {aggTab === "process-summary" && (() => {
-                    const procNames = [...new Set(ALL_SYSTEMS.flatMap(s => Object.keys(s.processes)))];
+                    const procNames = [...new Set(assocSystems.flatMap(s => Object.keys(s.processes)))];
                     function procStatsForProfile(profData, procName) {
                         const scores = profData.clients.flatMap(r =>
                             r.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))
@@ -4419,15 +4437,15 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                 })()}
 
                 {aggTab === "histograms" && (
-                    <HistogramsTab nonDemoClients={nonDemoClients} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} histSysId={histSysId} setHistSysId={setHistSysId} histProcName={histProcName} setHistProcName={setHistProcName} card={card} />
+                    <HistogramsTab nonDemoClients={nonDemoClients} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} histSysId={histSysId} setHistSysId={setHistSysId} histProcName={histProcName} setHistProcName={setHistProcName} card={card} assocSystems={assocSystems} sysGroups={sysGroups} />
                 )}
 
                 {aggTab === "flowchart" && (
-                    <FlowchartTab flowSysId={flowSysId} setFlowSysId={setFlowSysId} bioWeights={bioWeights} procWeights={procWeights} card={card} />
+                    <FlowchartTab flowSysId={flowSysId} setFlowSysId={setFlowSysId} bioWeights={bioWeights} procWeights={procWeights} card={card} assocSystems={assocSystems} sysGroups={sysGroups} />
                 )}
 
                 {aggTab === "export" && (
-                    <ExportTab profiles={profiles} activeProfile={activeProfile} exportProfile={exportProfile} card={card} />
+                    <ExportTab profiles={profiles} activeProfile={activeProfile} exportProfile={exportProfile} card={card} assocSystems={assocSystems} />
                 )}
 
             </div>
@@ -4568,10 +4586,10 @@ function Histogram({ scores, title, redCutoff, yellowCutoff }) {
     );
 }
 
-function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, histSysId, setHistSysId, histProcName, setHistProcName, card }) {
+function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, histSysId, setHistSysId, histProcName, setHistProcName, card, assocSystems, sysGroups }) {
     const DEFAULT_SYS_RED = 70, DEFAULT_SYS_YELLOW = 91;
     const DEFAULT_PROC_RED = 70, DEFAULT_PROC_YELLOW = 91;
-    const selSys = ALL_SYSTEMS.find(s => s.id === histSysId) || SYSTEMS[0];
+    const selSys = assocSystems.find(s => s.id === histSysId) || sysGroups[0]?.systems[0] || assocSystems[0];
     const procs = Object.keys(selSys.processes);
     const validProc = procs.includes(histProcName) ? histProcName : procs[0];
 
@@ -4596,7 +4614,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>System Scores</div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {sysScores.length} client report{sysScores.length !== 1 ? "s" : ""}.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
-                    {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Area", systems: DISEASE_SYSTEMS }, { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS }].map(({ label, systems }) => (
+                    {sysGroups.map(({ label, systems }) => (
                         <div key={label}>
                             <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 5 }}>{label}</div>
                             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -4668,8 +4686,8 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 }
 
 // ─── FlowchartTab ─────────────────────────────────────────────────────────────
-function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }) {
-    const sys = ALL_SYSTEMS.find(s => s.id === flowSysId) || SYSTEMS[0];
+function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card, assocSystems, sysGroups }) {
+    const sys = assocSystems.find(s => s.id === flowSysId) || sysGroups[0]?.systems[0] || assocSystems[0];
     const procs = Object.entries(sys.processes);
     const DEFAULT_BIO = { weight: 1, color: "red", level: "both" };
     const DEFAULT_PROC = { weight: 1, color: "red" };
@@ -4809,7 +4827,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
             {/* System selector + download buttons */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {[{ label: "Health Systems", systems: SYSTEMS }, { label: "Disease Area", systems: DISEASE_SYSTEMS }, { label: "Cancer Hallmarks", systems: CANCER_SYSTEMS }].map(({ label, systems }) => (
+                    {sysGroups.map(({ label, systems }) => (
                         <div key={label}>
                             <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 5 }}>{label}</div>
                             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -4990,8 +5008,281 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card }
     );
 }
 
+// ─── AssociationsTab ─────────────────────────────────────────────────────────
+function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSystems, card }) {
+    const [search, setSearch] = useState("");
+    const [groupFilter, setGroupFilter] = useState("all");
+    const [modal, setModal] = useState(null); // null | { mode: "add"|"edit", row?: assocRow }
+    const [resetConfirm, setResetConfirm] = useState(false);
+    const assocImportRef = useRef();
+
+    // Flatten all systems into table rows
+    const allRows = assocSystems.flatMap(sys =>
+        Object.entries(sys.processes).flatMap(([proc, bms]) =>
+            bms.map(bm => ({ systemId: sys.id, systemName: sys.name, group: sys.group, process: proc, biomarker: bm }))
+        )
+    );
+
+    const groupLabel = g => g === "health" ? "Health Systems" : g === "disease" ? "Disease Area" : "Cancer Hallmarks";
+
+    const filtered = allRows.filter(r => {
+        if (groupFilter !== "all" && r.group !== groupFilter) return false;
+        if (!search.trim()) return true;
+        const q = search.toLowerCase();
+        return r.systemName.toLowerCase().includes(q) || r.process.toLowerCase().includes(q) || r.biomarker.toLowerCase().includes(q);
+    });
+
+    // ── Mutations ──
+    function applyDelete(systemId, process, biomarker) {
+        setAssocSystems(prev =>
+            prev.map(s => s.id !== systemId ? s : {
+                ...s,
+                processes: Object.fromEntries(
+                    Object.entries(s.processes)
+                        .map(([p, bms]) => [p, p === process ? bms.filter(b => b !== biomarker) : bms])
+                        .filter(([, bms]) => bms.length > 0)
+                )
+            }).filter(s => Object.keys(s.processes).length > 0)
+        );
+    }
+
+    function applyUpsert(group, systemName, process, biomarker, oldRow) {
+        setAssocSystems(prev => {
+            let updated = prev;
+            // Remove old entry if editing
+            if (oldRow) {
+                updated = updated.map(s => s.id !== oldRow.systemId ? s : {
+                    ...s,
+                    processes: Object.fromEntries(
+                        Object.entries(s.processes)
+                            .map(([p, bms]) => [p, p === oldRow.process ? bms.filter(b => b !== oldRow.biomarker) : bms])
+                            .filter(([, bms]) => bms.length > 0)
+                    )
+                }).filter(s => Object.keys(s.processes).length > 0);
+            }
+            // Add new entry
+            const target = updated.find(s => s.name.toLowerCase() === systemName.toLowerCase() && s.group === group);
+            if (target) {
+                updated = updated.map(s => s.id !== target.id ? s : {
+                    ...s,
+                    processes: {
+                        ...s.processes,
+                        [process]: [...(s.processes[process] ?? []), biomarker],
+                    }
+                });
+            } else {
+                const newId = systemName.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 30) + "_" + Date.now().toString(36).slice(-4);
+                updated = [...updated, { id: newId, name: systemName, group, processes: { [process]: [biomarker] } }];
+            }
+            return updated;
+        });
+    }
+
+    // ── CSV Export ──
+    function exportAssocCSV() {
+        const header = ["GROUP", "SYSTEM_ID", "SYSTEM_NAME", "PROCESS", "BIOMARKER"];
+        const rows = allRows.map(r => [r.group, r.systemId, r.systemName, r.process, r.biomarker]);
+        const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        a.download = "associations.csv";
+        a.click();
+    }
+
+    // ── CSV Import ──
+    function handleAssocImport(file) {
+        if (!file) return;
+        const r = new FileReader();
+        r.onload = e => {
+            try {
+                const rows = parseCSV(e.target.result);
+                if (!rows.length) throw new Error("No rows found.");
+                const rebuilt = [];
+                rows.forEach(row => {
+                    const group = (row["group"] ?? "health").trim().toLowerCase();
+                    const sysId  = (row["system_id"] ?? "").trim();
+                    const sysName = (row["system_name"] ?? "").trim();
+                    const proc   = (row["process"] ?? "").trim();
+                    const bm     = (row["biomarker"] ?? "").trim();
+                    if (!sysName || !proc || !bm) return;
+                    const validGroup = ["health", "disease", "cancer"].includes(group) ? group : "health";
+                    let sys = rebuilt.find(s => s.name === sysName && s.group === validGroup);
+                    if (!sys) {
+                        sys = { id: sysId || sysName.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 30), name: sysName, group: validGroup, processes: {} };
+                        rebuilt.push(sys);
+                    }
+                    if (!sys.processes[proc]) sys.processes[proc] = [];
+                    if (!sys.processes[proc].includes(bm)) sys.processes[proc].push(bm);
+                });
+                if (!rebuilt.length) throw new Error("No valid association rows found.");
+                setAssocSystems(rebuilt);
+            } catch (err) {
+                alert("Import failed: " + err.message);
+            }
+        };
+        r.readAsText(file);
+    }
+
+    const btnBase = { fontSize: 11, padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontWeight: 600, border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted };
+    const groupPills = [["all", "All"], ["health", "Health Systems"], ["disease", "Disease Area"], ["cancer", "Cancer Hallmarks"]];
+
+    return (
+        <div style={{ padding: 24, display: "flex", flexDirection: "column", height: "100%", boxSizing: "border-box" }}>
+            {/* Toolbar */}
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
+                <input
+                    value={search} onChange={e => setSearch(e.target.value)}
+                    placeholder="Search system, process, biomarker…"
+                    style={{ fontSize: 12, padding: "6px 12px", borderRadius: 7, border: `1px solid ${C.border}`, outline: "none", minWidth: 260, color: C.textPrimary, background: C.surface }}
+                />
+                <div style={{ display: "flex", gap: 5 }}>
+                    {groupPills.map(([val, label]) => (
+                        <button key={val} onClick={() => setGroupFilter(val)} style={{
+                            ...btnBase,
+                            border: `1px solid ${groupFilter === val ? C.teal : C.border}`,
+                            background: groupFilter === val ? `${C.teal}18` : "transparent",
+                            color: groupFilter === val ? C.teal : C.textMuted,
+                        }}>{label}</button>
+                    ))}
+                </div>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => setModal({ mode: "add" })} style={{ ...btnBase, background: C.teal, color: C.navy, border: "none" }}>+ Add Row</button>
+                <button onClick={exportAssocCSV} style={btnBase}>Export CSV</button>
+                <button onClick={() => assocImportRef.current?.click()} style={btnBase}>Import CSV</button>
+                <input ref={assocImportRef} type="file" accept=".csv" style={{ display: "none" }} onChange={e => { handleAssocImport(e.target.files[0]); e.target.value = ""; }} />
+                {!resetConfirm
+                    ? <button onClick={() => setResetConfirm(true)} style={{ ...btnBase, color: C.critical, borderColor: C.critical }}>Reset to Defaults</button>
+                    : <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <span style={{ fontSize: 11, color: C.critical }}>Reset all associations?</span>
+                        <button onClick={() => { setAssocSystems(defaultSystems); setResetConfirm(false); }} style={{ ...btnBase, background: C.critical, color: "#fff", border: "none" }}>Yes, reset</button>
+                        <button onClick={() => setResetConfirm(false)} style={btnBase}>Cancel</button>
+                    </div>
+                }
+            </div>
+
+            {/* Table */}
+            <div style={{ flex: 1, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
+                        <tr style={{ background: C.navy }}>
+                            {["Group", "System", "Process", "Biomarker", "", ""].map((h, i) => (
+                                <th key={i} style={{ padding: "9px 14px", textAlign: "left", color: C.iceLight, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap", width: i >= 4 ? 32 : "auto" }}>{h}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filtered.length === 0 && (
+                            <tr><td colSpan={6} style={{ padding: "24px 16px", textAlign: "center", color: C.textFaint, fontStyle: "italic" }}>No associations match your filter.</td></tr>
+                        )}
+                        {filtered.map((row, i) => (
+                            <tr key={`${row.systemId}::${row.process}::${row.biomarker}`}
+                                style={{ background: i % 2 === 0 ? "transparent" : `${C.iceLight}40`, borderTop: `1px solid ${C.border}` }}>
+                                <td style={{ padding: "7px 14px", color: C.textFaint, fontSize: 10, whiteSpace: "nowrap" }}>
+                                    <span style={{ padding: "2px 7px", borderRadius: 4, background: row.group === "health" ? `${C.teal}18` : row.group === "disease" ? `${C.fair}18` : `${C.steel}18`, color: row.group === "health" ? C.teal : row.group === "disease" ? C.fair : C.steel, fontWeight: 600 }}>
+                                        {groupLabel(row.group)}
+                                    </span>
+                                </td>
+                                <td style={{ padding: "7px 14px", color: C.textSecond, fontWeight: 500 }}>{row.systemName}</td>
+                                <td style={{ padding: "7px 14px", color: C.textMuted }}>{row.process}</td>
+                                <td style={{ padding: "7px 14px", color: C.textPrimary, fontFamily: T.body }}>{row.biomarker}</td>
+                                <td style={{ padding: "4px 6px", textAlign: "center" }}>
+                                    <button onClick={() => setModal({ mode: "edit", row })} style={{ background: "none", border: "none", cursor: "pointer", color: C.steel, fontSize: 14, padding: "2px 5px" }} title="Edit">✎</button>
+                                </td>
+                                <td style={{ padding: "4px 6px", textAlign: "center" }}>
+                                    <button onClick={() => applyDelete(row.systemId, row.process, row.biomarker)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textFaint, fontSize: 15, padding: "2px 5px", lineHeight: 1 }} title="Delete">×</button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <div style={{ marginTop: 8, fontSize: 11, color: C.textFaint }}>{filtered.length} association{filtered.length !== 1 ? "s" : ""}{search || groupFilter !== "all" ? ` (filtered from ${allRows.length})` : ""}</div>
+
+            {/* Add / Edit Modal */}
+            {modal && (
+                <AssocModal
+                    mode={modal.mode}
+                    initialRow={modal.row}
+                    assocSystems={assocSystems}
+                    sysGroups={sysGroups}
+                    onSave={(group, systemName, process, biomarker) => {
+                        applyUpsert(group, systemName, process, biomarker, modal.mode === "edit" ? modal.row : null);
+                        setModal(null);
+                    }}
+                    onClose={() => setModal(null)}
+                />
+            )}
+        </div>
+    );
+}
+
+function AssocModal({ mode, initialRow, assocSystems, sysGroups, onSave, onClose }) {
+    const [group, setGroup]       = useState(initialRow?.group ?? "health");
+    const [sysName, setSysName]   = useState(initialRow?.systemName ?? "");
+    const [process, setProcess]   = useState(initialRow?.process ?? "");
+    const [biomarker, setBiomarker] = useState(initialRow?.biomarker ?? "");
+    const [err, setErr] = useState("");
+
+    const systemsInGroup = assocSystems.filter(s => s.group === group);
+    const matchedSys = systemsInGroup.find(s => s.name.toLowerCase() === sysName.toLowerCase());
+    const procsInSys = matchedSys ? Object.keys(matchedSys.processes) : [];
+
+    function handleSave() {
+        if (!sysName.trim()) { setErr("System name is required."); return; }
+        if (!process.trim()) { setErr("Process is required."); return; }
+        if (!biomarker.trim()) { setErr("Biomarker is required."); return; }
+        onSave(group, sysName.trim(), process.trim(), biomarker.trim());
+    }
+
+    const groupOptions = [["health", "Health Systems"], ["disease", "Disease Area"], ["cancer", "Cancer Hallmarks"]];
+    const inputStyle = { width: "100%", fontSize: 12, padding: "7px 10px", border: `1px solid ${C.border}`, borderRadius: 6, outline: "none", color: C.textPrimary, background: C.surface, boxSizing: "border-box" };
+    const labelStyle = { fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 4, display: "block" };
+
+    return (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+            <div style={{ background: C.surface, borderRadius: 12, width: 420, boxShadow: "0 12px 48px rgba(24,55,75,0.3)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+                <div style={{ background: C.navy, padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontFamily: T.display, fontSize: 14, color: C.iceLight }}>{mode === "add" ? "Add Association" : "Edit Association"}</span>
+                    <button onClick={onClose} style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+                    <div>
+                        <label style={labelStyle}>Group</label>
+                        <select value={group} onChange={e => { setGroup(e.target.value); setSysName(""); setProcess(""); }} style={{ ...inputStyle }}>
+                            {groupOptions.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label style={labelStyle}>System</label>
+                        <input list="assoc-sys-list" value={sysName} onChange={e => { setSysName(e.target.value); setProcess(""); }} placeholder="Type or select a system…" style={inputStyle} />
+                        <datalist id="assoc-sys-list">
+                            {systemsInGroup.map(s => <option key={s.id} value={s.name} />)}
+                        </datalist>
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Process</label>
+                        <input list="assoc-proc-list" value={process} onChange={e => setProcess(e.target.value)} placeholder="Type or select a process…" style={inputStyle} />
+                        <datalist id="assoc-proc-list">
+                            {procsInSys.map(p => <option key={p} value={p} />)}
+                        </datalist>
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Biomarker</label>
+                        <input value={biomarker} onChange={e => setBiomarker(e.target.value)} placeholder="Biomarker name" style={inputStyle} onKeyDown={e => e.key === "Enter" && handleSave()} />
+                    </div>
+                    {err && <div style={{ fontSize: 11, color: C.critical, background: `${C.critical}12`, border: `1px solid ${C.critical}33`, borderRadius: 6, padding: "7px 10px" }}>{err}</div>}
+                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                        <button onClick={onClose} style={{ fontSize: 12, padding: "7px 16px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted, cursor: "pointer" }}>Cancel</button>
+                        <button onClick={handleSave} style={{ fontSize: 12, padding: "7px 20px", borderRadius: 6, border: "none", background: C.navy, color: C.iceLight, cursor: "pointer", fontWeight: 600 }}>Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── ExportTab ────────────────────────────────────────────────────────────────
-function ExportTab({ profiles, activeProfile, exportProfile, card }) {
+function ExportTab({ profiles, activeProfile, exportProfile, card, assocSystems }) {
     const [selProfileId, setSelProfileId] = useState(activeProfile?.id ?? profiles[0]?.id);
     const selProfile = profiles.find(p => p.id === selProfileId) ?? profiles[0];
 
@@ -4999,7 +5290,7 @@ function ExportTab({ profiles, activeProfile, exportProfile, card }) {
         const rows = [["System", "Process", "Biomarker", "Bio Weight", "Bio Color", "Bio Level", "Bio PubMed", "Proc Weight", "Proc Color", "Proc PubMed"]];
         const DEFAULT_BIO = { weight: 1, color: "red", level: "both", ref: "" };
         const DEFAULT_PROC = { weight: 1, color: "red", ref: "" };
-        ALL_SYSTEMS.forEach(sys => {
+        assocSystems.forEach(sys => {
             Object.entries(sys.processes).forEach(([proc, bms]) => {
                 const pe = profile.procWeights[proc] ?? DEFAULT_PROC;
                 bms.forEach(bmName => {
