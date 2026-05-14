@@ -3024,7 +3024,30 @@ function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysS
 
 // ─── Biomarker Weights ────────────────────────────────────────────────────────
 function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, greenPct, yellowWeight, setYellowWeight, redWeight, setRedWeight, card, editConc, setEditConc, setConcWarnModal, concOverrides, setConcOverrides, clientMarkers, systemId }) {
+    const frozenOrderRef = useRef({ proc: null, order: null });
+
     if (!activeProcResult) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>Select a process from the left panel.</div>;
+
+    // Compute sorted biomarkers, but freeze the order once a proc is loaded.
+    // Re-sort only when the selected process changes, not on every weight change.
+    let sortedBiomarkers;
+    if (editConc) {
+        frozenOrderRef.current = { proc: null, order: null }; // reset so next non-edit load re-sorts
+        sortedBiomarkers = activeProcResult.biomarkers;
+    } else if (frozenOrderRef.current.proc !== selProc) {
+        const sorted = [...activeProcResult.biomarkers].sort((a, b) => {
+            if (a.missing && b.missing) return 0;
+            if (a.missing) return 1;
+            if (b.missing) return -1;
+            return a.score - b.score;
+        });
+        frozenOrderRef.current = { proc: selProc, order: sorted.map(b => b.name) };
+        sortedBiomarkers = sorted;
+    } else {
+        const byName = Object.fromEntries(activeProcResult.biomarkers.map(b => [b.name, b]));
+        sortedBiomarkers = frozenOrderRef.current.order.map(name => byName[name]).filter(Boolean);
+    }
+
     return (
         <div>
             <div style={{
@@ -3111,15 +3134,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(330px,1fr))", gap: 18 }}>
-                {(editConc
-                    ? activeProcResult.biomarkers
-                    : [...activeProcResult.biomarkers].sort((a, b) => {
-                        if (a.missing && b.missing) return 0;
-                        if (a.missing) return 1;
-                        if (b.missing) return -1;
-                        return a.score - b.score;
-                    })
-                ).map((bm, bmIdx) => {
+                {sortedBiomarkers.map((bm, bmIdx) => {
                     const isFirstVisible = bmIdx === 0 && !bm.missing;
                     if (bm.missing) return (
                         <div key={bm.name} style={{ ...card, opacity: 0.4, padding: 12 }}>
