@@ -2055,7 +2055,7 @@ export default function App() {
                                 return;
                             }
                             setActiveView(v);
-                            if (v === "aggregate") { setCol1Open(false); setCol2Open(false); }
+                            if (v === "aggregate" || v === "associations") { setCol1Open(false); setCol2Open(false); }
                             if (v === "client") { setCol1Open(true); setCol2Open(true); }
                             // Tutorial: step 2 waits for user to click Adjust Weighting; step 12 waits for Aggregate
                             if (v === "client") setTutorialStep(prev => prev === 1 ? 2 : prev);
@@ -5303,7 +5303,8 @@ function AssocModal({ mode, initialRow, assocSystems, sysGroups, onSave, onClose
         if (!sysName.trim()) { setErr("System name is required."); return; }
         if (!process.trim()) { setErr("Process is required."); return; }
         if (!biomarker.trim()) { setErr("Biomarker is required."); return; }
-        onSave(group, sysName.trim(), process.trim(), biomarker.trim(), level, pmid);
+        const normalizedPmid = pmid.replace(/,/g, ";").replace(/;\s*/g, "; ").trim().replace(/;\s*$/, "");
+        onSave(group, sysName.trim(), process.trim(), biomarker.trim(), level, normalizedPmid);
     }
 
     const groupOptions = [["health", "Health Systems"], ["disease", "Disease Area"], ["cancer", "Cancer Hallmarks"]];
@@ -5357,8 +5358,8 @@ function AssocModal({ mode, initialRow, assocSystems, sysGroups, onSave, onClose
                     </div>
                     <div>
                         <label style={labelStyle}>PMID(s)</label>
-                        <input value={pmid} onChange={e => setPmid(e.target.value)} placeholder="e.g. 20056955; 32627751, 35439996" style={inputStyle} />
-                        <div style={{ fontSize: 10, color: C.textFaint, marginTop: 5 }}>Separate multiple PMIDs with ";" or ","</div>
+                        <input value={pmid} onChange={e => setPmid(e.target.value)} placeholder="e.g. 20056955; 32627751; 35439996" style={inputStyle} />
+                        <div style={{ fontSize: 10, color: C.textFaint, marginTop: 5 }}>Separate multiple PMIDs with ";"</div>
                     </div>
                     {err && <div style={{ fontSize: 11, color: C.critical, background: `${C.critical}12`, border: `1px solid ${C.critical}33`, borderRadius: 6, padding: "7px 10px" }}>{err}</div>}
                     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
