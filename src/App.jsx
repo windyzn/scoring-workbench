@@ -322,6 +322,14 @@ const DEFAULT_ALL_SYSTEMS = [
     ...CANCER_SYSTEMS.map(s => ({ ...s, group: "cancer" })),
 ];
 
+// Metadata for each association group: controls display label and whether
+// it is a 2-level group (System → Biomarker, no intermediate Process).
+const DEFAULT_ASSOC_GROUPS = [
+    { id: "health",  label: "Health Systems",   twoLevel: false },
+    { id: "disease", label: "Disease Area",      twoLevel: false },
+    { id: "cancer",  label: "Cancer Hallmarks",  twoLevel: true  },
+];
+
 // All biomarker and process weights default to 1.0 — zone-based auto-weighting
 // is handled dynamically at score time using yellowWeight / redWeight globals.
 // Bio weight entry: { weight, color, level, ref }
@@ -1632,14 +1640,31 @@ export default function App() {
     useEffect(() => {
         localStorage.setItem("myco_assoc_systems", JSON.stringify(assocSystems));
     }, [assocSystems]);
-    const healthSystems  = useMemo(() => assocSystems.filter(s => s.group === "health"),  [assocSystems]);
-    const diseaseSystems = useMemo(() => assocSystems.filter(s => s.group === "disease"), [assocSystems]);
-    const cancerSystems  = useMemo(() => assocSystems.filter(s => s.group === "cancer"),  [assocSystems]);
-    const sysGroups = useMemo(() => [
-        { label: "Health Systems",   systems: healthSystems  },
-        { label: "Disease Area",     systems: diseaseSystems },
-        { label: "Cancer Hallmarks", systems: cancerSystems  },
-    ], [healthSystems, diseaseSystems, cancerSystems]);
+    const [assocGroups, setAssocGroups] = useState(() => {
+        try {
+            const saved = localStorage.getItem("myco_assoc_groups");
+            if (saved) return JSON.parse(saved);
+        } catch {}
+        return DEFAULT_ASSOC_GROUPS;
+    });
+    useEffect(() => {
+        localStorage.setItem("myco_assoc_groups", JSON.stringify(assocGroups));
+    }, [assocGroups]);
+
+    // healthSystems = first group's systems (used for process-weight export + fallback selectors)
+    const healthSystems = useMemo(() =>
+        assocSystems.filter(s => s.group === (assocGroups[0]?.id ?? "health")),
+    [assocSystems, assocGroups]);
+
+    // sysGroups is fully dynamic — each entry carries groupId + twoLevel flag
+    const sysGroups = useMemo(() =>
+        assocGroups.map(g => ({
+            label:    g.label,
+            groupId:  g.id,
+            twoLevel: g.twoLevel ?? false,
+            systems:  assocSystems.filter(s => s.group === g.id),
+        })),
+    [assocGroups, assocSystems]);
 
     const [profiles, setProfiles] = useState([makeProfile("default", "Default")]);
     const [activeProfileId, setActiveProfileId] = useState("default");
@@ -2828,7 +2853,7 @@ export default function App() {
                 {/* ── Main area ── */}
                 <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minWidth: 0 }}>
                     {activeView === "associations" ? (
-                        <AssociationsTab assocSystems={assocSystems} setAssocSystems={setAssocSystems} sysGroups={sysGroups} defaultSystems={DEFAULT_ALL_SYSTEMS} card={card} />
+                        <AssociationsTab assocSystems={assocSystems} setAssocSystems={setAssocSystems} assocGroups={assocGroups} setAssocGroups={setAssocGroups} defaultGroups={DEFAULT_ASSOC_GROUPS} sysGroups={sysGroups} defaultSystems={DEFAULT_ALL_SYSTEMS} card={card} />
                     ) : !hasData ? (
                         <UploadPrompt fileRef={fileRef} dragOver={dragOver} setDragOver={setDragOver} handleFile={handleFile} uploadErr={uploadErr} isUploading={isUploading} loadDemo={loadDemo} personas={DEMO_PERSONAS} />
                     ) : activeView === "aggregate" ? (
@@ -5002,7 +5027,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card, 
 }
 
 // ─── AssociationsTab ─────────────────────────────────────────────────────────
-function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSystems, card }) {
+function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocGroups, defaultGroups, sysGroups, defaultSystems, card }) {
     const [search, setSearch] = useState("");
     const [systemFilter, setSystemFilter] = useState("all");
     const [modal, setModal] = useState(null); // null | { mode: "add"|"edit", row?: assocRow }
@@ -5021,7 +5046,15 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
         )
     );
 
-    const groupLabel = g => g === "health" ? "Health Systems" : g === "disease" ? "Disease Area" : "Cancer Hallmarks";
+    // Dynamic group helpers — works for any group, including user-created ones
+    const groupLabel = g => assocGroups.find(ag => ag.id === g)?.label ?? g;
+    const isTwoLevelGroup = g => assocGroups.find(ag => ag.id === g)?.twoLevel ?? false;
+    // Colour palette cycles for unlimited groups
+    const GROUP_PALETTE = [C.teal, C.fair, C.steel, "#a78bfa", "#f59e0b", "#34d399", "#fb7185"];
+    const groupColor = g => {
+        const idx = assocGroups.findIndex(ag => ag.id === g);
+        return GROUP_PALETTE[Math.max(0, idx) % GROUP_PALETTE.length];
+    };
 
     const filtered = allRows.filter(r => {
         if (systemFilter !== "all") {
@@ -5121,7 +5154,8 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
         });
     }
 
-    const exportGroupLabel = g => g === "health" ? "health_system" : g === "disease" ? "health_area" : "cancer_hallmark";
+    const BUILTIN_GROUP_EXPORT = { health: "health_system", disease: "health_area", cancer: "cancer_hallmark" };
+    const exportGroupLabel = g => BUILTIN_GROUP_EXPORT[g] ?? g;
 
     // ── CSV Export ──
     function exportAssocCSV() {
@@ -5143,6 +5177,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
                 const rows = parseCSV(e.target.result);
                 if (!rows.length) throw new Error("No rows found.");
                 const rebuilt = [];
+                const newGroupsFromImport = new Map(); // groupId → groupId for any unseen groups
                 rows.forEach(row => {
                     const rawGroup = (row["group"] ?? "health").trim().toLowerCase();
                     const sysId  = (row["system_id"] ?? "").trim();
@@ -5151,23 +5186,38 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
                     const bm     = (row["biomarker"] ?? "").trim();
                     const lvl    = (row["level"] ?? "both").trim().toLowerCase();
                     const pmid   = (row["pmid"] ?? "").trim();
-                    if (!sysName || !proc || !bm) return;
-                    // Accept both new names (health_system, health_area, cancer_hallmark) and legacy names
-                    const groupMap = { health_system: "health", health_area: "disease", cancer_hallmark: "cancer", health: "health", disease: "disease", cancer: "cancer" };
-                    const validGroup = groupMap[rawGroup] ?? "health";
+                    if (!sysName || !bm) return;
+                    // Accept builtin export names, legacy names, and custom group IDs
+                    const builtinImportMap = { health_system: "health", health_area: "disease", cancer_hallmark: "cancer", health: "health", disease: "disease", cancer: "cancer" };
+                    const customGroupIds = assocGroups.map(g => g.id);
+                    const validGroup = builtinImportMap[rawGroup] ?? (customGroupIds.includes(rawGroup) ? rawGroup : rawGroup || "health");
                     const validLevel = ["high", "low", "both"].includes(lvl) ? lvl : "both";
+                    // For 2-level groups (no process column in CSV), fall back to system name
+                    const isTwoLvl = assocGroups.find(ag => ag.id === validGroup)?.twoLevel ?? false;
+                    const finalProc = proc || (isTwoLvl ? sysName : "");
+                    if (!finalProc) return;
                     let sys = rebuilt.find(s => s.name === sysName && s.group === validGroup);
                     if (!sys) {
                         sys = { id: sysId || sysName.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 30), name: sysName, group: validGroup, processes: {}, levels: {}, pmids: {} };
                         rebuilt.push(sys);
                     }
                     if (!sys.pmids) sys.pmids = {};
-                    if (!sys.processes[proc]) sys.processes[proc] = [];
-                    if (!sys.processes[proc].includes(bm)) sys.processes[proc].push(bm);
-                    if (validLevel !== "both") sys.levels[`${proc}::${bm}`] = validLevel;
-                    if (pmid) sys.pmids[`${proc}::${bm}`] = pmid;
+                    if (!sys.processes[finalProc]) sys.processes[finalProc] = [];
+                    if (!sys.processes[finalProc].includes(bm)) sys.processes[finalProc].push(bm);
+                    if (validLevel !== "both") sys.levels[`${finalProc}::${bm}`] = validLevel;
+                    if (pmid) sys.pmids[`${finalProc}::${bm}`] = pmid;
+                    // Register unknown groups so the UI knows about them
+                    newGroupsFromImport.set(validGroup, validGroup);
                 });
                 if (!rebuilt.length) throw new Error("No valid association rows found.");
+                // Merge any newly-imported groups into assocGroups
+                setAssocGroups(prev => {
+                    const existingIds = new Set(prev.map(g => g.id));
+                    const additions = [...newGroupsFromImport.keys()]
+                        .filter(id => !existingIds.has(id))
+                        .map(id => ({ id, label: id, twoLevel: false }));
+                    return additions.length ? [...prev, ...additions] : prev;
+                });
                 setAssocSystems(rebuilt);
             } catch (err) {
                 alert("Import failed: " + err.message);
@@ -5195,15 +5245,12 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
                     style={{ fontSize: 11, padding: "6px 10px", borderRadius: 7, border: `1px solid ${systemFilter !== "all" ? C.teal : C.border}`, color: systemFilter !== "all" ? C.teal : C.textMuted, background: C.surface, cursor: "pointer", outline: "none" }}
                 >
                     <option value="all">All Groups</option>
-                    {sysGroups.map(({ label, systems }) => {
-                        const gKey = label === "Health Systems" ? "health" : label === "Disease Area" ? "disease" : "cancer";
-                        return (
-                            <optgroup key={gKey} label={label}>
-                                <option value={`group:${gKey}`}>— All {label} —</option>
-                                {systems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </optgroup>
-                        );
-                    })}
+                    {sysGroups.map(({ label, groupId, systems }) => (
+                        <optgroup key={groupId} label={label}>
+                            <option value={`group:${groupId}`}>— All {label} —</option>
+                            {systems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </optgroup>
+                    ))}
                 </select>
                 <div style={{ flex: 1 }} />
                 <button onClick={() => setModal({ mode: "add" })} style={{ ...btnBase, background: C.teal, color: C.navy, border: "none" }}>+ Add Row</button>
@@ -5214,7 +5261,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
                     ? <button onClick={() => setResetConfirm(true)} style={{ ...btnBase, color: C.critical, borderColor: C.critical }}>Reset to Defaults</button>
                     : <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                         <span style={{ fontSize: 11, color: C.critical }}>Reset all associations?</span>
-                        <button onClick={() => { setAssocSystems(defaultSystems); setResetConfirm(false); }} style={{ ...btnBase, background: C.critical, color: "#fff", border: "none" }}>Yes, reset</button>
+                        <button onClick={() => { setAssocSystems(defaultSystems); setAssocGroups(defaultGroups); setResetConfirm(false); }} style={{ ...btnBase, background: C.critical, color: "#fff", border: "none" }}>Yes, reset</button>
                         <button onClick={() => setResetConfirm(false)} style={btnBase}>Cancel</button>
                     </div>
                 }
@@ -5238,12 +5285,14 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
                             <tr key={`${row.systemId}::${row.process}::${row.biomarker}`}
                                 style={{ background: i % 2 === 0 ? "transparent" : `${C.iceLight}40`, borderTop: `1px solid ${C.border}` }}>
                                 <td style={{ padding: "7px 14px", color: C.textFaint, fontSize: 10, whiteSpace: "nowrap" }}>
-                                    <span style={{ padding: "2px 7px", borderRadius: 4, background: row.group === "health" ? `${C.teal}18` : row.group === "disease" ? `${C.fair}18` : `${C.steel}18`, color: row.group === "health" ? C.teal : row.group === "disease" ? C.fair : C.steel, fontWeight: 600 }}>
+                                    <span style={{ padding: "2px 7px", borderRadius: 4, background: `${groupColor(row.group)}18`, color: groupColor(row.group), fontWeight: 600 }}>
                                         {groupLabel(row.group)}
                                     </span>
                                 </td>
                                 <td style={{ padding: "7px 14px", color: C.textSecond, fontWeight: 500 }}>{row.systemName}</td>
-                                <td style={{ padding: "7px 14px", color: C.textMuted }}>{row.process}</td>
+                                <td style={{ padding: "7px 14px", color: isTwoLevelGroup(row.group) ? C.border : C.textMuted, fontStyle: isTwoLevelGroup(row.group) ? "italic" : "normal" }}>
+                                    {isTwoLevelGroup(row.group) ? "—" : row.process}
+                                </td>
                                 <td style={{ padding: "7px 14px", color: C.textPrimary, fontFamily: T.body }}>{row.biomarker}</td>
                                 <td style={{ padding: "4px 10px", whiteSpace: "nowrap" }}>
                                     <div style={{ display: "flex", gap: 3 }}>
@@ -5282,6 +5331,8 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
                     initialRow={modal.row}
                     assocSystems={assocSystems}
                     sysGroups={sysGroups}
+                    assocGroups={assocGroups}
+                    onCreateGroup={newGroup => setAssocGroups(prev => [...prev, newGroup])}
                     onSave={(group, systemName, process, biomarker, level, pmid) => {
                         applyUpsert(group, systemName, process, biomarker, level, pmid, modal.mode === "edit" ? modal.row : null);
                         setModal(null);
@@ -5293,45 +5344,101 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
     );
 }
 
-function AssocModal({ mode, initialRow, assocSystems, sysGroups, onSave, onClose }) {
-    const [group, setGroup]       = useState(initialRow?.group ?? "health");
-    const [sysName, setSysName]   = useState(initialRow?.systemName ?? "");
-    const [process, setProcess]   = useState(initialRow?.process ?? "");
+function AssocModal({ mode, initialRow, assocSystems, sysGroups, assocGroups, onCreateGroup, onSave, onClose }) {
+    const [group, setGroup]         = useState(initialRow?.group ?? (assocGroups[0]?.id ?? "health"));
+    const [sysName, setSysName]     = useState(initialRow?.systemName ?? "");
+    const [process, setProcess]     = useState(initialRow?.process ?? "");
     const [biomarker, setBiomarker] = useState(initialRow?.biomarker ?? "");
-    const [level, setLevel]       = useState(initialRow?.level ?? "both");
-    const [pmid, setPmid]         = useState(initialRow?.pmid ?? "");
-    const [err, setErr] = useState("");
+    const [level, setLevel]         = useState(initialRow?.level ?? "both");
+    const [pmid, setPmid]           = useState(initialRow?.pmid ?? "");
+    const [err, setErr]             = useState("");
+
+    // New group creation mini-form
+    const [showNewGroup, setShowNewGroup]       = useState(false);
+    const [newGroupLabel, setNewGroupLabel]     = useState("");
+    const [newGroupTwoLevel, setNewGroupTwoLevel] = useState(false);
+
+    const selectedGroupMeta = assocGroups.find(ag => ag.id === group);
+    const isTwoLevel = selectedGroupMeta?.twoLevel ?? false;
 
     const systemsInGroup = assocSystems.filter(s => s.group === group);
     const matchedSys = systemsInGroup.find(s => s.name.toLowerCase() === sysName.toLowerCase());
     const procsInSys = matchedSys ? Object.keys(matchedSys.processes) : [];
 
-    function handleSave() {
-        if (!sysName.trim()) { setErr("System name is required."); return; }
-        if (!process.trim()) { setErr("Process is required."); return; }
-        if (!biomarker.trim()) { setErr("Biomarker is required."); return; }
-        const normalizedPmid = pmid.replace(/,/g, ";").replace(/;\s*/g, "; ").trim().replace(/;\s*$/, "");
-        onSave(group, sysName.trim(), process.trim(), biomarker.trim(), level, normalizedPmid);
+    function handleGroupChange(v) {
+        if (v === "__new__") { setShowNewGroup(true); return; }
+        setGroup(v); setSysName(""); setProcess(""); setShowNewGroup(false);
     }
 
-    const groupOptions = [["health", "Health Systems"], ["disease", "Disease Area"], ["cancer", "Cancer Hallmarks"]];
+    function handleCreateGroup() {
+        const label = newGroupLabel.trim();
+        if (!label) return;
+        const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 30);
+        const existing = assocGroups.find(ag => ag.id === id || ag.label.toLowerCase() === label.toLowerCase());
+        if (existing) { setGroup(existing.id); setShowNewGroup(false); return; }
+        onCreateGroup({ id, label, twoLevel: newGroupTwoLevel });
+        setGroup(id);
+        setShowNewGroup(false);
+        setNewGroupLabel("");
+        setNewGroupTwoLevel(false);
+        setSysName(""); setProcess("");
+    }
+
+    function handleSave() {
+        if (!sysName.trim()) { setErr("System name is required."); return; }
+        const finalProcess = isTwoLevel ? sysName.trim() : process.trim();
+        if (!finalProcess) { setErr("Process is required."); return; }
+        if (!biomarker.trim()) { setErr("Biomarker is required."); return; }
+        const normalizedPmid = pmid.replace(/,/g, ";").replace(/;\s*/g, "; ").trim().replace(/;\s*$/, "");
+        onSave(group, sysName.trim(), finalProcess, biomarker.trim(), level, normalizedPmid);
+    }
+
     const inputStyle = { width: "100%", fontSize: 12, padding: "7px 10px", border: `1px solid ${C.border}`, borderRadius: 6, outline: "none", color: C.textPrimary, background: C.surface, boxSizing: "border-box" };
     const labelStyle = { fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 4, display: "block" };
 
     return (
         <div style={{ position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
-            <div style={{ background: C.surface, borderRadius: 12, width: 420, boxShadow: "0 12px 48px rgba(24,55,75,0.3)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: C.surface, borderRadius: 12, width: 440, boxShadow: "0 12px 48px rgba(24,55,75,0.3)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
                 <div style={{ background: C.navy, padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontFamily: T.display, fontSize: 14, color: C.iceLight }}>{mode === "add" ? "Add Association" : "Edit Association"}</span>
                     <button onClick={onClose} style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
                 </div>
                 <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+                    {/* Group selector */}
                     <div>
                         <label style={labelStyle}>Group</label>
-                        <select value={group} onChange={e => { setGroup(e.target.value); setSysName(""); setProcess(""); }} style={{ ...inputStyle }}>
-                            {groupOptions.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        <select value={showNewGroup ? "__new__" : group} onChange={e => handleGroupChange(e.target.value)} style={{ ...inputStyle }}>
+                            {assocGroups.map(ag => <option key={ag.id} value={ag.id}>{ag.label}{ag.twoLevel ? " (2-level)" : ""}</option>)}
+                            <option value="__new__">+ New group…</option>
                         </select>
                     </div>
+
+                    {/* New group mini-form */}
+                    {showNewGroup && (
+                        <div style={{ border: `1px solid ${C.teal}44`, borderRadius: 8, padding: "12px 14px", background: `${C.teal}06`, display: "flex", flexDirection: "column", gap: 10 }}>
+                            <div style={{ fontSize: 11, color: C.teal, fontWeight: 700 }}>Create New Group</div>
+                            <input
+                                value={newGroupLabel} onChange={e => setNewGroupLabel(e.target.value)}
+                                placeholder="Group name (e.g. Hormones)"
+                                style={inputStyle}
+                                onKeyDown={e => e.key === "Enter" && handleCreateGroup()}
+                                autoFocus
+                            />
+                            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: C.textMuted }}>
+                                <input type="checkbox" checked={newGroupTwoLevel} onChange={e => setNewGroupTwoLevel(e.target.checked)} />
+                                2-level group — System → Biomarker only (no Process)
+                            </label>
+                            <div style={{ fontSize: 10, color: C.textFaint }}>
+                                Use 2-level for hallmark-style groups where biomarkers link directly to the system with no intermediate process.
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                                <button onClick={handleCreateGroup} style={{ fontSize: 11, padding: "5px 14px", borderRadius: 6, border: "none", background: C.teal, color: C.navy, cursor: "pointer", fontWeight: 700 }}>Create Group</button>
+                                <button onClick={() => { setShowNewGroup(false); setNewGroupLabel(""); setNewGroupTwoLevel(false); }} style={{ fontSize: 11, padding: "5px 12px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted, cursor: "pointer" }}>Cancel</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* System */}
                     <div>
                         <label style={labelStyle}>System</label>
                         <input list="assoc-sys-list" value={sysName} onChange={e => { setSysName(e.target.value); setProcess(""); }} placeholder="Type or select a system…" style={inputStyle} />
@@ -5339,17 +5446,29 @@ function AssocModal({ mode, initialRow, assocSystems, sysGroups, onSave, onClose
                             {systemsInGroup.map(s => <option key={s.id} value={s.name} />)}
                         </datalist>
                     </div>
-                    <div>
-                        <label style={labelStyle}>Process</label>
-                        <input list="assoc-proc-list" value={process} onChange={e => setProcess(e.target.value)} placeholder="Type or select a process…" style={inputStyle} />
-                        <datalist id="assoc-proc-list">
-                            {procsInSys.map(p => <option key={p} value={p} />)}
-                        </datalist>
-                    </div>
+
+                    {/* Process — hidden for 2-level groups */}
+                    {isTwoLevel ? (
+                        <div style={{ fontSize: 11, color: C.textFaint, background: `${C.teal}08`, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 12px", lineHeight: 1.5 }}>
+                            This is a 2-level group — biomarkers link directly to the system with no intermediate process.
+                        </div>
+                    ) : (
+                        <div>
+                            <label style={labelStyle}>Process</label>
+                            <input list="assoc-proc-list" value={process} onChange={e => setProcess(e.target.value)} placeholder="Type or select a process…" style={inputStyle} />
+                            <datalist id="assoc-proc-list">
+                                {procsInSys.map(p => <option key={p} value={p} />)}
+                            </datalist>
+                        </div>
+                    )}
+
+                    {/* Biomarker */}
                     <div>
                         <label style={labelStyle}>Biomarker</label>
                         <input value={biomarker} onChange={e => setBiomarker(e.target.value)} placeholder="Biomarker name" style={inputStyle} />
                     </div>
+
+                    {/* Level */}
                     <div>
                         <label style={labelStyle}>Biomarker Level</label>
                         <div style={{ display: "flex", gap: 8 }}>
@@ -5363,11 +5482,14 @@ function AssocModal({ mode, initialRow, assocSystems, sysGroups, onSave, onClose
                         </div>
                         <div style={{ fontSize: 10, color: C.textFaint, marginTop: 5 }}>Impact when biomarker is high / low / either direction</div>
                     </div>
+
+                    {/* PMID */}
                     <div>
                         <label style={labelStyle}>PMID(s)</label>
                         <input value={pmid} onChange={e => setPmid(e.target.value)} placeholder="e.g. 20056955; 32627751; 35439996" style={inputStyle} />
                         <div style={{ fontSize: 10, color: C.textFaint, marginTop: 5 }}>Separate multiple PMIDs with ";"</div>
                     </div>
+
                     {err && <div style={{ fontSize: 11, color: C.critical, background: `${C.critical}12`, border: `1px solid ${C.critical}33`, borderRadius: 6, padding: "7px 10px" }}>{err}</div>}
                     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
                         <button onClick={onClose} style={{ fontSize: 12, padding: "7px 16px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted, cursor: "pointer" }}>Cancel</button>
