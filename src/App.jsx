@@ -1312,7 +1312,8 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
             const rng = m.refHigh - m.refLow, gL = m.refLow + gp * rng, gH = m.refHigh - gp * rng;
             const manualW = typeof entry === "object" ? entry.weight : entry;
             const status = m.value > gH ? "HIGH" : m.value < gL ? "LOW" : "NORMAL";
-            const effW = effectiveWeight(entry, hasEntry, zone, status, yellowW, redW, level);
+            // Biomarker→process only affects the score when in the red zone
+            const effW = zone === "red" ? effectiveWeight(entry, hasEntry, zone, status, yellowW, redW, level) : 0;
             return {
                 name, value: m.value, refLow: m.refLow, refHigh: m.refHigh,
                 score: s, zone, weight: manualW, effWeight: effW, missing: false,
@@ -1320,7 +1321,9 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
             };
         });
         const valid = scored.filter(b => !b.missing);
-        const score = valid.length ? wavg(valid.map(b => [b.score, b.effWeight])) : null;
+        // Process score: weighted average of red-zone biomarkers only; if none are red → 100 (all optimal)
+        const redValid = valid.filter(b => b.effWeight > 0);
+        const score = valid.length === 0 ? null : redValid.length === 0 ? 100 : wavg(redValid.map(b => [b.score, b.effWeight]));
         return { process: proc, score, biomarkers: scored };
     });
     const valid = procResults.filter(p => p.score !== null);
@@ -3081,7 +3084,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                     <div>
                         <div style={{ fontSize: 15, fontFamily: T.display, color: C.navy }}>{selProc}</div>
                         <div style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>
-                            {activeProcResult.biomarkers.filter(b => !b.missing).length} markers · green zone ±{(greenPct * 100).toFixed(0)}% inside ref
+                            {activeProcResult.biomarkers.filter(b => !b.missing).length} markers · only red-zone biomarkers affect the score
                         </div>
                     </div>
                     {activeProcResult.score != null &&
@@ -3130,7 +3133,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                                 )}
                             </div>
                         ))}
-                        <Tooltip text={"Global multipliers applied to out-of-range biomarkers when no manual weight override is active.\n\nYellow (default 2×): applied to biomarkers just outside the reference range.\nRed (default 4×): applied to biomarkers well outside the reference range.\n\nHigher values give flagged markers stronger influence on the process score."}>
+                        <Tooltip text={"Global multiplier applied to red-zone biomarkers when no manual weight override is active.\n\nOnly red-zone biomarkers contribute to the process score — green and yellow biomarkers are treated as optimal and do not pull the score down.\n\nRed (default 4×): scales how heavily a red-zone biomarker influences the process score relative to others.\n\nHigher values give out-of-range markers stronger influence on the process score."}>
                             <span style={{
                                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                                 width: 14, height: 14, borderRadius: "50%", background: C.iceMid,
@@ -3348,7 +3351,7 @@ function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, set
 
             <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 14, lineHeight: 1.7 }}>
                 Scoring curves for <strong style={{ color: C.textSecond }}>{selProc}</strong>.
-                Teal band = green zone · grey bands = yellow · dot = client value.
+                Teal = green zone · grey = yellow · red zone affects score · dot =client value.
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(330px,1fr))", gap: 18 }}>
                 {valid.map(bm => {
@@ -3654,7 +3657,7 @@ function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose
                         <ScoringCurve refLow={bm.refLow} refHigh={bm.refHigh} value={bm.value}
                             cutoff={cutoff} greenPct={greenPct} curve={curve} level={bm.level ?? "both"} />
                         <div style={{ fontSize: 9, color: C.textFaint, marginTop: 4 }}>
-                            Teal band = green zone · grey bands = yellow · dot = measured value
+                            Teal = green zone · grey = yellow · red zone affects score · dot =measured value
                         </div>
                     </div>
 
@@ -5118,10 +5121,12 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
         });
     }
 
+    const exportGroupLabel = g => g === "health" ? "health_system" : g === "disease" ? "health_area" : "cancer_hallmark";
+
     // ── CSV Export ──
     function exportAssocCSV() {
-        const header = ["GROUP", "SYSTEM_ID", "SYSTEM_NAME", "PROCESS", "BIOMARKER", "LEVEL", "PMID"];
-        const rows = allRows.map(r => [r.group, r.systemId, r.systemName, r.process, r.biomarker, r.level, r.pmid]);
+        const header = ["GROUP", "SYSTEM_NAME", "PROCESS", "BIOMARKER", "LEVEL", "PMID"];
+        const rows = allRows.map(r => [exportGroupLabel(r.group), r.systemName, r.process, r.biomarker, r.level, r.pmid]);
         const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
         const a = document.createElement("a");
         a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -5139,7 +5144,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
                 if (!rows.length) throw new Error("No rows found.");
                 const rebuilt = [];
                 rows.forEach(row => {
-                    const group = (row["group"] ?? "health").trim().toLowerCase();
+                    const rawGroup = (row["group"] ?? "health").trim().toLowerCase();
                     const sysId  = (row["system_id"] ?? "").trim();
                     const sysName = (row["system_name"] ?? "").trim();
                     const proc   = (row["process"] ?? "").trim();
@@ -5147,7 +5152,9 @@ function AssociationsTab({ assocSystems, setAssocSystems, sysGroups, defaultSyst
                     const lvl    = (row["level"] ?? "both").trim().toLowerCase();
                     const pmid   = (row["pmid"] ?? "").trim();
                     if (!sysName || !proc || !bm) return;
-                    const validGroup = ["health", "disease", "cancer"].includes(group) ? group : "health";
+                    // Accept both new names (health_system, health_area, cancer_hallmark) and legacy names
+                    const groupMap = { health_system: "health", health_area: "disease", cancer_hallmark: "cancer", health: "health", disease: "disease", cancer: "cancer" };
+                    const validGroup = groupMap[rawGroup] ?? "health";
                     const validLevel = ["high", "low", "both"].includes(lvl) ? lvl : "both";
                     let sys = rebuilt.find(s => s.name === sysName && s.group === validGroup);
                     if (!sys) {
