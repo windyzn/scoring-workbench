@@ -19,7 +19,17 @@ This document describes how a raw biomarker measurement is turned into a score b
 
 ## 1. Overview
 
-The full scoring system has three levels:
+The product uses a three-layer naming convention:
+
+```
+Biomarkers  →  Health Areas  →  Health Systems
+```
+
+- **Biomarkers** are individual lab measurements (e.g. Homocysteine, LDL Cholesterol).
+- **Health Areas** are categorical groupings that define what kind of health system a score belongs to (e.g. Body Systems, Diseases, Fitness). Each health area contains one or more health systems.
+- **Health Systems** are the individual scored entities (e.g. Cardiovascular Health, Type 2 Diabetes, Alzheimer's Disease). A health system can be a body system, a disease, a fitness domain, or a cancer hallmark.
+
+The scoring model mirrors this with a three-level calculation hierarchy:
 
 ```
 Biomarker score  →  Process score  →  Health system score
@@ -27,7 +37,7 @@ Biomarker score  →  Process score  →  Health system score
 
 - Each **biomarker** has a measured concentration and a reference range. The score (0–100) reflects how close the concentration is to the healthy part of that range.
 - Each **process** groups a set of related biomarkers (previously called "pathways"). Its score is the weighted average of the biomarker scores in that group.
-- Each **system** groups a set of related processes. Its score is the weighted average of the process scores in that group.
+- Each **health system** groups a set of related processes. Its score is the weighted average of the process scores in that group.
 
 Weights at the biomarker and process levels can be customised. The sections below explain exactly how each step works.
 

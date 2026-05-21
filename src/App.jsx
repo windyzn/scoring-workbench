@@ -84,8 +84,8 @@ const ALIASES = {
     "Sphingomyelin C16:0": "SM C16:0", "Sphingomyelin C20:2": "SM C20:2",
 };
 
-// ─── Disease Area Systems ────────────────────────────────────────────────────
-// Processes reuse the same biomarker→process mapping as health systems.
+// ─── Disease Health Systems ──────────────────────────────────────────────────
+// Processes reuse the same biomarker→process mapping as body health systems.
 const DISEASE_SYSTEMS = [
     {
         id: "alzheimers_disease", name: "Alzheimer's Disease", processes: {
@@ -326,7 +326,7 @@ const DEFAULT_ALL_SYSTEMS = [
 // it is a 2-level group (System → Biomarker, no intermediate Process).
 const DEFAULT_ASSOC_GROUPS = [
     { id: "health",  label: "Health Systems",   twoLevel: false },
-    { id: "disease", label: "Disease Area",      twoLevel: false },
+    { id: "disease", label: "Diseases",          twoLevel: false },
     { id: "cancer",  label: "Cancer Hallmarks",  twoLevel: true  },
 ];
 
@@ -1954,7 +1954,7 @@ export default function App() {
                     const ref = (row["references"] ?? "").trim();
                     if (!name || isNaN(val)) return;
                     if (cat === "biomarker_weight") {
-                        const sysId = (row["health_area_id"] ?? "").trim();
+                        const sysId = (row["system_id"] ?? row["health_area_id"] ?? "").trim();
                         const nsKey = sysId ? `${sysId}::${name}` : name;
                         newBioWeights[nsKey] = { weight: val, color, level, ref };
                     } else if (cat === "process_weight") {
@@ -2932,7 +2932,7 @@ function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, i
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: "24vh", paddingBottom: "14vh", height: "100%", gap: 24 }}>
             <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 26, fontFamily: T.display, color: C.navy, marginBottom: 8 }}>Biomarker Scoring Workbench</div>
-                <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.8, maxWidth: 440 }}>Upload client lab data to score biomarkers across all seven health systems.</div>
+                <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.8, maxWidth: 440 }}>Upload client lab data to score biomarkers across health systems.</div>
             </div>
             <div data-tutorial="upload-dropzone" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: "100%", maxWidth: 520 }}>
                 <div onClick={() => !isUploading && fileRef.current?.click()}
@@ -3794,7 +3794,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const [overviewYellow, setOverviewYellow] = useState(70);
     const overviewColour = s => s == null ? C.textFaint : Math.floor(s) >= overviewGreen ? C.teal : Math.floor(s) >= overviewYellow ? C.fair : C.critical;
     const overviewBg = s => s == null ? "transparent" : `${overviewColour(s)}18`;
-    const ALL_GROUP_LABELS = ["Health Systems", "Disease Area", "Cancer Hallmarks"];
+    const ALL_GROUP_LABELS = ["Health Systems", "Diseases", "Cancer Hallmarks"];
     const [visibleSysGroups, setVisibleSysGroups] = useState(new Set(ALL_GROUP_LABELS));
     const PROC_GROUPS = sysGroups;
     const ALL_PROCS_FLAT = [...new Set(assocSystems.flatMap(s => Object.keys(s.processes)))];
@@ -3830,7 +3830,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const downloadSysCSV = () => {
         const rows = aggregateData[isComparing ? clientTab : 0].clients;
         const visSystems = assocSystems.filter(s => {
-            const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Disease Area" : "Cancer Hallmarks";
+            const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Diseases" : "Cancer Hallmarks";
             return visibleSysGroups.has(grp);
         });
         const header = ["Client", ...visSystems.map(s => s.name)];
@@ -4002,7 +4002,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             {(() => {
                                 const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
                                 const visibleSystems = assocSystems.filter(s => {
-                                    const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Disease Area" : "Cancer Hallmarks";
+                                    const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Diseases" : "Cancer Hallmarks";
                                     return visibleSysGroups.has(grp);
                                 });
                                 const stickyCell = { position: "sticky", left: 0, zIndex: 2 };
@@ -5154,7 +5154,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
         });
     }
 
-    const BUILTIN_GROUP_EXPORT = { health: "health_system", disease: "health_area", cancer: "cancer_hallmark" };
+    const BUILTIN_GROUP_EXPORT = { health: "health_system", disease: "diseases", cancer: "cancer_hallmark" };
     const exportGroupLabel = g => BUILTIN_GROUP_EXPORT[g] ?? g;
 
     // ── CSV Export ──
@@ -5188,7 +5188,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                     const pmid   = (row["pmid"] ?? "").trim();
                     if (!sysName || !bm) return;
                     // Accept builtin export names, legacy names, and custom group IDs
-                    const builtinImportMap = { health_system: "health", health_area: "disease", cancer_hallmark: "cancer", health: "health", disease: "disease", cancer: "cancer" };
+                    const builtinImportMap = { health_system: "health", diseases: "disease", health_area: "disease", cancer_hallmark: "cancer", health: "health", disease: "disease", cancer: "cancer" };
                     const customGroupIds = assocGroups.map(g => g.id);
                     const validGroup = builtinImportMap[rawGroup] ?? (customGroupIds.includes(rawGroup) ? rawGroup : rawGroup || "health");
                     const validLevel = ["high", "low", "both"].includes(lvl) ? lvl : "both";
