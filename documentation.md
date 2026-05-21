@@ -5,7 +5,7 @@
 
 Modify the calculation of Molecular You's current percentage-based health scores to fit the new system-level scores (implemented with the rollout of the PDF-first product).
 
-This document describes how a raw biomarker measurement is turned into a score between 0 and 100, how those scores are rolled up into process scores, and how process scores are rolled up into the final health system scores.
+This document describes how a raw biomarker measurement is turned into a score between 0 and 100, how those scores are rolled up into health area scores, and how health area scores are rolled up into the final health system scores.
 
 ---
 
@@ -19,25 +19,17 @@ This document describes how a raw biomarker measurement is turned into a score b
 
 ## 1. Overview
 
+![Scoring Architecture](img/scoring_architecture.png)
+
 The product uses a three-layer naming convention:
 
 ```
-Biomarkers  →  Health Areas  →  Health Systems
+Biomarker score  →  Health area score  →  Health system score
 ```
 
-- **Biomarkers** are individual lab measurements (e.g. Homocysteine, LDL Cholesterol).
-- **Health Areas** are categorical groupings that define what kind of health system a score belongs to (e.g. Body Systems, Diseases, Fitness). Each health area contains one or more health systems.
-- **Health Systems** are the individual scored entities (e.g. Cardiovascular Health, Type 2 Diabetes, Alzheimer's Disease). A health system can be a body system, a disease, a fitness domain, or a cancer hallmark.
-
-The scoring model mirrors this with a three-level calculation hierarchy:
-
-```
-Biomarker score  →  Process score  →  Health system score
-```
-
-- Each **biomarker** has a measured concentration and a reference range. The score (0–100) reflects how close the concentration is to the healthy part of that range.
-- Each **process** groups a set of related biomarkers (previously called "pathways"). Its score is the weighted average of the biomarker scores in that group.
-- Each **health system** groups a set of related processes. Its score is the weighted average of the process scores in that group.
+- **Biomarkers** are individual lab measurements (e.g. Homocysteine concentration).
+- **Health Areas** are categorical groupings of biomarkers to highlight body mechanisms. Each health area contains one or more biomarkers, may be the final score, or feed into one or more health systems.
+- **Health Systems** are the grouping of different health areas. A health system can be a body system, a disease, a fitness domain, or a cancer hallmark.
 
 Weights at the biomarker and process levels can be customised. The sections below explain exactly how each step works.
 
@@ -554,7 +546,7 @@ In this case, the same weighted-average logic from section 6 (process score) app
 The model should be expandable. Each additional tier is computed the same way as the previous one: a weighted average of the scores from the tier below. For example, a four-level hierarchy:
 
 ```
-Biomarker score  →  Process score  →  System score  →  Domain score
+Biomarker score  →  Health area score  →  Health system score  →  Domain score
 ```
 
 Each tier uses the same logic: collect scores from the tier below, apply weights and zone multipliers, return a weighted average. Only the labels change.
