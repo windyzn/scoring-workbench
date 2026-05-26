@@ -5030,12 +5030,13 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card, 
 function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocGroups, defaultGroups, sysGroups, defaultSystems, card }) {
     const [search, setSearch] = useState("");
     const [systemFilter, setSystemFilter] = useState("all");
-    const [changesFilter, setChangesFilter] = useState(false);
+    const [statusFilter, setStatusFilter] = useState("all"); // "all" | "new" | "modified"
     const [modal, setModal] = useState(null); // null | { mode: "add"|"edit", row?: assocRow }
     const [resetConfirm, setResetConfirm] = useState(false);
     const assocImportRef = useRef();
 
-    // Flatten all systems into table rows (include level + pmid from sys.levels/pmids)
+    // Flatten all systems into table rows, sorted by group order → system → process → biomarker
+    const groupOrder = g => assocGroups.findIndex(ag => ag.id === g);
     const allRows = assocSystems.flatMap(sys =>
         Object.entries(sys.processes).flatMap(([proc, bms]) =>
             bms.map(bm => ({
@@ -5045,7 +5046,15 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                 pmid: sys.pmids?.[`${proc}::${bm}`] ?? "",
             }))
         )
-    );
+    ).sort((a, b) => {
+        const gd = groupOrder(a.group) - groupOrder(b.group);
+        if (gd !== 0) return gd;
+        const sd = a.systemName.localeCompare(b.systemName);
+        if (sd !== 0) return sd;
+        const pd = a.process.localeCompare(b.process);
+        if (pd !== 0) return pd;
+        return a.biomarker.localeCompare(b.biomarker);
+    });
 
     // Dynamic group helpers — works for any group, including user-created ones
     const groupLabel = g => assocGroups.find(ag => ag.id === g)?.label ?? g;
@@ -5057,8 +5066,26 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
         return GROUP_PALETTE[Math.max(0, idx) % GROUP_PALETTE.length];
     };
 
+    // Change detection — must be defined before filtered to avoid temporal dead zone
+    const defaultLookup = useMemo(() => {
+        const map = new Map();
+        defaultSystems.forEach(sys => {
+            Object.entries(sys.processes).forEach(([proc, bms]) => {
+                bms.forEach(bm => map.set(`${sys.id}::${proc}::${bm}`, true));
+            });
+        });
+        return map;
+    }, [defaultSystems]);
+
+    function rowStatus(row) {
+        const key = `${row.systemId}::${row.process}::${row.biomarker}`;
+        if (!defaultLookup.has(key)) return "new";
+        if (row.level !== "both" || row.pmid !== "") return "modified";
+        return "default";
+    }
+
     const filtered = allRows.filter(r => {
-        if (changesFilter && rowStatus(r) === "default") return false;
+        if (statusFilter !== "all" && rowStatus(r) !== statusFilter) return false;
         if (systemFilter !== "all") {
             if (systemFilter.startsWith("group:") && r.group !== systemFilter.slice(6)) return false;
             if (!systemFilter.startsWith("group:") && r.systemId !== systemFilter) return false;
@@ -5154,24 +5181,6 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
             }
             return updated;
         });
-    }
-
-    // ── Change detection against defaults ──
-    const defaultLookup = useMemo(() => {
-        const map = new Map();
-        defaultSystems.forEach(sys => {
-            Object.entries(sys.processes).forEach(([proc, bms]) => {
-                bms.forEach(bm => map.set(`${sys.id}::${proc}::${bm}`, true));
-            });
-        });
-        return map;
-    }, [defaultSystems]);
-
-    function rowStatus(row) {
-        const key = `${row.systemId}::${row.process}::${row.biomarker}`;
-        if (!defaultLookup.has(key)) return "new";
-        if (row.level !== "both" || row.pmid !== "") return "modified";
-        return "default";
     }
 
     const BUILTIN_GROUP_EXPORT = { health: "health_system", disease: "diseases", cancer: "cancer_hallmark" };
@@ -5273,12 +5282,15 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                     ))}
                 </select>
                 <button
-                    onClick={() => setChangesFilter(v => !v)}
-                    style={{ ...btnBase, ...(changesFilter ? { background: `${C.teal}20`, color: C.teal, borderColor: C.teal } : {}) }}
-                    title="Show only new or edited associations"
-                >
-                    {changesFilter ? "Changes ✓" : "Changes"}
-                </button>
+                    onClick={() => setStatusFilter(v => v === "new" ? "all" : "new")}
+                    style={{ ...btnBase, ...(statusFilter === "new" ? { background: `${C.teal}20`, color: C.teal, borderColor: C.teal } : {}) }}
+                    title="Show only newly added associations"
+                >New{statusFilter === "new" ? " ✓" : ""}</button>
+                <button
+                    onClick={() => setStatusFilter(v => v === "modified" ? "all" : "modified")}
+                    style={{ ...btnBase, ...(statusFilter === "modified" ? { background: `${C.fair}20`, color: C.fair, borderColor: C.fair } : {}) }}
+                    title="Show only associations with edited level or PMID"
+                >Edited{statusFilter === "modified" ? " ✓" : ""}</button>
                 <div style={{ flex: 1 }} />
                 <button onClick={() => setModal({ mode: "add" })} style={{ ...btnBase, background: C.teal, color: C.navy, border: "none" }}>+ Add Row</button>
                 <button onClick={exportAssocCSV} style={btnBase}>Export CSV</button>
@@ -5356,7 +5368,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                 </table>
             </div>
             <div style={{ marginTop: 8, fontSize: 11, color: C.textFaint, display: "flex", gap: 10, alignItems: "center" }}>
-                <span>{filtered.length} association{filtered.length !== 1 ? "s" : ""}{search || systemFilter !== "all" || changesFilter ? ` (filtered from ${allRows.length})` : ""}</span>
+                <span>{filtered.length} association{filtered.length !== 1 ? "s" : ""}{search || systemFilter !== "all" || statusFilter !== "all" ? ` (filtered from ${allRows.length})` : ""}</span>
                 {(() => {
                     const newCount = allRows.filter(r => rowStatus(r) === "new").length;
                     const modCount = allRows.filter(r => rowStatus(r) === "modified").length;
