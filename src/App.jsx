@@ -5030,6 +5030,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card, 
 function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocGroups, defaultGroups, sysGroups, defaultSystems, card }) {
     const [search, setSearch] = useState("");
     const [systemFilter, setSystemFilter] = useState("all");
+    const [changesFilter, setChangesFilter] = useState(false);
     const [modal, setModal] = useState(null); // null | { mode: "add"|"edit", row?: assocRow }
     const [resetConfirm, setResetConfirm] = useState(false);
     const assocImportRef = useRef();
@@ -5057,6 +5058,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
     };
 
     const filtered = allRows.filter(r => {
+        if (changesFilter && rowStatus(r) === "default") return false;
         if (systemFilter !== "all") {
             if (systemFilter.startsWith("group:") && r.group !== systemFilter.slice(6)) return false;
             if (!systemFilter.startsWith("group:") && r.systemId !== systemFilter) return false;
@@ -5152,6 +5154,24 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
             }
             return updated;
         });
+    }
+
+    // ── Change detection against defaults ──
+    const defaultLookup = useMemo(() => {
+        const map = new Map();
+        defaultSystems.forEach(sys => {
+            Object.entries(sys.processes).forEach(([proc, bms]) => {
+                bms.forEach(bm => map.set(`${sys.id}::${proc}::${bm}`, true));
+            });
+        });
+        return map;
+    }, [defaultSystems]);
+
+    function rowStatus(row) {
+        const key = `${row.systemId}::${row.process}::${row.biomarker}`;
+        if (!defaultLookup.has(key)) return "new";
+        if (row.level !== "both" || row.pmid !== "") return "modified";
+        return "default";
     }
 
     const BUILTIN_GROUP_EXPORT = { health: "health_system", disease: "diseases", cancer: "cancer_hallmark" };
@@ -5252,6 +5272,13 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                         </optgroup>
                     ))}
                 </select>
+                <button
+                    onClick={() => setChangesFilter(v => !v)}
+                    style={{ ...btnBase, ...(changesFilter ? { background: `${C.teal}20`, color: C.teal, borderColor: C.teal } : {}) }}
+                    title="Show only new or edited associations"
+                >
+                    {changesFilter ? "Changes ✓" : "Changes"}
+                </button>
                 <div style={{ flex: 1 }} />
                 <button onClick={() => setModal({ mode: "add" })} style={{ ...btnBase, background: C.teal, color: C.navy, border: "none" }}>+ Add Row</button>
                 <button onClick={exportAssocCSV} style={btnBase}>Export CSV</button>
@@ -5293,7 +5320,13 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                                 <td style={{ padding: "7px 14px", color: isTwoLevelGroup(row.group) ? C.border : C.textMuted, fontStyle: isTwoLevelGroup(row.group) ? "italic" : "normal" }}>
                                     {isTwoLevelGroup(row.group) ? "—" : row.process}
                                 </td>
-                                <td style={{ padding: "7px 14px", color: C.textPrimary, fontFamily: T.body }}>{row.biomarker}</td>
+                                <td style={{ padding: "7px 14px", color: C.textPrimary, fontFamily: T.body }}>
+                                    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                        {row.biomarker}
+                                        {rowStatus(row) === "new" && <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 3, background: `${C.teal}28`, color: C.teal, fontWeight: 700, letterSpacing: "0.05em", flexShrink: 0 }}>NEW</span>}
+                                        {rowStatus(row) === "modified" && <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 3, background: `${C.fair}28`, color: C.fair, fontWeight: 700, letterSpacing: "0.05em", flexShrink: 0 }}>EDITED</span>}
+                                    </span>
+                                </td>
                                 <td style={{ padding: "4px 10px", whiteSpace: "nowrap" }}>
                                     <div style={{ display: "flex", gap: 3 }}>
                                         {["both", "high", "low"].map(lv => (
@@ -5322,7 +5355,20 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                     </tbody>
                 </table>
             </div>
-            <div style={{ marginTop: 8, fontSize: 11, color: C.textFaint }}>{filtered.length} association{filtered.length !== 1 ? "s" : ""}{search || systemFilter !== "all" ? ` (filtered from ${allRows.length})` : ""}</div>
+            <div style={{ marginTop: 8, fontSize: 11, color: C.textFaint, display: "flex", gap: 10, alignItems: "center" }}>
+                <span>{filtered.length} association{filtered.length !== 1 ? "s" : ""}{search || systemFilter !== "all" || changesFilter ? ` (filtered from ${allRows.length})` : ""}</span>
+                {(() => {
+                    const newCount = allRows.filter(r => rowStatus(r) === "new").length;
+                    const modCount = allRows.filter(r => rowStatus(r) === "modified").length;
+                    if (!newCount && !modCount) return null;
+                    return (
+                        <span style={{ display: "flex", gap: 6 }}>
+                            {newCount > 0 && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: `${C.teal}28`, color: C.teal, fontWeight: 700 }}>{newCount} new</span>}
+                            {modCount > 0 && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: `${C.fair}28`, color: C.fair, fontWeight: 700 }}>{modCount} edited</span>}
+                        </span>
+                    );
+                })()}
+            </div>
 
             {/* Add / Edit Modal */}
             {modal && (
