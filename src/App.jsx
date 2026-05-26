@@ -5281,16 +5281,15 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                         </optgroup>
                     ))}
                 </select>
-                <button
-                    onClick={() => setStatusFilter(v => v === "new" ? "all" : "new")}
-                    style={{ ...btnBase, ...(statusFilter === "new" ? { background: `${C.teal}20`, color: C.teal, borderColor: C.teal } : {}) }}
-                    title="Show only newly added associations"
-                >New{statusFilter === "new" ? " ✓" : ""}</button>
-                <button
-                    onClick={() => setStatusFilter(v => v === "modified" ? "all" : "modified")}
-                    style={{ ...btnBase, ...(statusFilter === "modified" ? { background: `${C.fair}20`, color: C.fair, borderColor: C.fair } : {}) }}
-                    title="Show only associations with edited level or PMID"
-                >Edited{statusFilter === "modified" ? " ✓" : ""}</button>
+                <select
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                    style={{ fontSize: 11, padding: "6px 10px", borderRadius: 7, border: `1px solid ${statusFilter !== "all" ? C.teal : C.border}`, color: statusFilter !== "all" ? C.teal : C.textMuted, background: C.surface, cursor: "pointer", outline: "none" }}
+                >
+                    <option value="all">All associations</option>
+                    <option value="new">New only</option>
+                    <option value="modified">Edited only</option>
+                </select>
                 <div style={{ flex: 1 }} />
                 <button onClick={() => setModal({ mode: "add" })} style={{ ...btnBase, background: C.teal, color: C.navy, border: "none" }}>+ Add Row</button>
                 <button onClick={exportAssocCSV} style={btnBase}>Export CSV</button>
