@@ -2166,6 +2166,8 @@ export default function App() {
                     <button data-tutorial="save-profile-btn" onClick={() => { setSaveModal(true); setTutorialStep(prev => prev === 5 ? 6 : prev); }} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Save Profile</button>
                     <button data-tutorial="manage-profiles-btn" onClick={() => { setEditingId(null); setProfileModal(true); setTutorialStep(prev => prev === 12 ? 13 : prev); }} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Manage Profiles</button>
                     <button onClick={resetWeights} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>↺ Reset</button>
+                    <a href="https://github.com/windyzn/scoring-workbench/blob/main/documentation.md" target="_blank" rel="noopener noreferrer" title="Documentation"
+                        style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>ℹ</a>
                     <button onClick={() => { setTutorialStep(0); setShowTutorial(true); }} title="Show tutorial"
                         style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>?</button>
                     {hasData && <select value={clientId} onChange={e => setClientId(e.target.value)}
@@ -3074,23 +3076,6 @@ function CancerDomainView({ cancerDomain, allSysScores, card, cancerTierWeights,
             </div>
 
             <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
-                {/* Composite formula card */}
-                <div style={{ ...card, marginBottom: 20, padding: "14px 18px" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 8 }}>Composite Formula</div>
-                    {tierResults && (
-                        <div style={{ fontFamily: T.mono, fontSize: 13, color: C.navy, marginBottom: 6 }}>
-                            C = ({tierResults.map((t, i) => <span key={t.id}>{i > 0 ? " + " : ""}{t.tierWeight}×T{i + 1}</span>)}) / {tierResults.reduce((a, t) => a + t.tierWeight, 0)}
-                        </div>
-                    )}
-                    {hasScores && (
-                        <div style={{ fontFamily: T.mono, fontSize: 12, color: C.textSecond, marginBottom: 4 }}>
-                            C = ({tierResults.map((t, i) => (
-                                <span key={t.id}>{i > 0 ? " + " : ""}{t.tierWeight}×{t.score != null ? t.score.toFixed(1) : "—"}</span>
-                            ))}) / {tierResults.reduce((a, t) => a + t.tierWeight, 0)} = <strong style={{ color: procColour(composite) }}>{composite.toFixed(1)}</strong>
-                        </div>
-                    )}
-                </div>
-
                 {/* Tier weight cards — same style as ProcWeightsTab */}
                 <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12 }}>Tier Weights</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16, marginBottom: 24 }}>
