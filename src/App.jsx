@@ -2079,21 +2079,13 @@ export default function App() {
                     const procs = res.procResults.map(pr => ({ name: pr.process, score: pr.score }));
                     return { id: s.id, name: s.name, score: res.sysScore, procs };
                 });
-                const domains = assocGroups.map(g => {
-                    let score;
-                    if (g.id === "cancer") {
-                        score = computeCancerDomain(syss, prof.cancerSysWeights ?? {}, prof.cancerTierWeights ?? {}).composite;
-                    } else {
-                        const groupSysIds = new Set(assocSystems.filter(s => s.group === g.id).map(s => s.id));
-                        const valid = syss.filter(s => groupSysIds.has(s.id) && s.score != null);
-                        score = valid.length ? valid.reduce((a, s) => a + s.score, 0) / valid.length : null;
-                    }
-                    return { id: g.id, label: g.label, score };
-                });
-                return { pid, label: clients[pid]?.label ?? pid, systems: syss, domains };
+                const cancerResult = computeCancerDomain(syss, prof.cancerSysWeights ?? {}, prof.cancerTierWeights ?? {});
+                const cancerTierScores = cancerResult.tierResults.map(t => ({ id: t.id, label: t.label, shortLabel: t.shortLabel, score: t.score }));
+                const cancerDomainScore = cancerResult.composite;
+                return { pid, label: clients[pid]?.label ?? pid, systems: syss, cancerTierScores, cancerDomainScore };
             })
         }));
-    }, [clients, profiles, compareIds, activeProfile, assocGroups, assocSystems]);
+    }, [clients, profiles, compareIds, activeProfile, assocSystems]);
 
     const activeProcResult = procResults.find(p => p.process === selProc);
 
@@ -4054,6 +4046,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const [histSysId, setHistSysId] = useState(healthSystems[0]?.id ?? "");
     const [histProcName, setHistProcName] = useState(Object.keys(healthSystems[0]?.processes ?? {})[0] ?? "");
     const [flowSysId, setFlowSysId] = useState(healthSystems[0]?.id ?? "");
+    const [flowCancerTierId, setFlowCancerTierId] = useState(CANCER_TIERS[0].id);
+    const [isCancerFlow, setIsCancerFlow] = useState(false);
 
     if (!aggregateData || !aggregateData.length) return (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
@@ -4147,24 +4141,28 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px" }}>
 
-                {/* ── Domain Summary tab ── */}
+                {/* ── Domain Summary tab — Cancer only ── */}
                 {aggTab === "domain-summary" && (() => {
                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                    function domainStatsForProfile(profData, domainId) {
-                        const scores = profData.clients.map(r => r.domains?.find(d => d.id === domainId)?.score).filter(x => x != null);
+                    // Cancer domain score stats across profiles
+                    function cancerDomainStats(profData) {
+                        const scores = profData.clients.map(r => r.cancerDomainScore).filter(x => x != null);
+                        return stats(scores);
+                    }
+                    // Cancer tier score stats across profiles
+                    function cancerTierStats(profData, tierId) {
+                        const scores = profData.clients.map(r => r.cancerTierScores?.find(t => t.id === tierId)?.score).filter(x => x != null);
                         return stats(scores);
                     }
                     return (
                         <div>
-                            {/* Client domain scores table */}
+                            {/* Client scores table */}
                             <div style={{ marginBottom: 32 }}>
-                                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Domain Scores</div>
-                                        <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>{nonDemoClients.length} reports</span>
-                                    </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Cancer Scores</div>
+                                    <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>{nonDemoClients.length} reports</span>
                                 </div>
-                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>One score per domain for each client.</div>
+                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Cancer Risk Score and tier scores per client.</div>
                                 {isComparing && (
                                     <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, marginBottom: 12 }}>
                                         {aggregateData.map(({ profile }, pi) => {
@@ -4185,39 +4183,54 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         <colgroup>
                                             <col style={{ width: 160 }} />
                                             <col style={{ width: 44 }} />
-                                            {assocGroups.map(g => <col key={g.id} style={{ width: 140 }} />)}
+                                            <col style={{ width: 150 }} />
+                                            {CANCER_TIERS.map(t => <col key={t.id} style={{ width: 130 }} />)}
                                         </colgroup>
                                         <thead>
                                             <tr style={{ background: C.navy }}>
                                                 <th style={{ position: "sticky", left: 0, zIndex: 2, padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Client</th>
-                                                <th style={{ position: "sticky", left: 160, zIndex: 2, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>⚠</th>
-                                                {assocGroups.map(g => <th key={g.id} style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600 }}>{g.label}</th>)}
+                                                <th style={{ position: "sticky", left: 160, zIndex: 2, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, background: C.navy }}>⚠</th>
+                                                <th style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, borderLeft: `2px solid ${C.teal}55` }}>Cancer Risk Score</th>
+                                                {CANCER_TIERS.map(t => <th key={t.id} style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600 }}>{t.shortLabel}</th>)}
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {rows.map((row, ri) => {
                                                 const baseRow = isComparing && clientTab > 0 ? aggregateData[0].clients.find(r => r.pid === row.pid) : null;
                                                 const rowBg = ri % 2 === 0 ? C.surface : "#EDF4F7";
-                                                const domainScores = assocGroups.map(g => row.domains?.find(d => d.id === g.id)?.score ?? null);
-                                                const nY = domainScores.filter(s => s != null && Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
-                                                const nR = domainScores.filter(s => s != null && Math.floor(s) < overviewYellow).length;
+                                                const domScore = row.cancerDomainScore ?? null;
+                                                const baseDomScore = baseRow?.cancerDomainScore ?? null;
+                                                const allScores = [domScore, ...CANCER_TIERS.map(t => row.cancerTierScores?.find(x => x.id === t.id)?.score ?? null)].filter(x => x != null);
+                                                const nY = allScores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
+                                                const nR = allScores.filter(s => Math.floor(s) < overviewYellow).length;
                                                 return (
                                                     <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
-                                                        <td onClick={() => onNavigate(row.pid)} style={{ position: "sticky", left: 0, zIndex: 2, padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: rowBg, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="Explore in Adjust Weighting">{row.label ?? row.pid}</td>
+                                                        <td onClick={() => onNavigate(row.pid)} style={{ position: "sticky", left: 0, zIndex: 2, padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: rowBg, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }}>{row.label ?? row.pid}</td>
                                                         <td style={{ position: "sticky", left: 160, zIndex: 2, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap" }}>
                                                             {nR > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.critical, marginRight: 2 }}>{nR}R</span>}
                                                             {nY > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.fair }}>{nY}Y</span>}
                                                             {nR === 0 && nY === 0 && <span style={{ fontSize: 9, color: C.teal }}>✓</span>}
                                                         </td>
-                                                        {assocGroups.map(g => {
-                                                            const score = row.domains?.find(d => d.id === g.id)?.score ?? null;
-                                                            const baseScore = baseRow?.domains?.find(d => d.id === g.id)?.score ?? null;
+                                                        {(() => {
+                                                            const d = domScore != null && baseDomScore != null ? domScore - baseDomScore : null;
+                                                            return (
+                                                                <td style={{ padding: "8px 10px", textAlign: "center", background: overviewBg(domScore), borderLeft: `2px solid ${C.teal}30` }}>
+                                                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                                                                        {domScore != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 16, color: overviewColour(domScore) }}>{Math.floor(domScore)}</span> : <span style={{ color: C.textFaint }}>—</span>}
+                                                                        {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, color: d > 0 ? C.teal : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
+                                                                    </div>
+                                                                </td>
+                                                            );
+                                                        })()}
+                                                        {CANCER_TIERS.map(t => {
+                                                            const score = row.cancerTierScores?.find(x => x.id === t.id)?.score ?? null;
+                                                            const baseScore = baseRow?.cancerTierScores?.find(x => x.id === t.id)?.score ?? null;
                                                             const d = score != null && baseScore != null ? score - baseScore : null;
                                                             return (
-                                                                <td key={g.id} style={{ padding: "8px 10px", textAlign: "center", background: overviewBg(score) }}>
+                                                                <td key={t.id} style={{ padding: "8px 10px", textAlign: "center", background: overviewBg(score) }}>
                                                                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                                                                        {score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 16, color: overviewColour(score) }}>{Math.floor(score)}</span> : <span style={{ color: C.textFaint }}>—</span>}
-                                                                        {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, color: d > 0 ? C.green : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
+                                                                        {score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 14, color: overviewColour(score) }}>{Math.floor(score)}</span> : <span style={{ color: C.textFaint }}>—</span>}
+                                                                        {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, color: d > 0 ? C.teal : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
                                                                     </div>
                                                                 </td>
                                                             );
@@ -4232,30 +4245,51 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             {/* Population summary */}
                             <div>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Population Summary</div>
-                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Summary statistics per domain across all clients.</div>
+                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Summary statistics for Cancer Risk Score and tiers across all clients.</div>
                                 <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                                         <thead>
                                             <tr style={{ background: C.navy }}>
-                                                <th style={{ padding: "9px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600 }}>Domain</th>
+                                                <th style={{ padding: "9px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, width: 180 }}>Score</th>
                                                 {aggregateData.map(({ profile }, pi) => {
                                                     const col = PROF_COLORS[pi % PROF_COLORS.length];
-                                                    return STAT_COLS.map(stat => <th key={`${profile.id}-${stat}`} style={{ padding: "9px 10px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", borderLeft: stat === "Mean" ? `2px solid ${col}40` : undefined }}>{isComparing && stat === "Mean" ? `${profile.name.slice(0, 8)} Mean` : stat}</th>);
+                                                    return STAT_COLS.map(stat => <th key={`${profile.id}-${stat}`} style={{ padding: "9px 10px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", borderLeft: stat === "Mean" ? `2px solid ${col}40` : undefined }}>{stat}</th>);
                                                 })}
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {assocGroups.map((g, gi) => {
-                                                const allStats = aggregateData.map(pd => domainStatsForProfile(pd, g.id));
+                                            {/* Cancer domain row */}
+                                            {(() => {
+                                                const allStats = aggregateData.map(pd => cancerDomainStats(pd));
                                                 const baseStats = allStats[0];
                                                 const col = overviewColour(baseStats?.mean);
                                                 return (
-                                                    <tr key={g.id} style={{ borderTop: `1px solid ${C.border}`, background: gi % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
-                                                        <td style={{ padding: "9px 16px", fontSize: 12, fontWeight: 700, color: C.textPrimary, borderLeft: `3px solid ${baseStats ? col : C.border}` }}>{g.label}</td>
+                                                    <tr style={{ borderTop: `1px solid ${C.border}` }}>
+                                                        <td style={{ padding: "9px 16px", fontSize: 12, fontWeight: 700, color: C.textPrimary, borderLeft: `3px solid ${baseStats ? col : C.border}` }}>Cancer Risk Score</td>
                                                         {aggregateData.map(({ profile }, pi) => {
                                                             const st = allStats[pi];
                                                             const pcol = PROF_COLORS[pi % PROF_COLORS.length];
-                                                            const deltaMean = pi > 0 && st && baseStats ? st.mean - baseStats.mean : null;
+                                                            return [
+                                                                <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center", borderLeft: `2px solid ${pcol}30`, background: st ? overviewBg(st.mean) : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: overviewColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                            ];
+                                                        })}
+                                                    </tr>
+                                                );
+                                            })()}
+                                            {/* Tier rows */}
+                                            {CANCER_TIERS.map((tier, ti) => {
+                                                const allStats = aggregateData.map(pd => cancerTierStats(pd, tier.id));
+                                                const baseStats = allStats[0];
+                                                const col = overviewColour(baseStats?.mean);
+                                                return (
+                                                    <tr key={tier.id} style={{ borderTop: `1px solid ${C.border}`, background: (ti + 1) % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
+                                                        <td style={{ padding: "9px 16px", fontSize: 11, fontWeight: 600, color: C.textSecond, borderLeft: `3px solid ${baseStats ? col : C.border}`, paddingLeft: 24 }}>{tier.shortLabel} — {tier.label.replace(/^Tier \d — /, "")}</td>
+                                                        {aggregateData.map(({ profile }, pi) => {
+                                                            const st = allStats[pi];
+                                                            const pcol = PROF_COLORS[pi % PROF_COLORS.length];
                                                             return [
                                                                 <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center", borderLeft: `2px solid ${pcol}30`, background: st ? overviewBg(st.mean) : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: overviewColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
@@ -4378,10 +4412,12 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             })()}
                             {(() => {
                                 const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
+                                // Cancer pathway systems excluded — show tier columns instead
                                 const visibleSystems = assocSystems.filter(s => {
                                     const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Diseases" : "Cancer";
-                                    return visibleSysGroups.has(grp);
+                                    return visibleSysGroups.has(grp) && s.group !== "cancer";
                                 });
+                                const cancerColsVisible = visibleSysGroups.has("Cancer");
                                 const stickyCell = { position: "sticky", left: 0, zIndex: 2 };
                                 const stickyWarnCell = { position: "sticky", left: 160, zIndex: 2 };
                                 return (
@@ -4391,12 +4427,14 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 <col style={{ width: 160 }} />
                                                 <col style={{ width: 44 }} />
                                                 {visibleSystems.map(s => <col key={s.id} style={{ width: 88 }} />)}
+                                                {cancerColsVisible && CANCER_TIERS.map(t => <col key={t.id} style={{ width: 88 }} />)}
                                             </colgroup>
                                             <thead>
                                                 <tr style={{ background: C.navy }}>
                                                     <th style={{ ...stickyCell, padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Client</th>
                                                     <th style={{ ...stickyWarnCell, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>⚠</th>
                                                     {visibleSystems.map(s => <th key={s.id} style={{ padding: "10px 6px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, minWidth: 80 }}><div style={{ minWidth: 72, maxWidth: 100, margin: "0 auto", lineHeight: 1.3 }}>{s.name}</div></th>)}
+                                                    {cancerColsVisible && CANCER_TIERS.map(t => <th key={t.id} style={{ padding: "10px 6px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, minWidth: 80 }}><div style={{ minWidth: 72, maxWidth: 100, margin: "0 auto", lineHeight: 1.3 }}>{t.shortLabel}</div></th>)}
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -4407,7 +4445,9 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                         <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
                                                             <td onClick={() => onNavigate(row.pid)} style={{ ...stickyCell, padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: rowBg, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="Explore in Adjust Weighting">{row.label ?? row.pid}</td>
                                                             {(() => {
-                                                                const scores = row.systems.map(s => s.score).filter(x => x != null);
+                                                                const syScores = visibleSystems.map(s => row.systems.find(rs => rs.id === s.id)?.score).filter(x => x != null);
+                                                                const tierScores = cancerColsVisible ? (row.cancerTierScores?.map(t => t.score).filter(x => x != null) ?? []) : [];
+                                                                const scores = [...syScores, ...tierScores];
                                                                 const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
                                                                 const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
                                                                 return (
@@ -4426,6 +4466,19 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                     <td key={s.id} style={{ padding: "6px 8px", textAlign: "center", background: overviewBg(sData?.score) }}>
                                                                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                                                                             {sData?.score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: overviewColour(sData.score) }}>{Math.floor(sData.score)}</span> : <span style={{ color: C.textFaint }}>—</span>}
+                                                                            {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, lineHeight: 1, color: d > 0 ? C.green : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
+                                                                        </div>
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                            {cancerColsVisible && CANCER_TIERS.map(t => {
+                                                                const score = row.cancerTierScores?.find(x => x.id === t.id)?.score ?? null;
+                                                                const baseScore = baseRow?.cancerTierScores?.find(x => x.id === t.id)?.score ?? null;
+                                                                const d = score != null && baseScore != null ? score - baseScore : null;
+                                                                return (
+                                                                    <td key={t.id} style={{ padding: "6px 8px", textAlign: "center", background: overviewBg(score) }}>
+                                                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                                                                            {score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: overviewColour(score) }}>{Math.floor(score)}</span> : <span style={{ color: C.textFaint }}>—</span>}
                                                                             {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, lineHeight: 1, color: d > 0 ? C.green : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
                                                                         </div>
                                                                     </td>
@@ -4499,11 +4552,35 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {sysGroups.map(({ label, systems }) => [
+                                        {sysGroups.map(({ label, groupId, systems }) => [
                                             <tr key={`group-${label}`}>
                                                 <td colSpan={1 + aggregateData.length * STAT_COLS.length + Math.max(0, aggregateData.length - 1)} style={{ padding: "5px 16px 3px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", background: `${C.iceLight}40`, borderTop: `1px solid ${C.border}` }}>{label}</td>
                                             </tr>,
-                                            ...systems.map((sys, si) => {
+                                            ...(groupId === "cancer" ? CANCER_TIERS.map((tier, si) => {
+                                                const allStats = aggregateData.map(pd => {
+                                                    const scores = pd.clients.map(r => r.cancerTierScores?.find(t => t.id === tier.id)?.score).filter(x => x != null);
+                                                    return stats(scores);
+                                                });
+                                                const baseStats = allStats[0];
+                                                const procC = overviewColour(baseStats?.mean);
+                                                return (
+                                                    <tr key={tier.id} style={{ borderTop: `1px solid ${C.border}`, background: si % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
+                                                        <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}` }}>{tier.shortLabel} — {tier.label.replace(/^Tier \d — /, "")}</td>
+                                                        {aggregateData.map(({ profile }, pi) => {
+                                                            const st = allStats[pi];
+                                                            const col = PROF_COLORS[pi % PROF_COLORS.length];
+                                                            const deltaMean = pi > 0 && st && baseStats ? st.mean - baseStats.mean : null;
+                                                            return [
+                                                                <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center", borderLeft: `2px solid ${col}30`, background: st ? overviewBg(st.mean) : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: overviewColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                ...(pi > 0 ? [<td key={`${profile.id}-delta`} style={{ padding: "9px 8px", textAlign: "center" }}>{deltaMean != null ? <span style={{ fontFamily: T.mono, fontSize: 12, fontWeight: 700, color: deltaMean > 0 ? C.green : deltaMean < 0 ? C.critical : C.textFaint }}>{deltaMean > 0 ? "+" : ""}{deltaMean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>] : [])
+                                                            ];
+                                                        })}
+                                                    </tr>
+                                                );
+                                            }) : systems.map((sys, si) => {
                                                 const allStats = aggregateData.map(pd => sysStatsForProfile(pd, sys.id));
                                                 const baseStats = allStats[0];
                                                 const procC = overviewColour(baseStats?.mean);
@@ -4524,7 +4601,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                         })}
                                                     </tr>
                                                 );
-                                            })
+                                            }))
                                         ])}
                                     </tbody>
                                 </table>
@@ -4836,7 +4913,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                 )}
 
                 {aggTab === "flowchart" && (
-                    <FlowchartTab flowSysId={flowSysId} setFlowSysId={setFlowSysId} bioWeights={bioWeights} procWeights={procWeights} card={card} assocSystems={assocSystems} sysGroups={sysGroups} />
+                    <FlowchartTab flowSysId={flowSysId} setFlowSysId={setFlowSysId} flowCancerTierId={flowCancerTierId} setFlowCancerTierId={setFlowCancerTierId} isCancerFlow={isCancerFlow} setIsCancerFlow={setIsCancerFlow} bioWeights={bioWeights} procWeights={procWeights} card={card} assocSystems={assocSystems} sysGroups={sysGroups} />
                 )}
 
                 {aggTab === "export" && (
@@ -4987,15 +5064,14 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
     const DEFAULT_DOM_RED = 70, DEFAULT_DOM_YELLOW = 91;
     const [domRedCutoff, setDomRedCutoff] = useState(DEFAULT_DOM_RED);
     const [domYellowCutoff, setDomYellowCutoff] = useState(DEFAULT_DOM_YELLOW);
-    const [histDomainId, setHistDomainId] = useState(assocGroups[0]?.id ?? "");
 
     const selSys = assocSystems.find(s => s.id === histSysId) || sysGroups[0]?.systems[0] || assocSystems[0];
     const procs = Object.keys(selSys.processes);
     const validProc = procs.includes(histProcName) ? histProcName : procs[0];
 
-    // Domain scores for selected domain
+    // Cancer domain scores only
     const domainScores = nonDemoClients
-        .map(r => r.domains?.find(d => d.id === histDomainId)?.score)
+        .map(r => r.cancerDomainScore)
         .filter(x => x != null);
 
     // One system score per client
@@ -5014,24 +5090,11 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-            {/* Domain histograms */}
+            {/* Domain histograms — Cancer only */}
             <div style={{ ...card, padding: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Domain Scores</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Cancer Risk Score</div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {domainScores.length} client report{domainScores.length !== 1 ? "s" : ""}.</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
-                    {assocGroups.map(g => (
-                        <button key={g.id} onClick={() => setHistDomainId(g.id)}
-                            style={{
-                                padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-                                border: `1px solid ${histDomainId === g.id ? C.navy : C.border}`,
-                                background: histDomainId === g.id ? `${C.navy}14` : "transparent",
-                                color: histDomainId === g.id ? C.navy : C.textMuted, fontWeight: histDomainId === g.id ? 700 : 400
-                            }}>
-                            {g.label}
-                        </button>
-                    ))}
-                </div>
-                <Histogram scores={domainScores} title={assocGroups.find(g => g.id === histDomainId)?.label ?? histDomainId} redCutoff={domRedCutoff} yellowCutoff={domYellowCutoff} />
+                <Histogram scores={domainScores} title="Cancer Risk Score" redCutoff={domRedCutoff} yellowCutoff={domYellowCutoff} />
                 <CutoffControl
                     redCutoff={domRedCutoff} setRedCutoff={setDomRedCutoff}
                     yellowCutoff={domYellowCutoff} setYellowCutoff={setDomYellowCutoff}
@@ -5122,7 +5185,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 }
 
 // ─── FlowchartTab ─────────────────────────────────────────────────────────────
-function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card, assocSystems, sysGroups }) {
+function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancerTierId, isCancerFlow, setIsCancerFlow, bioWeights, procWeights, card, assocSystems, sysGroups }) {
     const sys = assocSystems.find(s => s.id === flowSysId) || sysGroups[0]?.systems[0] || assocSystems[0];
     const procs = Object.entries(sys.processes);
     const DEFAULT_BIO = { weight: 1, color: "red", level: "both" };
@@ -5267,17 +5330,30 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card, 
             {/* System selector + download buttons */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {sysGroups.map(({ label, systems }) => (
+                    {sysGroups.map(({ label, groupId, systems }) => (
                         <div key={label}>
                             <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 5 }}>{label}</div>
                             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {systems.map(s => (
-                                    <button key={s.id} onClick={() => setFlowSysId(s.id)}
+                                {groupId === "cancer" ? CANCER_TIERS.map(tier => {
+                                    const active = isCancerFlow && flowCancerTierId === tier.id;
+                                    return (
+                                        <button key={tier.id} onClick={() => { setFlowCancerTierId(tier.id); setIsCancerFlow(true); }}
+                                            style={{
+                                                padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+                                                border: `1px solid ${active ? C.steel : C.border}`,
+                                                background: active ? `${C.steel}18` : "transparent",
+                                                color: active ? C.steel : C.textMuted, fontWeight: active ? 700 : 400
+                                            }}>
+                                            {tier.shortLabel}
+                                        </button>
+                                    );
+                                }) : systems.map(s => (
+                                    <button key={s.id} onClick={() => { setFlowSysId(s.id); setIsCancerFlow(false); }}
                                         style={{
                                             padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-                                            border: `1px solid ${flowSysId === s.id ? C.steel : C.border}`,
-                                            background: flowSysId === s.id ? `${C.steel}18` : "transparent",
-                                            color: flowSysId === s.id ? C.steel : C.textMuted, fontWeight: flowSysId === s.id ? 700 : 400
+                                            border: `1px solid ${!isCancerFlow && flowSysId === s.id ? C.steel : C.border}`,
+                                            background: !isCancerFlow && flowSysId === s.id ? `${C.steel}18` : "transparent",
+                                            color: !isCancerFlow && flowSysId === s.id ? C.steel : C.textMuted, fontWeight: !isCancerFlow && flowSysId === s.id ? 700 : 400
                                         }}>
                                         {s.name}
                                     </button>
@@ -5305,6 +5381,56 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card, 
                 </div>
             </div>
 
+            {/* ── Cancer tier flowchart ── */}
+            {isCancerFlow ? (() => {
+                const tier = CANCER_TIERS.find(t => t.id === flowCancerTierId) ?? CANCER_TIERS[0];
+                const pathways = CANCER_SYSTEMS.filter(s => tier.systems.includes(s.id));
+                const PAD = 28, GAP = 14, PATH_H = 44;
+                const totalPathH = pathways.length * PATH_H + (pathways.length - 1) * GAP;
+                const svgH = Math.max(totalPathH, 80) + PAD * 2;
+                const midY = svgH / 2;
+                const D_X = 8, D_W = 130;
+                const T_X = D_X + D_W + 56, T_W = 190;
+                const P_X = T_X + T_W + 80, P_W = 200;
+                const totalSvgW = P_X + P_W + 8;
+                const pathY = i => PAD + i * (PATH_H + GAP) + PATH_H / 2 + (svgH - totalPathH - PAD * 2) / 2;
+                return (
+                    <div style={{ overflowX: "auto" }}>
+                        <svg width={totalSvgW} height={svgH} style={{ display: "block", fontFamily: T.body }} xmlns="http://www.w3.org/2000/svg">
+                            {/* Domain → Tier connector */}
+                            {(() => { const mx = (D_X + D_W + T_X) / 2; return <path d={`M${D_X + D_W},${midY} C${mx},${midY} ${mx},${midY} ${T_X},${midY}`} fill="none" stroke={C.navy} strokeWidth="1.2" opacity="0.4" />; })()}
+                            {/* Tier → Pathway connectors */}
+                            {pathways.map((_, i) => {
+                                const y2 = pathY(i); const mx = (T_X + T_W + P_X) / 2;
+                                return <path key={i} d={`M${T_X + T_W},${midY} C${mx},${midY} ${mx},${y2} ${P_X},${y2}`} fill="none" stroke={C.steel} strokeWidth="1" opacity="0.35" />;
+                            })}
+                            {/* Domain node */}
+                            <rect x={D_X} y={midY - 36} width={D_W} height={72} rx="8" fill={`${C.navy}08`} stroke={C.navy} strokeWidth="1.2" strokeDasharray="5,3" />
+                            <text x={D_X + D_W / 2} y={midY - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>Cancer</text>
+                            <text x={D_X + D_W / 2} y={midY + 8} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>Risk Score</text>
+                            <text x={D_X + D_W / 2} y={midY + 23} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Domain</text>
+                            {/* Tier node */}
+                            <rect x={T_X} y={midY - 44} width={T_W} height={88} rx="8" fill={`${C.navy}14`} stroke={C.navy} strokeWidth="1.5" />
+                            <text x={T_X + T_W / 2} y={midY - 14} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>{tier.shortLabel}</text>
+                            {wrapText(tier.label.replace(/^Tier \d — /, ""), 22).map((line, li, arr) => (
+                                <text key={li} x={T_X + T_W / 2} y={midY + 4 + li * 13 - (arr.length - 1) * 6} textAnchor="middle" fontSize="10" fill={C.textSecond} fontFamily={T.body}>{line}</text>
+                            ))}
+                            <text x={T_X + T_W / 2} y={midY + 34} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Tier</text>
+                            {/* Pathway nodes */}
+                            {pathways.map((pw, i) => {
+                                const cy = pathY(i);
+                                return (
+                                    <g key={pw.id}>
+                                        <rect x={P_X} y={cy - PATH_H / 2} width={P_W} height={PATH_H} rx="7" fill={`${C.steel}10`} stroke={C.steel} strokeWidth="1" />
+                                        <text x={P_X + 14} y={cy - 4} fontSize="10" fontWeight="600" fill={C.navy} fontFamily={T.body}>{pw.name}</text>
+                                        <text x={P_X + 14} y={cy + 10} fontSize="9" fill={C.textMuted} fontFamily={T.body}>Pathway</text>
+                                    </g>
+                                );
+                            })}
+                        </svg>
+                    </div>
+                );
+            })() : (<>
             <div style={{ overflowX: "auto" }}>
                 <svg ref={svgRef} width={totalW} height={totalH} style={{ display: "block", fontFamily: T.body, overflow: "visible" }}
                     xmlns="http://www.w3.org/2000/svg">
@@ -5465,6 +5591,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, bioWeights, procWeights, card, 
             <div style={{ fontSize: 10, color: C.textFaint, marginTop: 12 }}>
                 Teal border = non-default weight settings · Shared biomarkers appear once with multiple connecting lines.
             </div>
+        </>)}
         </div>
     );
 }
@@ -5531,7 +5658,11 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
         if (statusFilter !== "all" && rowStatus(r) !== statusFilter) return false;
         if (systemFilter !== "all") {
             if (systemFilter.startsWith("group:") && r.group !== systemFilter.slice(6)) return false;
-            if (!systemFilter.startsWith("group:") && r.systemId !== systemFilter) return false;
+            if (systemFilter.startsWith("tier:")) {
+                const tierId = systemFilter.slice(5);
+                const tier = CANCER_TIERS.find(t => t.id === tierId);
+                if (!tier || !tier.systems.includes(r.systemId)) return false;
+            } else if (!systemFilter.startsWith("group:") && r.systemId !== systemFilter) return false;
         }
         if (!search.trim()) return true;
         const q = search.toLowerCase();
@@ -5720,7 +5851,9 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                     {sysGroups.map(({ label, groupId, systems }) => (
                         <optgroup key={groupId} label={label}>
                             <option value={`group:${groupId}`}>— All {label} —</option>
-                            {systems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            {groupId === "cancer"
+                                ? CANCER_TIERS.map(t => <option key={t.id} value={`tier:${t.id}`}>{t.shortLabel} — {t.label.replace(/^Tier \d — /, "")}</option>)
+                                : systems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </optgroup>
                     ))}
                 </select>
@@ -5770,9 +5903,13 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                                         {groupLabel(row.group)}
                                     </span>
                                 </td>
-                                <td style={{ padding: "7px 14px", color: C.textSecond, fontWeight: 500 }}>{row.systemName}</td>
-                                <td style={{ padding: "7px 14px", color: isTwoLevelGroup(row.group) ? C.border : C.textMuted, fontStyle: isTwoLevelGroup(row.group) ? "italic" : "normal" }}>
-                                    {isTwoLevelGroup(row.group) ? "—" : row.process}
+                                <td style={{ padding: "7px 14px", color: C.textSecond, fontWeight: 500 }}>
+                                    {row.group === "cancer"
+                                        ? (CANCER_TIERS.find(t => t.systems.includes(row.systemId))?.shortLabel ?? row.systemName)
+                                        : row.systemName}
+                                </td>
+                                <td style={{ padding: "7px 14px", color: row.group === "cancer" ? C.textMuted : isTwoLevelGroup(row.group) ? C.border : C.textMuted, fontStyle: row.group === "cancer" ? "normal" : isTwoLevelGroup(row.group) ? "italic" : "normal" }}>
+                                    {row.group === "cancer" ? row.systemName : isTwoLevelGroup(row.group) ? "—" : row.process}
                                 </td>
                                 <td style={{ padding: "7px 14px", color: C.textPrimary, fontFamily: T.body }}>
                                     <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
