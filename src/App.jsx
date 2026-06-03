@@ -1368,13 +1368,14 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
     return { procResults, sysScore };
 }
 
-function computeCancerDomain(sysScores) {
+function computeCancerDomain(sysScores, cancerSysWeights = {}) {
     const totalWeight = CANCER_TIERS.reduce((a, t) => a + t.weight, 0); // 1+2+3 = 6
     const tierResults = CANCER_TIERS.map(tier => {
-        const scores = tier.systems
-            .map(id => sysScores.find(s => s.id === id)?.score)
-            .filter(s => s != null);
-        const score = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+        const entries = tier.systems
+            .map(id => ({ id, score: sysScores.find(s => s.id === id)?.score, w: cancerSysWeights[id] ?? 1 }))
+            .filter(e => e.score != null);
+        const totalW = entries.reduce((a, e) => a + e.w, 0);
+        const score = entries.length ? entries.reduce((a, e) => a + e.score * e.w, 0) / totalW : null;
         return { ...tier, score };
     });
     const validTiers = tierResults.filter(t => t.score != null);
@@ -1631,7 +1632,7 @@ function Slider({ label, value, min, max, step, onChange, color, fmt, tooltip })
 const DEFAULT_PARAMS = { cutoff: 0.5, greenPct: 0.05, curve: "linear", yellowWeight: 2.0, redWeight: 4.0 };
 
 function makeProfile(id, name, params) {
-    return { id, name, bioWeights: makeDefaultBioWeights(), procWeights: makeDefaultProcWeights(), ...DEFAULT_PARAMS, ...(params || {}) };
+    return { id, name, bioWeights: makeDefaultBioWeights(), procWeights: makeDefaultProcWeights(), cancerSysWeights: {}, ...DEFAULT_PARAMS, ...(params || {}) };
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -1650,7 +1651,7 @@ export default function App() {
     const [col2Open, setCol2Open] = useState(true);
     const [collapsedGroups, setCollapsedGroups] = useState(new Set()); // all expanded by default
     const [activeCancerView, setActiveCancerView] = useState(false); // true = showing cancer domain overview
-    const [collapsedCancerTiers, setCollapsedCancerTiers] = useState(new Set()); // tier ids to collapse
+    const [selectedCancerTierId, setSelectedCancerTierId] = useState(null); // tier selected in col1
     const sidebarRef = useRef(null);
     const [concOverrides, setConcOverrides] = useState({});  // { [clientId]: { [markerName]: value } }
     const [aggTab, setAggTab] = useState("overview");
@@ -1795,7 +1796,7 @@ export default function App() {
     }, [systemId, activeCancerView, sysGroups]);
 
     const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
-    const { bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight } = activeProfile;
+    const { bioWeights, procWeights, cancerSysWeights = {}, cutoff, greenPct, curve, yellowWeight, redWeight } = activeProfile;
 
     // True when Default profile has been modified from its factory values
     const isDefaultDirty = activeProfileId === "default" && (() => {
@@ -1824,6 +1825,9 @@ export default function App() {
         setProfiles(prev => prev.map(p => p.id === activeProfileId ? { ...p, procWeights: fn(p.procWeights) } : p));
         setTutorialDone(prev => ({ ...prev, procWeightChanged: true }));
         setTutorialStep(prev => prev === 2 ? 3 : prev);
+    }, [activeProfileId]);
+    const setCancerSysWeights = useCallback(fn => {
+        setProfiles(prev => prev.map(p => p.id === activeProfileId ? { ...p, cancerSysWeights: fn(p.cancerSysWeights ?? {}) } : p));
     }, [activeProfileId]);
     const resetWeights = useCallback(() => {
         if (!window.confirm("Reset all weights and concentration overrides for this profile and client? This cannot be undone.")) return;
@@ -2032,6 +2036,12 @@ export default function App() {
     }, [clientId, clients, concOverrides]);
     const selProc = activeProc || Object.keys(system.processes)[0];
     const isTwoTier = Object.keys(system.processes).length === 1;
+    const isCancerSystem = CANCER_SYSTEMS.some(s => s.id === systemId);
+    // Which tier's pathways to show in col2: tier selected in domain view, or the tier that owns the active pathway
+    const activeCancerTierId = activeCancerView
+        ? selectedCancerTierId
+        : CANCER_TIERS.find(t => t.systems.includes(systemId))?.id ?? null;
+    const showCol2 = activeCancerView || isCancerSystem || !isTwoTier;
 
     const { procResults, sysScore } = useMemo(() => {
         if (!Object.keys(markers).length) return { procResults: [], sysScore: null };
@@ -2045,7 +2055,7 @@ export default function App() {
             : null
     })), [markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight]);
 
-    const cancerDomain = useMemo(() => computeCancerDomain(allSysScores), [allSysScores]);
+    const cancerDomain = useMemo(() => computeCancerDomain(allSysScores, cancerSysWeights), [allSysScores, cancerSysWeights]);
 
     const aggregateData = useMemo(() => {
         const pids = Object.keys(clients); if (!pids.length) return null;
@@ -2096,6 +2106,7 @@ export default function App() {
 
     const TABS = [
         ...(!isTwoTier ? [{ key: "weights-proc", label: "Process Weights" }] : []),
+        ...(isCancerSystem ? [{ key: "weights-sys", label: "System Weights" }] : []),
         { key: "weights-bio", label: "Biomarker Weights" },
         { key: "curves", label: "Biomarker Curves" },
         { key: "flags", label: `Biomarker Flags${oorFlags.length ? ` (${oorFlags.length})` : ""}` },
@@ -2813,10 +2824,10 @@ export default function App() {
                                             </button>
                                             {!isCollapsed && <>
                                                 {/* Domain-level entry */}
-                                                <button onClick={() => { setActiveCancerView(true); setActiveView("client"); }}
-                                                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", cursor: "pointer", transition: "all 0.12s", background: domainActive ? `${C.teal}18` : "transparent", borderLeft: `3px solid ${domainActive ? C.teal : "transparent"}` }}>
+                                                <button onClick={() => { setActiveCancerView(true); setSelectedCancerTierId(null); setActiveView("client"); }}
+                                                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", cursor: "pointer", transition: "all 0.12s", background: domainActive && !selectedCancerTierId ? `${C.teal}18` : "transparent", borderLeft: `3px solid ${domainActive && !selectedCancerTierId ? C.teal : "transparent"}` }}>
                                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
-                                                        <span style={{ fontSize: 12, color: domainActive ? C.navy : C.textSecond, fontWeight: 600, lineHeight: 1.3, flex: 1 }}>Cancer Risk Score</span>
+                                                        <span style={{ fontSize: 12, color: domainActive && !selectedCancerTierId ? C.navy : C.textSecond, fontWeight: 600, lineHeight: 1.3, flex: 1 }}>Cancer Risk Score</span>
                                                         {domainScore != null
                                                             ? <span style={{ fontSize: 12, color: procColour(Math.floor(domainScore)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(domainScore)}</span>
                                                             : <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
@@ -2826,42 +2837,23 @@ export default function App() {
                                                         <div style={{ fontSize: 9, color: cancerDomain?.classification?.color ?? C.textFaint, marginTop: 2, fontWeight: 600 }}>{cancerDomain?.classification?.label}</div>
                                                     </>}
                                                 </button>
-                                                {/* Tier sections */}
+                                                {/* Tier selection buttons — pathways live in col2 */}
                                                 {CANCER_TIERS.map(tier => {
-                                                    const isTierCollapsed = collapsedCancerTiers.has(tier.id);
                                                     const tierResult = cancerDomain?.tierResults?.find(t => t.id === tier.id);
-                                                    const tierSystems = systems.filter(s => tier.systems.includes(s.id));
+                                                    const tierActive = (activeCancerView && selectedCancerTierId === tier.id && activeView === "client")
+                                                        || (!activeCancerView && CANCER_TIERS.find(t => t.systems.includes(systemId))?.id === tier.id && activeView === "client");
                                                     return (
-                                                        <div key={tier.id}>
-                                                            <button onClick={() => setCollapsedCancerTiers(prev => { const n = new Set(prev); n.has(tier.id) ? n.delete(tier.id) : n.add(tier.id); return n; })}
-                                                                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "6px 14px 5px 18px", border: "none", cursor: "pointer", background: `${C.iceLight}40`, borderBottom: `1px solid ${C.border}` }}>
+                                                        <button key={tier.id}
+                                                            onClick={() => { setActiveCancerView(true); setSelectedCancerTierId(tier.id); setActiveView("client"); }}
+                                                            style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 14px 7px 18px", border: "none", cursor: "pointer", transition: "all 0.12s", background: tierActive ? `${C.teal}18` : `${C.iceLight}30`, borderLeft: `3px solid ${tierActive ? C.teal : "transparent"}`, borderBottom: `1px solid ${C.border}` }}>
+                                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
                                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                                     <div style={{ fontSize: 8, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em" }}>{tier.shortLabel} · {tier.weight}×</div>
-                                                                    <div style={{ fontSize: 10, color: C.textSecond, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tier.label.replace(/^Tier \d — /, "")}</div>
+                                                                    <div style={{ fontSize: 10, color: tierActive ? C.navy : C.textSecond, fontWeight: tierActive ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tier.label.replace(/^Tier \d — /, "")}</div>
                                                                 </div>
-                                                                <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
-                                                                    {tierResult?.score != null && <span style={{ fontSize: 11, color: procColour(Math.floor(tierResult.score)), fontWeight: 700, fontFamily: T.mono }}>{Math.floor(tierResult.score)}</span>}
-                                                                    <span style={{ fontSize: 9, color: C.textFaint, display: "inline-block", transition: "transform 0.15s", transform: isTierCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}>▾</span>
-                                                                </div>
-                                                            </button>
-                                                            {!isTierCollapsed && tierSystems.map(sys => {
-                                                                const s = allSysScores.find(x => x.id === sys.id)?.score;
-                                                                const active = systemId === sys.id && !activeCancerView && activeView === "client";
-                                                                return (
-                                                                    <button key={sys.id} data-sysid={sys.id}
-                                                                        onClick={() => { setSystemId(sys.id); setActiveProc(null); setActiveCancerView(false); setActiveView("client"); }}
-                                                                        style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px 9px 26px", border: "none", cursor: "pointer", transition: "all 0.12s", background: active ? `${C.teal}18` : "transparent", borderLeft: `3px solid ${active ? C.teal : "transparent"}` }}>
-                                                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
-                                                                            <span style={{ fontSize: 11, color: active ? C.navy : C.textSecond, fontWeight: active ? 700 : 400, lineHeight: 1.3, flex: 1 }}>{sys.name}</span>
-                                                                            {s != null
-                                                                                ? <span style={{ fontSize: 11, color: procColour(Math.floor(s)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(s)}</span>
-                                                                                : <span style={{ fontSize: 9, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
-                                                                        </div>
-                                                                        {s != null && <div style={{ marginTop: 3 }}><ScoreBar score={s} h={2} /></div>}
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </div>
+                                                                {tierResult?.score != null && <span style={{ fontSize: 11, color: procColour(Math.floor(tierResult.score)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(tierResult.score)}</span>}
+                                                            </div>
+                                                        </button>
                                                     );
                                                 })}
                                             </>}
@@ -2914,46 +2906,76 @@ export default function App() {
                     </>}
                 </div>
 
-                {/* ── Column 2: Processes ── */}
-                {!isTwoTier && <div style={{ width: col2Open ? 196 : 28, flexShrink: 0, background: `${C.iceLight}30`, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", transition: "width 0.2s ease", overflow: "hidden" }}>
+                {/* ── Column 2: Processes / Cancer Pathways ── */}
+                {showCol2 && <div style={{ width: col2Open ? 196 : 28, flexShrink: 0, background: `${C.iceLight}30`, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", transition: "width 0.2s ease", overflow: "hidden" }}>
                     {/* collapse tab */}
                     <button onClick={() => setCol2Open(o => !o)}
-                        title={col2Open ? "Collapse processes panel" : "Expand processes panel"}
+                        title={col2Open ? "Collapse panel" : "Expand panel"}
                         style={{
                             display: "flex", alignItems: "center", justifyContent: col2Open ? "flex-end" : "center",
                             gap: 6, padding: "8px 10px", border: "none", borderBottom: `1px solid ${C.border}`,
                             background: "transparent", cursor: "pointer", flexShrink: 0, color: C.textFaint, fontSize: 10
                         }}>
-                        {col2Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600 }}>Processes</span>}
+                        {col2Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600 }}>{(activeCancerView || isCancerSystem) ? "Pathways" : "Processes"}</span>}
                         <span style={{ fontSize: 14, lineHeight: 1 }}>{col2Open ? "‹" : "›"}</span>
                     </button>
 
                     {col2Open && <div data-tutorial="processes-panel" style={{ overflowY: "auto", flex: 1 }}>
-                        <div style={{ fontSize: 11, color: C.textSecond, fontWeight: 600, padding: "10px 14px 8px", lineHeight: 1.3 }}>{system.name}</div>
-                        {procResults.length === 0 && Object.keys(system.processes).map(proc => (
-                            <div key={proc} style={{ padding: "8px 14px", borderLeft: "3px solid transparent", color: C.textFaint, fontSize: 11, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <span style={{ flex: 1 }}>{proc}</span>
-                                <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", marginLeft: 6 }}>No data</span>
-                            </div>
-                        ))}
-                        {[...procResults].sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)).map(pr => {
-                            const active = selProc === pr.process;
-                            return (
-                                <button key={pr.process} onClick={() => { setActiveProc(pr.process); setActiveView("client"); }}
-                                    style={{
-                                        display: "block", width: "100%", textAlign: "left", padding: "11px 16px",
-                                        border: "none", cursor: "pointer", transition: "all 0.12s",
-                                        background: active ? `${C.teal}22` : "transparent",
-                                        borderLeft: `3px solid ${active ? C.teal : "transparent"}`
-                                    }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
-                                        <span style={{ fontSize: 11, color: active ? C.navy : C.textSecond, fontWeight: active ? 600 : 400, lineHeight: 1.3, flex: 1 }}>{pr.process}</span>
-                                        {pr.score != null && <span style={{ fontSize: 11, color: procColour(pr.score), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(pr.score)}</span>}
-                                    </div>
-                                    {pr.score == null && <div style={{ fontSize: 9, color: C.textFaint, marginTop: 2, fontStyle: "italic" }}>No data</div>}
-                                </button>
+                        {(activeCancerView || isCancerSystem) ? (() => {
+                            const tier = CANCER_TIERS.find(t => t.id === activeCancerTierId);
+                            const tierResult = cancerDomain?.tierResults?.find(t => t.id === activeCancerTierId);
+                            if (!tier) return (
+                                <div style={{ padding: "14px", fontSize: 11, color: C.textFaint, fontStyle: "italic", lineHeight: 1.5 }}>
+                                    Select a tier from the left panel to view its pathways.
+                                </div>
                             );
-                        })}
+                            return <>
+                                <div style={{ padding: "10px 14px 8px" }}>
+                                    <div style={{ fontSize: 8, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 2 }}>{tier.shortLabel} · {tier.weight}×</div>
+                                    <div style={{ fontSize: 11, color: C.textSecond, fontWeight: 600, lineHeight: 1.3 }}>{tier.label.replace(/^Tier \d — /, "")}</div>
+                                    {tierResult?.score != null && <div style={{ fontSize: 10, color: procColour(tierResult.score), fontWeight: 700, fontFamily: T.mono, marginTop: 2 }}>Avg {Math.floor(tierResult.score)}</div>}
+                                </div>
+                                {tier.systems.map(sysId => {
+                                    const sys = assocSystems.find(s => s.id === sysId);
+                                    if (!sys) return null;
+                                    const s = allSysScores.find(x => x.id === sysId)?.score;
+                                    const active = systemId === sysId && !activeCancerView && activeView === "client";
+                                    return (
+                                        <button key={sysId} data-sysid={sysId}
+                                            onClick={() => { setSystemId(sysId); setActiveProc(null); setActiveCancerView(false); setActiveView("client"); }}
+                                            style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", cursor: "pointer", transition: "all 0.12s", background: active ? `${C.teal}22` : "transparent", borderLeft: `3px solid ${active ? C.teal : "transparent"}` }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+                                                <span style={{ fontSize: 11, color: active ? C.navy : C.textSecond, fontWeight: active ? 600 : 400, lineHeight: 1.3, flex: 1 }}>{sys.name}</span>
+                                                {s != null && <span style={{ fontSize: 11, color: procColour(s), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(s)}</span>}
+                                            </div>
+                                            {s == null && <div style={{ fontSize: 9, color: C.textFaint, marginTop: 2, fontStyle: "italic" }}>No data</div>}
+                                            {s != null && <div style={{ marginTop: 3 }}><ScoreBar score={s} h={2} /></div>}
+                                        </button>
+                                    );
+                                })}
+                            </>;
+                        })() : <>
+                            <div style={{ fontSize: 11, color: C.textSecond, fontWeight: 600, padding: "10px 14px 8px", lineHeight: 1.3 }}>{system.name}</div>
+                            {procResults.length === 0 && Object.keys(system.processes).map(proc => (
+                                <div key={proc} style={{ padding: "8px 14px", borderLeft: "3px solid transparent", color: C.textFaint, fontSize: 11, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <span style={{ flex: 1 }}>{proc}</span>
+                                    <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", marginLeft: 6 }}>No data</span>
+                                </div>
+                            ))}
+                            {[...procResults].sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)).map(pr => {
+                                const active = selProc === pr.process;
+                                return (
+                                    <button key={pr.process} onClick={() => { setActiveProc(pr.process); setActiveView("client"); }}
+                                        style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 16px", border: "none", cursor: "pointer", transition: "all 0.12s", background: active ? `${C.teal}22` : "transparent", borderLeft: `3px solid ${active ? C.teal : "transparent"}` }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+                                            <span style={{ fontSize: 11, color: active ? C.navy : C.textSecond, fontWeight: active ? 600 : 400, lineHeight: 1.3, flex: 1 }}>{pr.process}</span>
+                                            {pr.score != null && <span style={{ fontSize: 11, color: procColour(pr.score), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(pr.score)}</span>}
+                                        </div>
+                                        {pr.score == null && <div style={{ fontSize: 9, color: C.textFaint, marginTop: 2, fontStyle: "italic" }}>No data</div>}
+                                    </button>
+                                );
+                            })}
+                        </>}
                     </div>}
                 </div>}
 
@@ -3013,6 +3035,7 @@ export default function App() {
 
                             <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px" }}>
                                 {tab === "weights-proc" && <ProcWeightsTab system={system} procResults={procResults} procWeights={procWeights} setProcWeights={setProcWeights} sysScore={sysScore} selProc={selProc} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
+                                {tab === "weights-sys" && <CancerSysWeightsTab cancerDomain={cancerDomain} allSysScores={allSysScores} cancerSysWeights={cancerSysWeights} setCancerSysWeights={setCancerSysWeights} activeSysId={systemId} card={card} />}
                                 {tab === "weights-bio" && <BioWeightsTab activeProcResult={activeProcResult} selProc={selProc} bioWeights={bioWeights} setBioWeights={setBioWeights} greenPct={greenPct} yellowWeight={yellowWeight} setYellowWeight={setYellowWeight} redWeight={redWeight} setRedWeight={setRedWeight} card={card} editConc={editConc} setEditConc={setEditConc} setConcWarnModal={setConcWarnModal} concOverrides={concOverrides[clientId] ?? {}} setConcOverrides={v => setConcOverrides(prev => ({ ...prev, [clientId]: v }))} clientMarkers={clients[clientId]?.markers ?? {}} systemId={systemId} />}
                                 {tab === "curves" && <CurvesTab activeProcResult={activeProcResult} selProc={selProc} cutoff={cutoff} setCutoff={setCutoff} greenPct={greenPct} setGreenPct={setGreenPct} curve={curve} setCurve={setCurve} card={card} />}
                                 {tab === "flags" && <FlagsTab oorFlags={oorFlags} setActiveProc={setActiveProc} setTab={setTab} card={card} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} assocSystems={assocSystems} />}
@@ -3022,6 +3045,79 @@ export default function App() {
                     )}
                 </div>
             </div>
+        </div>
+    );
+}
+
+// ─── Cancer System Weights Tab ────────────────────────────────────────────────
+function CancerSysWeightsTab({ cancerDomain, allSysScores, cancerSysWeights, setCancerSysWeights, activeSysId, card }) {
+    const { tierResults, composite } = cancerDomain ?? {};
+
+    return (
+        <div>
+            {/* Domain score summary */}
+            <div style={{ ...card, marginBottom: 20, borderLeft: `4px solid ${composite != null ? procColour(composite) : C.border}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                        <div style={{ fontSize: 10, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 3 }}>Cancer Domain Score</div>
+                        <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>
+                            Adjust how much each pathway contributes to its tier average.
+                            Tier weights (1×/2×/3×) are fixed per the scoring specification.
+                        </div>
+                    </div>
+                    {composite != null && <div style={{ fontSize: 30, fontWeight: 800, color: procColour(composite), fontFamily: T.mono, flexShrink: 0, marginLeft: 16 }}>{Math.floor(composite)}</div>}
+                </div>
+            </div>
+
+            {/* Pathway weight cards grouped by tier */}
+            {CANCER_TIERS.map(tier => {
+                const tierResult = tierResults?.find(t => t.id === tier.id);
+                return (
+                    <div key={tier.id} style={{ ...card, marginBottom: 16 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 10, borderBottom: `1px solid ${C.border}` }}>
+                            <div>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 2 }}>{tier.shortLabel} · Tier weight {tier.weight}×</div>
+                                <div style={{ fontSize: 13, fontFamily: T.display, color: C.navy }}>{tier.label.replace(/^Tier \d — /, "")}</div>
+                            </div>
+                            {tierResult?.score != null && (
+                                <div style={{ textAlign: "right" }}>
+                                    <div style={{ fontSize: 22, fontWeight: 800, color: procColour(tierResult.score), fontFamily: T.mono, lineHeight: 1 }}>{Math.floor(tierResult.score)}</div>
+                                    <div style={{ fontSize: 9, color: C.textFaint }}>Tier avg</div>
+                                </div>
+                            )}
+                        </div>
+                        {tier.systems.map(sysId => {
+                            const sys = CANCER_SYSTEMS.find(s => s.id === sysId);
+                            if (!sys) return null;
+                            const score = allSysScores.find(s => s.id === sysId)?.score;
+                            const w = cancerSysWeights[sysId] ?? 1;
+                            const isActive = activeSysId === sysId;
+                            return (
+                                <div key={sysId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${C.border}`, background: isActive ? `${C.teal}08` : "transparent" }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                                            <span style={{ fontSize: 12, color: isActive ? C.navy : C.textSecond, fontWeight: isActive ? 700 : 500 }}>{sys.name}</span>
+                                            <span style={{ fontSize: 12, color: score != null ? procColour(score) : C.textFaint, fontWeight: 700, fontFamily: T.mono }}>
+                                                {score != null ? Math.floor(score) : "—"}
+                                            </span>
+                                        </div>
+                                        {score != null && <div style={{ marginBottom: 8 }}><ScoreBar score={score} h={3} /></div>}
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                            <span style={{ fontSize: 10, color: C.textFaint, flexShrink: 0 }}>Weight</span>
+                                            <input type="range" min={0.1} max={5} step={0.1} value={w}
+                                                onChange={e => setCancerSysWeights(prev => ({ ...prev, [sysId]: parseFloat(e.target.value) }))}
+                                                style={{ flex: 1, accentColor: C.teal }} />
+                                            <span style={{ fontSize: 11, fontFamily: T.mono, color: C.navy, minWidth: 28, textAlign: "right" }}>{w.toFixed(1)}×</span>
+                                            {w !== 1 && <button onClick={() => setCancerSysWeights(prev => { const n = { ...prev }; delete n[sysId]; return n; })}
+                                                style={{ fontSize: 9, color: C.textFaint, background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}>reset</button>}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            })}
         </div>
     );
 }
