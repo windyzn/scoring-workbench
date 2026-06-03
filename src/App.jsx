@@ -314,6 +314,23 @@ const CANCER_SYSTEMS = [
     },
 ];
 
+const CANCER_TIERS = [
+    { id: "tier1", label: "Tier 1 — Systemic Risk Environment",  shortLabel: "Tier 1", weight: 1,
+      systems: ["cancer_metabolic_dysfunction", "cancer_inflammation", "cancer_oxidative_stress"] },
+    { id: "tier2", label: "Tier 2 — Transitional Biology",        shortLabel: "Tier 2", weight: 2,
+      systems: ["cancer_cell_proliferation", "cancer_immune_system_evasion"] },
+    { id: "tier3", label: "Tier 3 — Tumour-Associated Biology",   shortLabel: "Tier 3", weight: 3,
+      systems: ["cancer_angiogenesis", "cancer_matrix_remodelling", "cancer_metastasis"] },
+];
+
+const CANCER_CLASSIFICATIONS = [
+    { min: 80, max: 100, label: "Low Concern",               color: C.green },
+    { min: 60, max: 79,  label: "Low to Moderate Concern",   color: C.good },
+    { min: 45, max: 59,  label: "Moderate Concern",          color: C.fair },
+    { min: 25, max: 44,  label: "Moderate to High Concern",  color: C.atRisk },
+    { min: 0,  max: 24,  label: "High Concern",              color: C.critical },
+];
+
 const ALL_SYSTEMS = [...SYSTEMS, ...DISEASE_SYSTEMS, ...CANCER_SYSTEMS];
 
 const DEFAULT_ALL_SYSTEMS = [
@@ -327,7 +344,7 @@ const DEFAULT_ALL_SYSTEMS = [
 const DEFAULT_ASSOC_GROUPS = [
     { id: "health",  label: "Health Systems",   twoLevel: false },
     { id: "disease", label: "Diseases",          twoLevel: false },
-    { id: "cancer",  label: "Cancer Hallmarks",  twoLevel: true  },
+    { id: "cancer",  label: "Cancer",             twoLevel: true  },
 ];
 
 // All biomarker and process weights default to 1.0 — zone-based auto-weighting
@@ -1351,6 +1368,25 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
     return { procResults, sysScore };
 }
 
+function computeCancerDomain(sysScores) {
+    const totalWeight = CANCER_TIERS.reduce((a, t) => a + t.weight, 0); // 1+2+3 = 6
+    const tierResults = CANCER_TIERS.map(tier => {
+        const scores = tier.systems
+            .map(id => sysScores.find(s => s.id === id)?.score)
+            .filter(s => s != null);
+        const score = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+        return { ...tier, score };
+    });
+    const validTiers = tierResults.filter(t => t.score != null);
+    const composite = validTiers.length
+        ? validTiers.reduce((acc, t) => acc + t.weight * t.score, 0) / totalWeight
+        : null;
+    const classification = composite != null
+        ? CANCER_CLASSIFICATIONS.find(c => composite >= c.min) ?? CANCER_CLASSIFICATIONS[CANCER_CLASSIFICATIONS.length - 1]
+        : null;
+    return { tierResults, composite, classification };
+}
+
 // ─── CSV parsing ──────────────────────────────────────────────────────────────
 function parseCSV(text) {
     // Split on any line ending without regex backslash issues
@@ -1613,6 +1649,8 @@ export default function App() {
     const [col1Open, setCol1Open] = useState(true);
     const [col2Open, setCol2Open] = useState(true);
     const [collapsedGroups, setCollapsedGroups] = useState(new Set()); // all expanded by default
+    const [activeCancerView, setActiveCancerView] = useState(false); // true = showing cancer domain overview
+    const [collapsedCancerTiers, setCollapsedCancerTiers] = useState(new Set()); // tier ids to collapse
     const sidebarRef = useRef(null);
     const [concOverrides, setConcOverrides] = useState({});  // { [clientId]: { [markerName]: value } }
     const [aggTab, setAggTab] = useState("overview");
@@ -1740,6 +1778,10 @@ export default function App() {
 
     // Auto-collapse other sidebar groups and smooth-scroll active system into view
     useEffect(() => {
+        if (activeCancerView) {
+            setCollapsedGroups(new Set(sysGroups.filter(g => g.groupId !== "cancer").map(g => g.label)));
+            return;
+        }
         const activeGroup = sysGroups.find(g => g.systems.some(s => s.id === systemId));
         if (activeGroup) {
             // Collapse all groups except the one containing the active system
@@ -1750,7 +1792,7 @@ export default function App() {
             const activeBtn = sidebarRef.current.querySelector(`[data-sysid="${systemId}"]`);
             if (activeBtn) activeBtn.scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
-    }, [systemId, sysGroups]);
+    }, [systemId, activeCancerView, sysGroups]);
 
     const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
     const { bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight } = activeProfile;
@@ -2002,6 +2044,8 @@ export default function App() {
             ? computeSystem(s, markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight).sysScore
             : null
     })), [markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight]);
+
+    const cancerDomain = useMemo(() => computeCancerDomain(allSysScores), [allSysScores]);
 
     const aggregateData = useMemo(() => {
         const pids = Object.keys(clients); if (!pids.length) return null;
@@ -2752,30 +2796,93 @@ export default function App() {
 
                     {col1Open && <>
                         <div ref={sidebarRef} data-tutorial="systems-panel" style={{ overflowY: "auto", flex: 1 }}>
-                            {sysGroups.map(({ label, systems }) => {
+                            {sysGroups.map(({ label, groupId, systems }) => {
                                 const isCollapsed = collapsedGroups.has(label);
+                                const toggleGroup = () => setCollapsedGroups(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n; });
+
+                                if (groupId === "cancer") {
+                                    const domainActive = activeCancerView && activeView === "client";
+                                    const domainScore = cancerDomain?.composite;
+                                    return (
+                                        <div key={label}>
+                                            {/* Cancer group header */}
+                                            <button onClick={toggleGroup}
+                                                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "8px 14px 6px", border: "none", cursor: "pointer", background: "transparent", borderBottom: `1px solid ${C.border}` }}>
+                                                <span style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em" }}>{label}</span>
+                                                <span style={{ fontSize: 10, color: C.textFaint, lineHeight: 1, transition: "transform 0.15s", display: "inline-block", transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}>▾</span>
+                                            </button>
+                                            {!isCollapsed && <>
+                                                {/* Domain-level entry */}
+                                                <button onClick={() => { setActiveCancerView(true); setActiveView("client"); }}
+                                                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", cursor: "pointer", transition: "all 0.12s", background: domainActive ? `${C.teal}18` : "transparent", borderLeft: `3px solid ${domainActive ? C.teal : "transparent"}` }}>
+                                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+                                                        <span style={{ fontSize: 12, color: domainActive ? C.navy : C.textSecond, fontWeight: 600, lineHeight: 1.3, flex: 1 }}>Cancer Risk Score</span>
+                                                        {domainScore != null
+                                                            ? <span style={{ fontSize: 12, color: procColour(Math.floor(domainScore)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(domainScore)}</span>
+                                                            : <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
+                                                    </div>
+                                                    {domainScore != null && <>
+                                                        <div style={{ marginTop: 3 }}><ScoreBar score={domainScore} h={2} /></div>
+                                                        <div style={{ fontSize: 9, color: cancerDomain?.classification?.color ?? C.textFaint, marginTop: 2, fontWeight: 600 }}>{cancerDomain?.classification?.label}</div>
+                                                    </>}
+                                                </button>
+                                                {/* Tier sections */}
+                                                {CANCER_TIERS.map(tier => {
+                                                    const isTierCollapsed = collapsedCancerTiers.has(tier.id);
+                                                    const tierResult = cancerDomain?.tierResults?.find(t => t.id === tier.id);
+                                                    const tierSystems = systems.filter(s => tier.systems.includes(s.id));
+                                                    return (
+                                                        <div key={tier.id}>
+                                                            <button onClick={() => setCollapsedCancerTiers(prev => { const n = new Set(prev); n.has(tier.id) ? n.delete(tier.id) : n.add(tier.id); return n; })}
+                                                                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "6px 14px 5px 18px", border: "none", cursor: "pointer", background: `${C.iceLight}40`, borderBottom: `1px solid ${C.border}` }}>
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <div style={{ fontSize: 8, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em" }}>{tier.shortLabel} · {tier.weight}×</div>
+                                                                    <div style={{ fontSize: 10, color: C.textSecond, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tier.label.replace(/^Tier \d — /, "")}</div>
+                                                                </div>
+                                                                <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                                                                    {tierResult?.score != null && <span style={{ fontSize: 11, color: procColour(Math.floor(tierResult.score)), fontWeight: 700, fontFamily: T.mono }}>{Math.floor(tierResult.score)}</span>}
+                                                                    <span style={{ fontSize: 9, color: C.textFaint, display: "inline-block", transition: "transform 0.15s", transform: isTierCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}>▾</span>
+                                                                </div>
+                                                            </button>
+                                                            {!isTierCollapsed && tierSystems.map(sys => {
+                                                                const s = allSysScores.find(x => x.id === sys.id)?.score;
+                                                                const active = systemId === sys.id && !activeCancerView && activeView === "client";
+                                                                return (
+                                                                    <button key={sys.id} data-sysid={sys.id}
+                                                                        onClick={() => { setSystemId(sys.id); setActiveProc(null); setActiveCancerView(false); setActiveView("client"); }}
+                                                                        style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px 9px 26px", border: "none", cursor: "pointer", transition: "all 0.12s", background: active ? `${C.teal}18` : "transparent", borderLeft: `3px solid ${active ? C.teal : "transparent"}` }}>
+                                                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+                                                                            <span style={{ fontSize: 11, color: active ? C.navy : C.textSecond, fontWeight: active ? 700 : 400, lineHeight: 1.3, flex: 1 }}>{sys.name}</span>
+                                                                            {s != null
+                                                                                ? <span style={{ fontSize: 11, color: procColour(Math.floor(s)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(s)}</span>
+                                                                                : <span style={{ fontSize: 9, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
+                                                                        </div>
+                                                                        {s != null && <div style={{ marginTop: 3 }}><ScoreBar score={s} h={2} /></div>}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </>}
+                                        </div>
+                                    );
+                                }
+
+                                // Standard (health / disease) group rendering
                                 return (
                                     <div key={label}>
-                                        <button onClick={() => setCollapsedGroups(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n; })}
-                                            style={{
-                                                display: "flex", alignItems: "center", justifyContent: "space-between",
-                                                width: "100%", padding: "8px 14px 6px", border: "none", cursor: "pointer",
-                                                background: "transparent", borderBottom: `1px solid ${C.border}`
-                                            }}>
+                                        <button onClick={toggleGroup}
+                                            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "8px 14px 6px", border: "none", cursor: "pointer", background: "transparent", borderBottom: `1px solid ${C.border}` }}>
                                             <span style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em" }}>{label}</span>
                                             <span style={{ fontSize: 10, color: C.textFaint, lineHeight: 1, transition: "transform 0.15s", display: "inline-block", transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}>▾</span>
                                         </button>
                                         {!isCollapsed && systems.map(sys => {
                                             const s = allSysScores.find(x => x.id === sys.id)?.score;
-                                            const active = systemId === sys.id && activeView === "client";
+                                            const active = systemId === sys.id && !activeCancerView && activeView === "client";
                                             return (
-                                                <button key={sys.id} data-sysid={sys.id} onClick={() => { setSystemId(sys.id); setActiveProc(null); setActiveView("client"); }}
-                                                    style={{
-                                                        display: "block", width: "100%", textAlign: "left", padding: "10px 14px",
-                                                        border: "none", cursor: "pointer", transition: "all 0.12s",
-                                                        background: active ? `${C.teal}18` : "transparent",
-                                                        borderLeft: `3px solid ${active ? C.teal : "transparent"}`
-                                                    }}>
+                                                <button key={sys.id} data-sysid={sys.id} onClick={() => { setSystemId(sys.id); setActiveProc(null); setActiveCancerView(false); setActiveView("client"); }}
+                                                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", cursor: "pointer", transition: "all 0.12s", background: active ? `${C.teal}18` : "transparent", borderLeft: `3px solid ${active ? C.teal : "transparent"}` }}>
                                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
                                                         <span style={{ fontSize: 12, color: active ? C.navy : C.textSecond, fontWeight: active ? 700 : 400, lineHeight: 1.3, flex: 1 }}>{sys.name}</span>
                                                         {s != null
@@ -2858,6 +2965,9 @@ export default function App() {
                         <UploadPrompt fileRef={fileRef} dragOver={dragOver} setDragOver={setDragOver} handleFile={handleFile} uploadErr={uploadErr} isUploading={isUploading} loadDemo={loadDemo} personas={DEMO_PERSONAS} />
                     ) : activeView === "aggregate" ? (
                         <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} aggTab={aggTab} setAggTab={setAggTab} onNavigate={(pid) => { setClientId(pid); setActiveView("client"); }} assocSystems={assocSystems} sysGroups={sysGroups} />
+                    ) : activeCancerView ? (
+                        <CancerDomainView cancerDomain={cancerDomain} allSysScores={allSysScores} card={card}
+                            onSelectPathway={(id) => { setSystemId(id); setActiveCancerView(false); setActiveView("client"); }} />
                     ) : (
                         <>
                             {/* Header: system name + breadcrumb + dual gauges */}
@@ -2910,6 +3020,115 @@ export default function App() {
                             </div>
                         </>
                     )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Cancer Domain View ───────────────────────────────────────────────────────
+function CancerDomainView({ cancerDomain, allSysScores, card, onSelectPathway }) {
+    const { tierResults, composite, classification } = cancerDomain ?? {};
+    const hasScores = composite != null;
+
+    return (
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minWidth: 0 }}>
+            {/* Header */}
+            <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "14px 24px", display: "flex", alignItems: "center", gap: 24, flexShrink: 0 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 2 }}>Cancer Pathway · Domain Score</div>
+                    <div style={{ fontSize: 18, fontFamily: T.display, color: C.navy }}>Cancer Risk Assessment</div>
+                </div>
+                {hasScores ? (
+                    <div style={{ display: "flex", gap: 22, alignItems: "center", flexShrink: 0 }}>
+                        <ArcGauge score={composite} size={72} label="Domain" />
+                        <div>
+                            <div style={{ fontSize: 10, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Classification</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: classification?.color ?? C.textFaint, lineHeight: 1.2 }}>{classification?.label ?? "—"}</div>
+                        </div>
+                    </div>
+                ) : (
+                    <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>No client data loaded</div>
+                )}
+            </div>
+
+            <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
+                {/* Composite formula card */}
+                <div style={{ ...card, marginBottom: 20, padding: "14px 18px" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 8 }}>Composite Formula</div>
+                    <div style={{ fontFamily: T.mono, fontSize: 13, color: C.navy, marginBottom: 6 }}>C = (1×T1 + 2×T2 + 3×T3) / 6</div>
+                    {hasScores && (
+                        <div style={{ fontFamily: T.mono, fontSize: 12, color: C.textSecond, marginBottom: 8 }}>
+                            C = ({tierResults.map((t, i) => (
+                                <span key={t.id}>{i > 0 ? " + " : ""}{t.weight}×{t.score != null ? t.score.toFixed(1) : "—"}</span>
+                            ))}) / 6 = <strong style={{ color: procColour(composite) }}>{composite.toFixed(1)}</strong>
+                        </div>
+                    )}
+                    <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>
+                        Tier 3 (tumour-associated) carries 3× the weight of Tier 1 (systemic risk). Poor Tier 3 scores pull the composite down more aggressively than equivalent Tier 1 deviations.
+                    </div>
+                </div>
+
+                {/* Tier cards */}
+                {CANCER_TIERS.map(tier => {
+                    const tierResult = tierResults?.find(t => t.id === tier.id);
+                    const tierScore = tierResult?.score;
+                    const tierSystems = CANCER_SYSTEMS.filter(s => tier.systems.includes(s.id));
+                    return (
+                        <div key={tier.id} style={{ ...card, marginBottom: 16 }}>
+                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12, paddingBottom: 10, borderBottom: `1px solid ${C.border}` }}>
+                                <div>
+                                    <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 3 }}>{tier.shortLabel} · Weight {tier.weight}×</div>
+                                    <div style={{ fontSize: 14, fontFamily: T.display, color: C.navy }}>{tier.label.replace(/^Tier \d — /, "")}</div>
+                                </div>
+                                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                    {tierScore != null ? (
+                                        <>
+                                            <div style={{ fontSize: 26, fontWeight: 800, color: procColour(tierScore), fontFamily: T.mono, lineHeight: 1 }}>{Math.floor(tierScore)}</div>
+                                            <div style={{ fontSize: 9, color: C.textFaint, marginTop: 2 }}>Tier average</div>
+                                        </>
+                                    ) : (
+                                        <div style={{ fontSize: 11, color: C.textFaint, fontStyle: "italic" }}>No data</div>
+                                    )}
+                                </div>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                                {tierSystems.map(sys => {
+                                    const sysSc = allSysScores.find(s => s.id === sys.id)?.score;
+                                    return (
+                                        <button key={sys.id} onClick={() => onSelectPathway(sys.id)}
+                                            style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 12px", background: `${C.iceLight}30`, border: `1px solid ${C.border}`, borderRadius: 6, cursor: "pointer", textAlign: "left", transition: "background 0.12s" }}
+                                            onMouseEnter={e => e.currentTarget.style.background = `${C.teal}12`}
+                                            onMouseLeave={e => e.currentTarget.style.background = `${C.iceLight}30`}>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontSize: 12, color: C.textSecond, fontWeight: 500, marginBottom: 4 }}>{sys.name}</div>
+                                                <ScoreBar score={sysSc ?? null} h={4} />
+                                            </div>
+                                            <div style={{ fontSize: 16, fontWeight: 700, color: sysSc != null ? procColour(Math.floor(sysSc)) : C.textFaint, fontFamily: T.mono, flexShrink: 0, minWidth: 30, textAlign: "right" }}>
+                                                {sysSc != null ? Math.floor(sysSc) : "—"}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {/* Classification reference */}
+                <div style={{ ...card, marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 10 }}>Classification Reference</div>
+                    {CANCER_CLASSIFICATIONS.map((cls, i) => {
+                        const isActive = hasScores && composite >= cls.min && (i === 0 || composite < CANCER_CLASSIFICATIONS[i - 1].min);
+                        return (
+                            <div key={cls.label} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 5, marginBottom: 3, background: isActive ? `${cls.color}18` : "transparent", border: `1px solid ${isActive ? cls.color : "transparent"}`, transition: "all 0.15s" }}>
+                                <div style={{ width: 8, height: 8, borderRadius: "50%", background: cls.color, flexShrink: 0 }} />
+                                <div style={{ fontSize: 11, color: isActive ? cls.color : C.textSecond, fontWeight: isActive ? 700 : 400 }}>
+                                    <span style={{ fontFamily: T.mono, marginRight: 6 }}>{cls.min}–{cls.max}</span>{cls.label}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </div>
@@ -3794,7 +4013,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const [overviewYellow, setOverviewYellow] = useState(70);
     const overviewColour = s => s == null ? C.textFaint : Math.floor(s) >= overviewGreen ? C.teal : Math.floor(s) >= overviewYellow ? C.fair : C.critical;
     const overviewBg = s => s == null ? "transparent" : `${overviewColour(s)}18`;
-    const ALL_GROUP_LABELS = ["Health Systems", "Diseases", "Cancer Hallmarks"];
+    const ALL_GROUP_LABELS = ["Health Systems", "Diseases", "Cancer"];
     const [visibleSysGroups, setVisibleSysGroups] = useState(new Set(ALL_GROUP_LABELS));
     const PROC_GROUPS = sysGroups;
     const ALL_PROCS_FLAT = [...new Set(assocSystems.flatMap(s => Object.keys(s.processes)))];
@@ -3830,7 +4049,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const downloadSysCSV = () => {
         const rows = aggregateData[isComparing ? clientTab : 0].clients;
         const visSystems = assocSystems.filter(s => {
-            const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Diseases" : "Cancer Hallmarks";
+            const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Diseases" : "Cancer";
             return visibleSysGroups.has(grp);
         });
         const header = ["Client", ...visSystems.map(s => s.name)];
@@ -4002,7 +4221,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             {(() => {
                                 const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
                                 const visibleSystems = assocSystems.filter(s => {
-                                    const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Diseases" : "Cancer Hallmarks";
+                                    const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Diseases" : "Cancer";
                                     return visibleSysGroups.has(grp);
                                 });
                                 const stickyCell = { position: "sticky", left: 0, zIndex: 2 };
