@@ -1337,8 +1337,7 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
             const rng = m.refHigh - m.refLow, gL = m.refLow + gp * rng, gH = m.refHigh - gp * rng;
             const manualW = typeof entry === "object" ? entry.weight : entry;
             const status = m.value > gH ? "HIGH" : m.value < gL ? "LOW" : "NORMAL";
-            // Biomarker→process only affects the score when in the red zone
-            const effW = zone === "red" ? effectiveWeight(entry, hasEntry, zone, status, yellowW, redW, level) : 0;
+            const effW = effectiveWeight(entry, hasEntry, zone, status, yellowW, redW, level);
             return {
                 name, value: m.value, refLow: m.refLow, refHigh: m.refHigh,
                 score: s, zone, weight: manualW, effWeight: effW, missing: false,
@@ -1346,9 +1345,8 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
             };
         });
         const valid = scored.filter(b => !b.missing);
-        // Process score: weighted average of red-zone biomarkers only; if none are red → 100 (all optimal)
-        const redValid = valid.filter(b => b.effWeight > 0);
-        const score = valid.length === 0 ? null : redValid.length === 0 ? 100 : wavg(redValid.map(b => [b.score, b.effWeight]));
+        // Process score: weighted average of all biomarkers (green=100, yellow/red pull down proportionally)
+        const score = valid.length === 0 ? null : wavg(valid.map(b => [b.score, b.effWeight]));
         return { process: proc, score, biomarkers: scored };
     });
     const valid = procResults.filter(p => p.score !== null);
