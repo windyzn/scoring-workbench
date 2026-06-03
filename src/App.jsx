@@ -1368,19 +1368,20 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
     return { procResults, sysScore };
 }
 
-function computeCancerDomain(sysScores, cancerSysWeights = {}) {
-    const totalWeight = CANCER_TIERS.reduce((a, t) => a + t.weight, 0); // 1+2+3 = 6
+function computeCancerDomain(sysScores, cancerSysWeights = {}, cancerTierWeights = {}) {
     const tierResults = CANCER_TIERS.map(tier => {
+        const tw = cancerTierWeights[tier.id] ?? tier.weight;
         const entries = tier.systems
             .map(id => ({ id, score: sysScores.find(s => s.id === id)?.score, w: cancerSysWeights[id] ?? 1 }))
             .filter(e => e.score != null);
         const totalW = entries.reduce((a, e) => a + e.w, 0);
         const score = entries.length ? entries.reduce((a, e) => a + e.score * e.w, 0) / totalW : null;
-        return { ...tier, score };
+        return { ...tier, score, tierWeight: tw };
     });
     const validTiers = tierResults.filter(t => t.score != null);
-    const composite = validTiers.length
-        ? validTiers.reduce((acc, t) => acc + t.weight * t.score, 0) / totalWeight
+    const totalWeight = validTiers.reduce((a, t) => a + t.tierWeight, 0);
+    const composite = validTiers.length && totalWeight > 0
+        ? validTiers.reduce((acc, t) => acc + t.tierWeight * t.score, 0) / totalWeight
         : null;
     const classification = composite != null
         ? CANCER_CLASSIFICATIONS.find(c => composite >= c.min) ?? CANCER_CLASSIFICATIONS[CANCER_CLASSIFICATIONS.length - 1]
@@ -1632,7 +1633,7 @@ function Slider({ label, value, min, max, step, onChange, color, fmt, tooltip })
 const DEFAULT_PARAMS = { cutoff: 0.5, greenPct: 0.05, curve: "linear", yellowWeight: 2.0, redWeight: 4.0 };
 
 function makeProfile(id, name, params) {
-    return { id, name, bioWeights: makeDefaultBioWeights(), procWeights: makeDefaultProcWeights(), cancerSysWeights: {}, ...DEFAULT_PARAMS, ...(params || {}) };
+    return { id, name, bioWeights: makeDefaultBioWeights(), procWeights: makeDefaultProcWeights(), cancerSysWeights: {}, cancerTierWeights: {}, ...DEFAULT_PARAMS, ...(params || {}) };
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -1796,7 +1797,7 @@ export default function App() {
     }, [systemId, activeCancerView, sysGroups]);
 
     const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
-    const { bioWeights, procWeights, cancerSysWeights = {}, cutoff, greenPct, curve, yellowWeight, redWeight } = activeProfile;
+    const { bioWeights, procWeights, cancerSysWeights = {}, cancerTierWeights = {}, cutoff, greenPct, curve, yellowWeight, redWeight } = activeProfile;
 
     // True when Default profile has been modified from its factory values
     const isDefaultDirty = activeProfileId === "default" && (() => {
@@ -1828,6 +1829,9 @@ export default function App() {
     }, [activeProfileId]);
     const setCancerSysWeights = useCallback(fn => {
         setProfiles(prev => prev.map(p => p.id === activeProfileId ? { ...p, cancerSysWeights: fn(p.cancerSysWeights ?? {}) } : p));
+    }, [activeProfileId]);
+    const setCancerTierWeights = useCallback(fn => {
+        setProfiles(prev => prev.map(p => p.id === activeProfileId ? { ...p, cancerTierWeights: fn(p.cancerTierWeights ?? {}) } : p));
     }, [activeProfileId]);
     const resetWeights = useCallback(() => {
         if (!window.confirm("Reset all weights and concentration overrides for this profile and client? This cannot be undone.")) return;
@@ -2055,7 +2059,7 @@ export default function App() {
             : null
     })), [markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight]);
 
-    const cancerDomain = useMemo(() => computeCancerDomain(allSysScores, cancerSysWeights), [allSysScores, cancerSysWeights]);
+    const cancerDomain = useMemo(() => computeCancerDomain(allSysScores, cancerSysWeights, cancerTierWeights), [allSysScores, cancerSysWeights, cancerTierWeights]);
 
     const aggregateData = useMemo(() => {
         const pids = Object.keys(clients); if (!pids.length) return null;
@@ -2105,7 +2109,7 @@ export default function App() {
     }, [bioWeights, procWeights]);
 
     const TABS = [
-        ...(!isTwoTier ? [{ key: "weights-proc", label: "Process Weights" }] : []),
+        ...(!isTwoTier || isCancerSystem ? [{ key: "weights-proc", label: "Process Weights" }] : []),
         ...(isCancerSystem ? [{ key: "weights-sys", label: "System Weights" }] : []),
         { key: "weights-bio", label: "Biomarker Weights" },
         { key: "curves", label: "Biomarker Curves" },
@@ -2931,9 +2935,7 @@ export default function App() {
                             );
                             return <>
                                 <div style={{ padding: "10px 14px 8px" }}>
-                                    <div style={{ fontSize: 8, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 2 }}>{tier.shortLabel} · {tier.weight}×</div>
                                     <div style={{ fontSize: 11, color: C.textSecond, fontWeight: 600, lineHeight: 1.3 }}>{tier.label.replace(/^Tier \d — /, "")}</div>
-                                    {tierResult?.score != null && <div style={{ fontSize: 10, color: procColour(tierResult.score), fontWeight: 700, fontFamily: T.mono, marginTop: 2 }}>Avg {Math.floor(tierResult.score)}</div>}
                                 </div>
                                 {tier.systems.map(sysId => {
                                     const sys = assocSystems.find(s => s.id === sysId);
@@ -3035,7 +3037,7 @@ export default function App() {
 
                             <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px" }}>
                                 {tab === "weights-proc" && <ProcWeightsTab system={system} procResults={procResults} procWeights={procWeights} setProcWeights={setProcWeights} sysScore={sysScore} selProc={selProc} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
-                                {tab === "weights-sys" && <CancerSysWeightsTab cancerDomain={cancerDomain} allSysScores={allSysScores} cancerSysWeights={cancerSysWeights} setCancerSysWeights={setCancerSysWeights} activeSysId={systemId} card={card} />}
+                                {tab === "weights-sys" && <CancerSysWeightsTab cancerDomain={cancerDomain} cancerTierWeights={cancerTierWeights} setCancerTierWeights={setCancerTierWeights} card={card} />}
                                 {tab === "weights-bio" && <BioWeightsTab activeProcResult={activeProcResult} selProc={selProc} bioWeights={bioWeights} setBioWeights={setBioWeights} greenPct={greenPct} yellowWeight={yellowWeight} setYellowWeight={setYellowWeight} redWeight={redWeight} setRedWeight={setRedWeight} card={card} editConc={editConc} setEditConc={setEditConc} setConcWarnModal={setConcWarnModal} concOverrides={concOverrides[clientId] ?? {}} setConcOverrides={v => setConcOverrides(prev => ({ ...prev, [clientId]: v }))} clientMarkers={clients[clientId]?.markers ?? {}} systemId={systemId} />}
                                 {tab === "curves" && <CurvesTab activeProcResult={activeProcResult} selProc={selProc} cutoff={cutoff} setCutoff={setCutoff} greenPct={greenPct} setGreenPct={setGreenPct} curve={curve} setCurve={setCurve} card={card} />}
                                 {tab === "flags" && <FlagsTab oorFlags={oorFlags} setActiveProc={setActiveProc} setTab={setTab} card={card} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} assocSystems={assocSystems} />}
@@ -3050,7 +3052,7 @@ export default function App() {
 }
 
 // ─── Cancer System Weights Tab ────────────────────────────────────────────────
-function CancerSysWeightsTab({ cancerDomain, allSysScores, cancerSysWeights, setCancerSysWeights, activeSysId, card }) {
+function CancerSysWeightsTab({ cancerDomain, cancerTierWeights, setCancerTierWeights, card }) {
     const { tierResults, composite } = cancerDomain ?? {};
 
     return (
@@ -3061,60 +3063,42 @@ function CancerSysWeightsTab({ cancerDomain, allSysScores, cancerSysWeights, set
                     <div>
                         <div style={{ fontSize: 10, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 3 }}>Cancer Domain Score</div>
                         <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>
-                            Adjust how much each pathway contributes to its tier average.
-                            Tier weights (1×/2×/3×) are fixed per the scoring specification.
+                            Adjust the relative weight of each tier in the composite cancer score.
                         </div>
                     </div>
                     {composite != null && <div style={{ fontSize: 30, fontWeight: 800, color: procColour(composite), fontFamily: T.mono, flexShrink: 0, marginLeft: 16 }}>{Math.floor(composite)}</div>}
                 </div>
             </div>
 
-            {/* Pathway weight cards grouped by tier */}
+            {/* Tier weight cards */}
             {CANCER_TIERS.map(tier => {
                 const tierResult = tierResults?.find(t => t.id === tier.id);
+                const w = cancerTierWeights[tier.id] ?? tier.weight;
+                const isDefault = w === tier.weight;
                 return (
                     <div key={tier.id} style={{ ...card, marginBottom: 16 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 10, borderBottom: `1px solid ${C.border}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                             <div>
-                                <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 2 }}>{tier.shortLabel} · Tier weight {tier.weight}×</div>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 2 }}>{tier.shortLabel}</div>
                                 <div style={{ fontSize: 13, fontFamily: T.display, color: C.navy }}>{tier.label.replace(/^Tier \d — /, "")}</div>
                             </div>
                             {tierResult?.score != null && (
-                                <div style={{ textAlign: "right" }}>
+                                <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
                                     <div style={{ fontSize: 22, fontWeight: 800, color: procColour(tierResult.score), fontFamily: T.mono, lineHeight: 1 }}>{Math.floor(tierResult.score)}</div>
                                     <div style={{ fontSize: 9, color: C.textFaint }}>Tier avg</div>
                                 </div>
                             )}
                         </div>
-                        {tier.systems.map(sysId => {
-                            const sys = CANCER_SYSTEMS.find(s => s.id === sysId);
-                            if (!sys) return null;
-                            const score = allSysScores.find(s => s.id === sysId)?.score;
-                            const w = cancerSysWeights[sysId] ?? 1;
-                            const isActive = activeSysId === sysId;
-                            return (
-                                <div key={sysId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${C.border}`, background: isActive ? `${C.teal}08` : "transparent" }}>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                            <span style={{ fontSize: 12, color: isActive ? C.navy : C.textSecond, fontWeight: isActive ? 700 : 500 }}>{sys.name}</span>
-                                            <span style={{ fontSize: 12, color: score != null ? procColour(score) : C.textFaint, fontWeight: 700, fontFamily: T.mono }}>
-                                                {score != null ? Math.floor(score) : "—"}
-                                            </span>
-                                        </div>
-                                        {score != null && <div style={{ marginBottom: 8 }}><ScoreBar score={score} h={3} /></div>}
-                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                            <span style={{ fontSize: 10, color: C.textFaint, flexShrink: 0 }}>Weight</span>
-                                            <input type="range" min={0.1} max={5} step={0.1} value={w}
-                                                onChange={e => setCancerSysWeights(prev => ({ ...prev, [sysId]: parseFloat(e.target.value) }))}
-                                                style={{ flex: 1, accentColor: C.teal }} />
-                                            <span style={{ fontSize: 11, fontFamily: T.mono, color: C.navy, minWidth: 28, textAlign: "right" }}>{w.toFixed(1)}×</span>
-                                            {w !== 1 && <button onClick={() => setCancerSysWeights(prev => { const n = { ...prev }; delete n[sysId]; return n; })}
-                                                style={{ fontSize: 9, color: C.textFaint, background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}>reset</button>}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                        {tierResult?.score != null && <div style={{ marginBottom: 10 }}><ScoreBar score={tierResult.score} h={3} /></div>}
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontSize: 10, color: C.textFaint, flexShrink: 0 }}>Weight</span>
+                            <input type="range" min={1} max={10} step={1} value={w}
+                                onChange={e => setCancerTierWeights(prev => ({ ...prev, [tier.id]: parseInt(e.target.value) }))}
+                                style={{ flex: 1, accentColor: C.teal }} />
+                            <span style={{ fontSize: 11, fontFamily: T.mono, color: C.navy, minWidth: 24, textAlign: "right" }}>{w}×</span>
+                            {!isDefault && <button onClick={() => setCancerTierWeights(prev => { const n = { ...prev }; delete n[tier.id]; return n; })}
+                                style={{ fontSize: 9, color: C.textFaint, background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}>reset</button>}
+                        </div>
                     </div>
                 );
             })}
@@ -3152,16 +3136,20 @@ function CancerDomainView({ cancerDomain, allSysScores, card, onSelectPathway })
                 {/* Composite formula card */}
                 <div style={{ ...card, marginBottom: 20, padding: "14px 18px" }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 8 }}>Composite Formula</div>
-                    <div style={{ fontFamily: T.mono, fontSize: 13, color: C.navy, marginBottom: 6 }}>C = (1×T1 + 2×T2 + 3×T3) / 6</div>
+                    {tierResults && (
+                        <div style={{ fontFamily: T.mono, fontSize: 13, color: C.navy, marginBottom: 6 }}>
+                            C = ({tierResults.map((t, i) => <span key={t.id}>{i > 0 ? " + " : ""}{t.tierWeight}×T{i + 1}</span>)}) / {tierResults.reduce((a, t) => a + t.tierWeight, 0)}
+                        </div>
+                    )}
                     {hasScores && (
                         <div style={{ fontFamily: T.mono, fontSize: 12, color: C.textSecond, marginBottom: 8 }}>
                             C = ({tierResults.map((t, i) => (
-                                <span key={t.id}>{i > 0 ? " + " : ""}{t.weight}×{t.score != null ? t.score.toFixed(1) : "—"}</span>
-                            ))}) / 6 = <strong style={{ color: procColour(composite) }}>{composite.toFixed(1)}</strong>
+                                <span key={t.id}>{i > 0 ? " + " : ""}{t.tierWeight}×{t.score != null ? t.score.toFixed(1) : "—"}</span>
+                            ))}) / {tierResults.reduce((a, t) => a + t.tierWeight, 0)} = <strong style={{ color: procColour(composite) }}>{composite.toFixed(1)}</strong>
                         </div>
                     )}
                     <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>
-                        Tier 3 (tumour-associated) carries 3× the weight of Tier 1 (systemic risk). Poor Tier 3 scores pull the composite down more aggressively than equivalent Tier 1 deviations.
+                        Tier weights are adjustable in the <strong style={{ color: C.steel }}>System Weights</strong> tab. By default, Tier 3 (tumour-associated) carries 3× the weight of Tier 1 (systemic risk).
                     </div>
                 </div>
 
@@ -3174,7 +3162,7 @@ function CancerDomainView({ cancerDomain, allSysScores, card, onSelectPathway })
                         <div key={tier.id} style={{ ...card, marginBottom: 16 }}>
                             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12, paddingBottom: 10, borderBottom: `1px solid ${C.border}` }}>
                                 <div>
-                                    <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 3 }}>{tier.shortLabel} · Weight {tier.weight}×</div>
+                                    <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 3 }}>{tier.shortLabel} · Weight {tierResult?.tierWeight ?? tier.weight}×</div>
                                     <div style={{ fontSize: 14, fontFamily: T.display, color: C.navy }}>{tier.label.replace(/^Tier \d — /, "")}</div>
                                 </div>
                                 <div style={{ textAlign: "right", flexShrink: 0 }}>
