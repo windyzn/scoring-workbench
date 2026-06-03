@@ -315,7 +315,7 @@ const CANCER_SYSTEMS = [
 ];
 
 const CANCER_TIERS = [
-    { id: "tier1", label: "Tier 1 — Systemic Risk Environment",  shortLabel: "Tier 1", weight: 1,
+    { id: "tier1", label: "Tier 1 — Systemic Environment",  shortLabel: "Tier 1", weight: 1,
       systems: ["cancer_metabolic_dysfunction", "cancer_inflammation", "cancer_oxidative_stress"] },
     { id: "tier2", label: "Tier 2 — Transitional Biology",        shortLabel: "Tier 2", weight: 2,
       systems: ["cancer_cell_proliferation", "cancer_immune_system_evasion"] },
@@ -1248,7 +1248,7 @@ const DEMO_CLIENT = DEMO_HEALTHY; // legacy alias
 const DEMO_PERSONAS = [
     { id: "DEMO-healthy", label: "✦ Biscuit — Optimal Health", sub: "All 286 biomarkers in the green zone", client: DEMO_HEALTHY },
     { id: "DEMO-typical", label: "✦ Waffles — Typical Adult", sub: "~25% of biomarkers outside reference range", client: DEMO_TYPICAL },
-    { id: "DEMO-unhealthy", label: "✦ Noodle — At Risk", sub: "~50% of biomarkers outside reference range", client: DEMO_UNHEALTHY },
+    { id: "DEMO-unhealthy", label: "✦ Noodle — At Concern", sub: "~50% of biomarkers outside reference range", client: DEMO_UNHEALTHY },
 ];
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────
@@ -2245,7 +2245,7 @@ export default function App() {
                                             autoFocus
                                             value={uploadWeightName}
                                             onChange={e => setUploadWeightName(e.target.value)}
-                                            placeholder="e.g. Cardio Risk Profile"
+                                            placeholder="e.g. Cardio Health Profile"
                                             style={{
                                                 width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 7,
                                                 border: `1px solid ${C.border}`, color: C.textPrimary,
@@ -2833,7 +2833,7 @@ export default function App() {
                                                 <button onClick={() => { setActiveCancerView(true); setSelectedCancerTierId(null); setActiveView("client"); }}
                                                     style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", cursor: "pointer", transition: "all 0.12s", background: domainActive && !selectedCancerTierId ? `${C.teal}18` : "transparent", borderLeft: `3px solid ${domainActive && !selectedCancerTierId ? C.teal : "transparent"}` }}>
                                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
-                                                        <span style={{ fontSize: 12, color: domainActive && !selectedCancerTierId ? C.navy : C.textSecond, fontWeight: 600, lineHeight: 1.3, flex: 1 }}>Cancer Risk Score</span>
+                                                        <span style={{ fontSize: 12, color: domainActive && !selectedCancerTierId ? C.navy : C.textSecond, fontWeight: 600, lineHeight: 1.3, flex: 1 }}>Cancer Score</span>
                                                         {domainScore != null
                                                             ? <span style={{ fontSize: 12, color: procColour(Math.floor(domainScore)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(domainScore)}</span>
                                                             : <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
@@ -3061,7 +3061,7 @@ function CancerDomainView({ cancerDomain, allSysScores, card, cancerTierWeights,
             <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "14px 24px", display: "flex", alignItems: "center", gap: 24, flexShrink: 0 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 11, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 2 }}>Cancer Pathway · Domain Score</div>
-                    <div style={{ fontSize: 18, fontFamily: T.display, color: C.navy }}>Cancer Risk Assessment</div>
+                    <div style={{ fontSize: 18, fontFamily: T.display, color: C.navy }}>Cancer Assessment</div>
                 </div>
                 {hasScores ? (
                     <div style={{ display: "flex", gap: 22, alignItems: "center", flexShrink: 0 }}>
@@ -4149,10 +4149,9 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                         const scores = profData.clients.map(r => r.cancerDomainScore).filter(x => x != null);
                         return stats(scores);
                     }
-                    // Cancer tier score stats across profiles
-                    function cancerTierStats(profData, tierId) {
-                        const scores = profData.clients.map(r => r.cancerTierScores?.find(t => t.id === tierId)?.score).filter(x => x != null);
-                        return stats(scores);
+                    function cancerClass(score) {
+                        if (score == null) return null;
+                        return CANCER_CLASSIFICATIONS.find(c => score >= c.min) ?? CANCER_CLASSIFICATIONS[CANCER_CLASSIFICATIONS.length - 1];
                     }
                     return (
                         <div>
@@ -4162,7 +4161,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Cancer Scores</div>
                                     <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>{nonDemoClients.length} reports</span>
                                 </div>
-                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Cancer Risk Score and tier scores per client.</div>
+                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Cancer domain score per client.</div>
                                 {isComparing && (
                                     <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, marginBottom: 12 }}>
                                         {aggregateData.map(({ profile }, pi) => {
@@ -4183,15 +4182,15 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         <colgroup>
                                             <col style={{ width: 160 }} />
                                             <col style={{ width: 44 }} />
-                                            <col style={{ width: 150 }} />
-                                            {CANCER_TIERS.map(t => <col key={t.id} style={{ width: 130 }} />)}
+                                            <col style={{ width: 130 }} />
+                                            <col style={{ width: 180 }} />
                                         </colgroup>
                                         <thead>
                                             <tr style={{ background: C.navy }}>
                                                 <th style={{ position: "sticky", left: 0, zIndex: 2, padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Client</th>
                                                 <th style={{ position: "sticky", left: 160, zIndex: 2, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, background: C.navy }}>⚠</th>
-                                                <th style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, borderLeft: `2px solid ${C.teal}55` }}>Cancer Risk Score</th>
-                                                {CANCER_TIERS.map(t => <th key={t.id} style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600 }}>{t.shortLabel}</th>)}
+                                                <th style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, borderLeft: `2px solid ${C.teal}55` }}>Cancer Score</th>
+                                                <th style={{ padding: "10px 14px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600 }}>Classification</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -4200,41 +4199,32 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 const rowBg = ri % 2 === 0 ? C.surface : "#EDF4F7";
                                                 const domScore = row.cancerDomainScore ?? null;
                                                 const baseDomScore = baseRow?.cancerDomainScore ?? null;
-                                                const allScores = [domScore, ...CANCER_TIERS.map(t => row.cancerTierScores?.find(x => x.id === t.id)?.score ?? null)].filter(x => x != null);
-                                                const nY = allScores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
-                                                const nR = allScores.filter(s => Math.floor(s) < overviewYellow).length;
+                                                const cls = cancerClass(domScore);
+                                                const hasFlag = domScore != null && domScore < 60;
                                                 return (
                                                     <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
                                                         <td onClick={() => onNavigate(row.pid)} style={{ position: "sticky", left: 0, zIndex: 2, padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: rowBg, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }}>{row.label ?? row.pid}</td>
                                                         <td style={{ position: "sticky", left: 160, zIndex: 2, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap" }}>
-                                                            {nR > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.critical, marginRight: 2 }}>{nR}R</span>}
-                                                            {nY > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.fair }}>{nY}Y</span>}
-                                                            {nR === 0 && nY === 0 && <span style={{ fontSize: 9, color: C.teal }}>✓</span>}
+                                                            {hasFlag
+                                                                ? <span style={{ fontSize: 9, fontWeight: 700, color: cls?.color ?? C.critical }}>!</span>
+                                                                : <span style={{ fontSize: 9, color: C.teal }}>✓</span>}
                                                         </td>
                                                         {(() => {
                                                             const d = domScore != null && baseDomScore != null ? domScore - baseDomScore : null;
                                                             return (
-                                                                <td style={{ padding: "8px 10px", textAlign: "center", background: overviewBg(domScore), borderLeft: `2px solid ${C.teal}30` }}>
+                                                                <td style={{ padding: "8px 10px", textAlign: "center", background: cls ? `${cls.color}14` : "transparent", borderLeft: `2px solid ${C.teal}30` }}>
                                                                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                                                                        {domScore != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 16, color: overviewColour(domScore) }}>{Math.floor(domScore)}</span> : <span style={{ color: C.textFaint }}>—</span>}
+                                                                        {domScore != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 16, color: cls?.color ?? C.textFaint }}>{Math.floor(domScore)}</span> : <span style={{ color: C.textFaint }}>—</span>}
                                                                         {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, color: d > 0 ? C.teal : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
                                                                     </div>
                                                                 </td>
                                                             );
                                                         })()}
-                                                        {CANCER_TIERS.map(t => {
-                                                            const score = row.cancerTierScores?.find(x => x.id === t.id)?.score ?? null;
-                                                            const baseScore = baseRow?.cancerTierScores?.find(x => x.id === t.id)?.score ?? null;
-                                                            const d = score != null && baseScore != null ? score - baseScore : null;
-                                                            return (
-                                                                <td key={t.id} style={{ padding: "8px 10px", textAlign: "center", background: overviewBg(score) }}>
-                                                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                                                                        {score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 14, color: overviewColour(score) }}>{Math.floor(score)}</span> : <span style={{ color: C.textFaint }}>—</span>}
-                                                                        {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, color: d > 0 ? C.teal : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
-                                                                    </div>
-                                                                </td>
-                                                            );
-                                                        })}
+                                                        <td style={{ padding: "8px 14px" }}>
+                                                            {cls
+                                                                ? <span style={{ fontSize: 11, fontWeight: 600, color: cls.color }}>{cls.label}</span>
+                                                                : <span style={{ color: C.textFaint }}>—</span>}
+                                                        </td>
                                                     </tr>
                                                 );
                                             })}
@@ -4245,7 +4235,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             {/* Population summary */}
                             <div>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Population Summary</div>
-                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Summary statistics for Cancer Risk Score and tiers across all clients.</div>
+                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Summary statistics for Cancer Score across all clients.</div>
                                 <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                                         <thead>
@@ -4265,7 +4255,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 const col = overviewColour(baseStats?.mean);
                                                 return (
                                                     <tr style={{ borderTop: `1px solid ${C.border}` }}>
-                                                        <td style={{ padding: "9px 16px", fontSize: 12, fontWeight: 700, color: C.textPrimary, borderLeft: `3px solid ${baseStats ? col : C.border}` }}>Cancer Risk Score</td>
+                                                        <td style={{ padding: "9px 16px", fontSize: 12, fontWeight: 700, color: C.textPrimary, borderLeft: `3px solid ${baseStats ? col : C.border}` }}>Cancer Score</td>
                                                         {aggregateData.map(({ profile }, pi) => {
                                                             const st = allStats[pi];
                                                             const pcol = PROF_COLORS[pi % PROF_COLORS.length];
@@ -4279,27 +4269,6 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                     </tr>
                                                 );
                                             })()}
-                                            {/* Tier rows */}
-                                            {CANCER_TIERS.map((tier, ti) => {
-                                                const allStats = aggregateData.map(pd => cancerTierStats(pd, tier.id));
-                                                const baseStats = allStats[0];
-                                                const col = overviewColour(baseStats?.mean);
-                                                return (
-                                                    <tr key={tier.id} style={{ borderTop: `1px solid ${C.border}`, background: (ti + 1) % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
-                                                        <td style={{ padding: "9px 16px", fontSize: 11, fontWeight: 600, color: C.textSecond, borderLeft: `3px solid ${baseStats ? col : C.border}`, paddingLeft: 24 }}>{tier.shortLabel} — {tier.label.replace(/^Tier \d — /, "")}</td>
-                                                        {aggregateData.map(({ profile }, pi) => {
-                                                            const st = allStats[pi];
-                                                            const pcol = PROF_COLORS[pi % PROF_COLORS.length];
-                                                            return [
-                                                                <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center", borderLeft: `2px solid ${pcol}30`, background: st ? overviewBg(st.mean) : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: overviewColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
-                                                                <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
-                                                                <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
-                                                                <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
-                                                            ];
-                                                        })}
-                                                    </tr>
-                                                );
-                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -5058,12 +5027,64 @@ function Histogram({ scores, title, redCutoff, yellowCutoff }) {
     );
 }
 
+function CancerHistogram({ scores }) {
+    if (!scores.length) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic", padding: "12px 0" }}>No data for this selection.</div>;
+    const getClass = s => CANCER_CLASSIFICATIONS.find(c => s >= c.min) ?? CANCER_CLASSIFICATIONS[CANCER_CLASSIFICATIONS.length - 1];
+    const BIN_SIZE = 2, N_BINS = 100 / BIN_SIZE;
+    const bins = Array.from({ length: N_BINS }, (_, i) => ({ lo: i * BIN_SIZE, hi: (i + 1) * BIN_SIZE, count: 0 }));
+    scores.forEach(s => { const i = Math.min(N_BINS - 1, Math.floor(s / BIN_SIZE)); bins[i].count++; });
+    const maxCount = Math.max(...bins.map(b => b.count), 1);
+    const W = 700, H = 160, padL = 30, padB = 24, padT = 14, padR = 10;
+    const iW = W - padL - padR, iH = H - padT - padB;
+    const binW = iW / N_BINS;
+    const x = val => padL + (val / 100) * iW;
+    const yBar = count => padT + iH - (count / maxCount) * iH;
+    const n = scores.length;
+    return (
+        <div>
+            <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", overflow: "visible" }}>
+                {[...CANCER_CLASSIFICATIONS].reverse().map((cls) => (
+                    <rect key={cls.min} x={x(cls.min)} y={padT} width={((cls.max - cls.min + 1) / 100) * iW} height={iH} fill={`${cls.color}12`} />
+                ))}
+                {bins.map((b, i) => {
+                    const mid = b.lo + BIN_SIZE / 2;
+                    const col = getClass(mid).color;
+                    const bh = padT + iH - yBar(b.count);
+                    return b.count > 0 ? <rect key={i} x={padL + i * binW + 1} y={yBar(b.count)} width={binW - 2} height={bh} fill={`${col}90`} rx="2" /> : null;
+                })}
+                {[0, 0.5, 1].map(f => {
+                    const y = padT + iH * (1 - f);
+                    return <g key={f}>
+                        <line x1={padL} x2={W - padR} y1={y} y2={y} stroke={C.iceLight} strokeWidth="0.7" />
+                        <text x={padL - 4} y={y + 3} fontSize="6" fill={C.textFaint} textAnchor="end">{Math.round(f * maxCount)}</text>
+                    </g>;
+                })}
+                {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(v => (
+                    <text key={v} x={x(v)} y={H - 4} textAnchor="middle" fontSize="6" fill={C.textFaint}>{v}</text>
+                ))}
+                {[24, 44, 59, 79].map(v => (
+                    <line key={v} x1={x(v + 1)} y1={padT} x2={x(v + 1)} y2={padT + iH} stroke={getClass(v).color} strokeWidth="0.8" strokeDasharray="3,2" opacity="0.7" />
+                ))}
+            </svg>
+            <div style={{ display: "flex", gap: 14, marginTop: 16, flexWrap: "wrap" }}>
+                {CANCER_CLASSIFICATIONS.map(cls => {
+                    const count = scores.filter(s => getClass(s) === cls).length;
+                    return (
+                        <div key={cls.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                            <span style={{ width: 10, height: 10, borderRadius: 2, background: cls.color, display: "inline-block" }} />
+                            <span style={{ fontSize: 10, color: cls.color, fontWeight: 700 }}>{n > 0 ? (count / n * 100).toFixed(0) : 0}%</span>
+                            <span style={{ fontSize: 10, color: C.textMuted }}>{cls.label}</span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, histSysId, setHistSysId, histProcName, setHistProcName, card, assocSystems, sysGroups, assocGroups }) {
     const DEFAULT_SYS_RED = 70, DEFAULT_SYS_YELLOW = 91;
     const DEFAULT_PROC_RED = 70, DEFAULT_PROC_YELLOW = 91;
-    const DEFAULT_DOM_RED = 70, DEFAULT_DOM_YELLOW = 91;
-    const [domRedCutoff, setDomRedCutoff] = useState(DEFAULT_DOM_RED);
-    const [domYellowCutoff, setDomYellowCutoff] = useState(DEFAULT_DOM_YELLOW);
 
     const selSys = assocSystems.find(s => s.id === histSysId) || sysGroups[0]?.systems[0] || assocSystems[0];
     const procs = Object.keys(selSys.processes);
@@ -5090,23 +5111,11 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-            {/* Domain histograms — Cancer only */}
+            {/* Domain histogram — Cancer only */}
             <div style={{ ...card, padding: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Cancer Risk Score</div>
-                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {domainScores.length} client report{domainScores.length !== 1 ? "s" : ""}.</div>
-                <Histogram scores={domainScores} title="Cancer Risk Score" redCutoff={domRedCutoff} yellowCutoff={domYellowCutoff} />
-                <CutoffControl
-                    redCutoff={domRedCutoff} setRedCutoff={setDomRedCutoff}
-                    yellowCutoff={domYellowCutoff} setYellowCutoff={setDomYellowCutoff}
-                    defaultRed={DEFAULT_DOM_RED} defaultYellow={DEFAULT_DOM_YELLOW}
-                    onReset={() => { setDomRedCutoff(DEFAULT_DOM_RED); setDomYellowCutoff(DEFAULT_DOM_YELLOW); }}
-                    onSuggest={() => {
-                        if (!domainScores.length) return;
-                        const sorted = [...domainScores].sort((a, b) => a - b);
-                        const r = Math.floor(sorted[Math.floor(sorted.length / 3)]);
-                        const y = Math.floor(sorted[Math.floor(sorted.length * 2 / 3)]);
-                        if (r >= 1 && y > r && y <= 100) { setDomRedCutoff(r); setDomYellowCutoff(y); }
-                    }} />
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Cancer Score</div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {domainScores.length} client report{domainScores.length !== 1 ? "s" : ""}. Bands reflect classification thresholds.</div>
+                <CancerHistogram scores={domainScores} />
             </div>
             {/* System histograms */}
             <div data-tutorial="first-sys-histogram" style={{ ...card, padding: 20 }}>
@@ -5407,7 +5416,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
                             {/* Domain node */}
                             <rect x={D_X} y={midY - 36} width={D_W} height={72} rx="8" fill={`${C.navy}08`} stroke={C.navy} strokeWidth="1.2" strokeDasharray="5,3" />
                             <text x={D_X + D_W / 2} y={midY - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>Cancer</text>
-                            <text x={D_X + D_W / 2} y={midY + 8} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>Risk Score</text>
+                            <text x={D_X + D_W / 2} y={midY + 8} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>Score</text>
                             <text x={D_X + D_W / 2} y={midY + 23} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Domain</text>
                             {/* Tier node */}
                             <rect x={T_X} y={midY - 44} width={T_W} height={88} rx="8" fill={`${C.navy}14`} stroke={C.navy} strokeWidth="1.5" />
