@@ -4882,7 +4882,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                 )}
 
                 {aggTab === "flowchart" && (
-                    <FlowchartTab flowSysId={flowSysId} setFlowSysId={setFlowSysId} flowCancerTierId={flowCancerTierId} setFlowCancerTierId={setFlowCancerTierId} isCancerFlow={isCancerFlow} setIsCancerFlow={setIsCancerFlow} bioWeights={bioWeights} procWeights={procWeights} card={card} assocSystems={assocSystems} sysGroups={sysGroups} />
+                    <FlowchartTab flowSysId={flowSysId} setFlowSysId={setFlowSysId} flowCancerTierId={flowCancerTierId} setFlowCancerTierId={setFlowCancerTierId} isCancerFlow={isCancerFlow} setIsCancerFlow={setIsCancerFlow} bioWeights={bioWeights} procWeights={procWeights} cancerSysWeights={activeProfile?.cancerSysWeights ?? {}} cancerTierWeights={activeProfile?.cancerTierWeights ?? {}} card={card} assocSystems={assocSystems} sysGroups={sysGroups} />
                 )}
 
                 {aggTab === "export" && (
@@ -5119,8 +5119,6 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
             : { groupId: g.groupId, label: g.label, items: g.systems.map(s => ({ id: s.id, name: s.name })) }
     );
     const histGroup = isCancerTier ? "cancer" : (sysGroups.find(g => g.systems.some(s => s.id === histSysId))?.groupId ?? groupTabs[0]?.groupId ?? "health");
-    const activeGroupItems = groupTabs.find(g => g.groupId === histGroup)?.items ?? [];
-
     function selectSys(sId) {
         setHistSysId(sId);
         if (CANCER_TIERS.some(t => t.id === sId)) {
@@ -5140,16 +5138,6 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
         <div style={{ fontSize: 13, color: C.textMuted, fontStyle: "italic" }}>Upload non-demo client data to view histograms.</div>
     );
 
-    const selectorTabStyle = (active) => ({
-        padding: "7px 16px", fontSize: 11, border: "none", cursor: "pointer",
-        borderRight: `1px solid ${C.border}`,
-        background: active ? C.surface : `${C.iceLight}50`,
-        color: active ? C.navy : C.textMuted,
-        fontWeight: active ? 700 : 400,
-        borderBottom: active ? `2px solid ${C.teal}` : "2px solid transparent",
-        marginBottom: -1, transition: "all 0.12s",
-    });
-
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
             {/* Cancer domain histogram */}
@@ -5163,28 +5151,27 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
             <div data-tutorial="first-sys-histogram" style={{ ...card, padding: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>System Scores</div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Showing scores from {sysScores.length} client report{sysScores.length !== 1 ? "s" : ""}.</div>
-                <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden", marginBottom: 20 }}>
-                    <div style={{ display: "flex", background: `${C.iceLight}50`, borderBottom: `1px solid ${C.border}` }}>
-                        {groupTabs.map(g => (
-                            <button key={g.groupId} onClick={() => selectGroup(g.groupId)} style={selectorTabStyle(histGroup === g.groupId)}>
-                                {g.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div style={{ padding: "10px 12px", display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        {activeGroupItems.map(item => (
-                            <button key={item.id} onClick={() => selectSys(item.id)}
-                                style={{
-                                    padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-                                    border: `1px solid ${histSysId === item.id ? C.steel : C.border}`,
-                                    background: histSysId === item.id ? `${C.steel}18` : "transparent",
-                                    color: histSysId === item.id ? C.steel : C.textMuted,
-                                    fontWeight: histSysId === item.id ? 700 : 400,
-                                }}>
-                                {item.name}
-                            </button>
-                        ))}
-                    </div>
+                <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap", alignItems: "flex-end" }}>
+                    {groupTabs.map(g => {
+                        const active = histGroup === g.groupId;
+                        const val = g.items.some(i => i.id === histSysId) ? histSysId : g.items[0]?.id ?? "";
+                        return (
+                            <div key={g.groupId} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: active ? C.teal : C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em" }}>{g.label}</div>
+                                <select value={val} onChange={e => selectSys(e.target.value)}
+                                    style={{
+                                        padding: "6px 10px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+                                        border: `1.5px solid ${active ? C.teal : C.border}`,
+                                        background: active ? `${C.teal}08` : C.surface,
+                                        color: active ? C.navy : C.textSecond,
+                                        fontWeight: active ? 600 : 400, outline: "none",
+                                        minWidth: 150,
+                                    }}>
+                                    {g.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                                </select>
+                            </div>
+                        );
+                    })}
                 </div>
                 <Histogram scores={sysScores} title={sysTitle} redCutoff={sysRedCutoff} yellowCutoff={sysYellowCutoff} />
                 <CutoffControl
@@ -5240,7 +5227,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 }
 
 // ─── FlowchartTab ─────────────────────────────────────────────────────────────
-function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancerTierId, isCancerFlow, setIsCancerFlow, bioWeights, procWeights, card, assocSystems, sysGroups }) {
+function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancerTierId, isCancerFlow, setIsCancerFlow, bioWeights, procWeights, cancerSysWeights, cancerTierWeights, card, assocSystems, sysGroups }) {
     const sys = assocSystems.find(s => s.id === flowSysId) || sysGroups[0]?.systems[0] || assocSystems[0];
     const procs = Object.entries(sys.processes);
     const DEFAULT_BIO = { weight: 1, color: "red", level: "both" };
@@ -5440,45 +5427,77 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
             {isCancerFlow ? (() => {
                 const tier = CANCER_TIERS.find(t => t.id === flowCancerTierId) ?? CANCER_TIERS[0];
                 const pathways = CANCER_SYSTEMS.filter(s => tier.systems.includes(s.id));
-                const PAD = 28, GAP = 14, PATH_H = 44;
-                const totalPathH = pathways.length * PATH_H + (pathways.length - 1) * GAP;
-                const svgH = Math.max(totalPathH, 80) + PAD * 2;
+                const PAD = 28, GAP = 14, PATH_H = 44, PATH_H_MOD = 62;
+                const TIER_H = 106;
+
+                const effectiveTierW = cancerTierWeights[tier.id] ?? tier.weight;
+                const tierModified = cancerTierWeights[tier.id] != null && cancerTierWeights[tier.id] !== tier.weight;
+
+                const pathwayHeights = pathways.map(pw => (cancerSysWeights[pw.id] ?? 1) !== 1 ? PATH_H_MOD : PATH_H);
+                const totalPathH = pathwayHeights.reduce((s, h) => s + h, 0) + (pathways.length - 1) * GAP;
+                const svgH = Math.max(totalPathH, TIER_H) + PAD * 2;
                 const midY = svgH / 2;
+                const pathOffset = (svgH - totalPathH - PAD * 2) / 2;
+                const pathCentres = pathways.map((_, i) => {
+                    let y = PAD + pathOffset;
+                    for (let j = 0; j < i; j++) y += pathwayHeights[j] + GAP;
+                    return y + pathwayHeights[i] / 2;
+                });
+
                 const D_X = 8, D_W = 130;
                 const T_X = D_X + D_W + 56, T_W = 190;
-                const P_X = T_X + T_W + 80, P_W = 200;
+                const P_X = T_X + T_W + 80, P_W = 210;
                 const totalSvgW = P_X + P_W + 8;
-                const pathY = i => PAD + i * (PATH_H + GAP) + PATH_H / 2 + (svgH - totalPathH - PAD * 2) / 2;
                 return (
                     <div style={{ overflowX: "auto" }}>
                         <svg width={totalSvgW} height={svgH} style={{ display: "block", fontFamily: T.body }} xmlns="http://www.w3.org/2000/svg">
                             {/* Domain → Tier connector */}
                             {(() => { const mx = (D_X + D_W + T_X) / 2; return <path d={`M${D_X + D_W},${midY} C${mx},${midY} ${mx},${midY} ${T_X},${midY}`} fill="none" stroke={C.navy} strokeWidth="1.2" opacity="0.4" />; })()}
-                            {/* Tier → Pathway connectors */}
-                            {pathways.map((_, i) => {
-                                const y2 = pathY(i); const mx = (T_X + T_W + P_X) / 2;
-                                return <path key={i} d={`M${T_X + T_W},${midY} C${mx},${midY} ${mx},${y2} ${P_X},${y2}`} fill="none" stroke={C.steel} strokeWidth="1" opacity="0.35" />;
+                            {/* Tier → Pathway connectors — thicker + teal when pathway weight is modified */}
+                            {pathways.map((pw, i) => {
+                                const y2 = pathCentres[i]; const mx = (T_X + T_W + P_X) / 2;
+                                const w = cancerSysWeights[pw.id] ?? 1;
+                                const mod = w !== 1;
+                                return <path key={i} d={`M${T_X + T_W},${midY} C${mx},${midY} ${mx},${y2} ${P_X},${y2}`}
+                                    fill="none" stroke={mod ? C.teal : C.steel}
+                                    strokeWidth={mod ? Math.min(3, Math.max(1.5, w * 0.8)) : 1}
+                                    opacity={mod ? 0.6 : 0.35} />;
                             })}
                             {/* Domain node */}
                             <rect x={D_X} y={midY - 36} width={D_W} height={72} rx="8" fill={`${C.navy}08`} stroke={C.navy} strokeWidth="1.2" strokeDasharray="5,3" />
                             <text x={D_X + D_W / 2} y={midY - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>Cancer</text>
                             <text x={D_X + D_W / 2} y={midY + 8} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>Score</text>
                             <text x={D_X + D_W / 2} y={midY + 23} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Domain</text>
-                            {/* Tier node */}
-                            <rect x={T_X} y={midY - 44} width={T_W} height={88} rx="8" fill={`${C.navy}14`} stroke={C.navy} strokeWidth="1.5" />
-                            <text x={T_X + T_W / 2} y={midY - 14} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>{tier.shortLabel}</text>
+                            {/* Tier node — teal border when user has overridden its weight */}
+                            <rect x={T_X} y={midY - TIER_H / 2} width={T_W} height={TIER_H} rx="8"
+                                fill={tierModified ? `${C.teal}18` : `${C.navy}14`}
+                                stroke={tierModified ? C.teal : C.navy} strokeWidth={tierModified ? 2 : 1.5} />
+                            <text x={T_X + T_W / 2} y={midY - TIER_H / 2 + 18} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>{tier.shortLabel}</text>
                             {wrapText(tier.label.replace(/^Tier \d — /, ""), 22).map((line, li, arr) => (
-                                <text key={li} x={T_X + T_W / 2} y={midY + 4 + li * 13 - (arr.length - 1) * 6} textAnchor="middle" fontSize="10" fill={C.textSecond} fontFamily={T.body}>{line}</text>
+                                <text key={li} x={T_X + T_W / 2} y={midY - 6 + li * 13 - (arr.length - 1) * 6} textAnchor="middle" fontSize="10" fill={C.textSecond} fontFamily={T.body}>{line}</text>
                             ))}
-                            <text x={T_X + T_W / 2} y={midY + 34} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Tier</text>
+                            <text x={T_X + T_W / 2} y={midY + TIER_H / 2 - 26} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Tier</text>
+                            {/* Tier weight badge — always shown; teal if user-overridden, muted if default */}
+                            {badge(`×${effectiveTierW}`, tierModified ? C.teal : C.steel, T_X + 12, midY + TIER_H / 2 - 12)}
                             {/* Pathway nodes */}
                             {pathways.map((pw, i) => {
-                                const cy = pathY(i);
+                                const cy = pathCentres[i];
+                                const h = pathwayHeights[i];
+                                const w = cancerSysWeights[pw.id] ?? 1;
+                                const isModified = w !== 1;
+                                const nameLines = wrapText(pw.name, 22);
                                 return (
                                     <g key={pw.id}>
-                                        <rect x={P_X} y={cy - PATH_H / 2} width={P_W} height={PATH_H} rx="7" fill={`${C.steel}10`} stroke={C.steel} strokeWidth="1" />
-                                        <text x={P_X + 14} y={cy - 4} fontSize="10" fontWeight="600" fill={C.navy} fontFamily={T.body}>{pw.name}</text>
-                                        <text x={P_X + 14} y={cy + 10} fontSize="9" fill={C.textMuted} fontFamily={T.body}>Pathway</text>
+                                        <rect x={P_X} y={cy - h / 2} width={P_W} height={h} rx="7"
+                                            fill={`${C.steel}10`} stroke={isModified ? C.teal : C.steel}
+                                            strokeWidth={isModified ? 1.5 : 1} />
+                                        {nameLines.map((line, li) => (
+                                            <text key={li} x={P_X + 14} y={cy - (nameLines.length - 1) * 6 + li * 13 - (isModified ? 8 : 0)}
+                                                fontSize="10" fontWeight="600" fill={C.navy} fontFamily={T.body}>{line}</text>
+                                        ))}
+                                        <text x={P_X + 14} y={cy + (isModified ? h / 2 - 22 : h / 2 - 8)}
+                                            fontSize="9" fill={C.textMuted} fontFamily={T.body}>Pathway</text>
+                                        {isModified && badge(`×${w}`, C.teal, P_X + 14, cy + h / 2 - 10)}
                                     </g>
                                 );
                             })}
