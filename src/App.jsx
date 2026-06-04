@@ -5427,80 +5427,137 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
             {isCancerFlow ? (() => {
                 const tier = CANCER_TIERS.find(t => t.id === flowCancerTierId) ?? CANCER_TIERS[0];
                 const pathways = CANCER_SYSTEMS.filter(s => tier.systems.includes(s.id));
-                const PAD = 28, GAP = 14, PATH_H = 44, PATH_H_MOD = 62;
-                const TIER_H = 106;
+                const PAD = 28, BIO_H = 26, BIO_H_MOD = 40, BIO_GAP = 6, PATH_BIO_GAP = 22;
+                const TIER_H = 90;
 
                 const effectiveTierW = cancerTierWeights[tier.id] ?? tier.weight;
                 const tierModified = cancerTierWeights[tier.id] != null && cancerTierWeights[tier.id] !== tier.weight;
 
-                const pathwayHeights = pathways.map(pw => (cancerSysWeights[pw.id] ?? 1) !== 1 ? PATH_H_MOD : PATH_H);
-                const totalPathH = pathwayHeights.reduce((s, h) => s + h, 0) + (pathways.length - 1) * GAP;
-                const svgH = Math.max(totalPathH, TIER_H) + PAD * 2;
-                const midY = svgH / 2;
-                const pathOffset = (svgH - totalPathH - PAD * 2) / 2;
-                const pathCentres = pathways.map((_, i) => {
-                    let y = PAD + pathOffset;
-                    for (let j = 0; j < i; j++) y += pathwayHeights[j] + GAP;
-                    return y + pathwayHeights[i] / 2;
+                // Per-pathway: extract biomarkers, compute bio heights + centres
+                const pathData = pathways.map(pw => {
+                    const bms = Object.values(pw.processes)[0] ?? [];
+                    const pwW = cancerSysWeights[pw.id] ?? 1;
+                    const pwModified = pwW !== 1;
+                    const bioH = bms.map(bmName => {
+                        const be = bioWeights[`${pw.id}::${bmName}`] ?? DEFAULT_BIO;
+                        const mod = (be.weight ?? 1) !== 1 || (be.color ?? "red") !== "red" || (be.level ?? "both") !== "both";
+                        return mod ? BIO_H_MOD : BIO_H;
+                    });
+                    const totalBioH = bioH.reduce((s, h) => s + h, 0) + Math.max(0, bms.length - 1) * BIO_GAP;
+                    const bioCentres = bms.map((_, i) => {
+                        let y = 0;
+                        for (let j = 0; j < i; j++) y += bioH[j] + BIO_GAP;
+                        return y + bioH[i] / 2;
+                    });
+                    const nodeH = pwModified ? 70 : 54;
+                    return { pw, bms, pwW, pwModified, bioH, totalBioH, bioCentres, nodeH };
                 });
 
-                const D_X = 8, D_W = 130;
-                const T_X = D_X + D_W + 56, T_W = 190;
-                const P_X = T_X + T_W + 80, P_W = 210;
-                const totalSvgW = P_X + P_W + 8;
+                // Total SVG height driven by biomarker column
+                const bioColH = pathData.reduce((s, d) => s + d.totalBioH, 0) + (pathways.length - 1) * PATH_BIO_GAP;
+                const svgH = bioColH + PAD * 2;
+                const midY = svgH / 2;
+
+                // Y offset for the top of each pathway's biomarker group
+                const groupStartY = [];
+                let yOff = PAD;
+                for (const d of pathData) { groupStartY.push(yOff); yOff += d.totalBioH + PATH_BIO_GAP; }
+
+                // Pathway node centres = centroid of their biomarker group
+                const pathCentres = pathData.map((d, i) => groupStartY[i] + d.totalBioH / 2);
+
+                const D_X = 8, D_W = 120;
+                const T_X = D_X + D_W + 50, T_W = 160;
+                const P_X = T_X + T_W + 60, P_W = 170;
+                const B_X = P_X + P_W + 56, B_W = 178;
+                const totalSvgW = B_X + B_W + 8;
                 return (
                     <div style={{ overflowX: "auto" }}>
                         <svg width={totalSvgW} height={svgH} style={{ display: "block", fontFamily: T.body }} xmlns="http://www.w3.org/2000/svg">
-                            {/* Domain → Tier connector */}
+                            {/* Domain → Tier */}
                             {(() => { const mx = (D_X + D_W + T_X) / 2; return <path d={`M${D_X + D_W},${midY} C${mx},${midY} ${mx},${midY} ${T_X},${midY}`} fill="none" stroke={C.navy} strokeWidth="1.2" opacity="0.4" />; })()}
-                            {/* Tier → Pathway connectors — thicker + teal when pathway weight is modified */}
-                            {pathways.map((pw, i) => {
+                            {/* Tier → Pathway */}
+                            {pathData.map((d, i) => {
                                 const y2 = pathCentres[i]; const mx = (T_X + T_W + P_X) / 2;
-                                const w = cancerSysWeights[pw.id] ?? 1;
-                                const mod = w !== 1;
-                                return <path key={i} d={`M${T_X + T_W},${midY} C${mx},${midY} ${mx},${y2} ${P_X},${y2}`}
-                                    fill="none" stroke={mod ? C.teal : C.steel}
-                                    strokeWidth={mod ? Math.min(3, Math.max(1.5, w * 0.8)) : 1}
-                                    opacity={mod ? 0.6 : 0.35} />;
+                                return <path key={`tp${i}`} d={`M${T_X + T_W},${midY} C${mx},${midY} ${mx},${y2} ${P_X},${y2}`}
+                                    fill="none" stroke={d.pwModified ? C.teal : C.steel}
+                                    strokeWidth={d.pwModified ? Math.min(3, Math.max(1.5, d.pwW * 0.8)) : 1}
+                                    opacity={d.pwModified ? 0.6 : 0.35} />;
                             })}
+                            {/* Pathway → Biomarker */}
+                            {pathData.map((d, pi) => d.bms.map((bmName, bi) => {
+                                const bioY = groupStartY[pi] + d.bioCentres[bi];
+                                const mx = (P_X + P_W + B_X) / 2;
+                                const be = bioWeights[`${d.pw.id}::${bmName}`] ?? DEFAULT_BIO;
+                                const bioMod = (be.weight ?? 1) !== 1 || (be.color ?? "red") !== "red" || (be.level ?? "both") !== "both";
+                                return <path key={`pb${pi}-${bi}`} d={`M${P_X + P_W},${pathCentres[pi]} C${mx},${pathCentres[pi]} ${mx},${bioY} ${B_X},${bioY}`}
+                                    fill="none" stroke={bioMod ? C.teal : C.border} strokeWidth={bioMod ? 1.5 : 0.8} opacity={bioMod ? 0.5 : 0.25} />;
+                            }))}
                             {/* Domain node */}
                             <rect x={D_X} y={midY - 36} width={D_W} height={72} rx="8" fill={`${C.navy}08`} stroke={C.navy} strokeWidth="1.2" strokeDasharray="5,3" />
                             <text x={D_X + D_W / 2} y={midY - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>Cancer</text>
                             <text x={D_X + D_W / 2} y={midY + 8} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>Score</text>
                             <text x={D_X + D_W / 2} y={midY + 23} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Domain</text>
-                            {/* Tier node — teal border when user has overridden its weight */}
+                            {/* Tier node */}
                             <rect x={T_X} y={midY - TIER_H / 2} width={T_W} height={TIER_H} rx="8"
                                 fill={tierModified ? `${C.teal}18` : `${C.navy}14`}
                                 stroke={tierModified ? C.teal : C.navy} strokeWidth={tierModified ? 2 : 1.5} />
                             <text x={T_X + T_W / 2} y={midY - TIER_H / 2 + 18} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>{tier.shortLabel}</text>
-                            {wrapText(tier.label.replace(/^Tier \d — /, ""), 22).map((line, li, arr) => (
+                            {wrapText(tier.label.replace(/^Tier \d — /, ""), 20).map((line, li, arr) => (
                                 <text key={li} x={T_X + T_W / 2} y={midY - 6 + li * 13 - (arr.length - 1) * 6} textAnchor="middle" fontSize="10" fill={C.textSecond} fontFamily={T.body}>{line}</text>
                             ))}
                             <text x={T_X + T_W / 2} y={midY + TIER_H / 2 - 26} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Tier</text>
-                            {/* Tier weight badge — always shown; teal if user-overridden, muted if default */}
-                            {badge(`×${effectiveTierW}`, tierModified ? C.teal : C.steel, T_X + 12, midY + TIER_H / 2 - 12)}
+                            {/* Tier weight badge — always teal */}
+                            {badge(`×${effectiveTierW}`, C.teal, T_X + 12, midY + TIER_H / 2 - 12)}
                             {/* Pathway nodes */}
-                            {pathways.map((pw, i) => {
+                            {pathData.map((d, i) => {
                                 const cy = pathCentres[i];
-                                const h = pathwayHeights[i];
-                                const w = cancerSysWeights[pw.id] ?? 1;
-                                const isModified = w !== 1;
-                                const nameLines = wrapText(pw.name, 22);
+                                const h = d.nodeH;
+                                const nameLines = wrapText(d.pw.name, 20);
                                 return (
-                                    <g key={pw.id}>
+                                    <g key={d.pw.id}>
                                         <rect x={P_X} y={cy - h / 2} width={P_W} height={h} rx="7"
-                                            fill={`${C.steel}10`} stroke={isModified ? C.teal : C.steel}
-                                            strokeWidth={isModified ? 1.5 : 1} />
+                                            fill={`${C.steel}10`} stroke={d.pwModified ? C.teal : C.steel}
+                                            strokeWidth={d.pwModified ? 1.5 : 1} />
                                         {nameLines.map((line, li) => (
-                                            <text key={li} x={P_X + 14} y={cy - (nameLines.length - 1) * 6 + li * 13 - (isModified ? 8 : 0)}
+                                            <text key={li} x={P_X + 12} y={cy - (nameLines.length - 1) * 6 + li * 13 - (d.pwModified ? 8 : 0)}
                                                 fontSize="10" fontWeight="600" fill={C.navy} fontFamily={T.body}>{line}</text>
                                         ))}
-                                        <text x={P_X + 14} y={cy + (isModified ? h / 2 - 22 : h / 2 - 8)}
-                                            fontSize="9" fill={C.textMuted} fontFamily={T.body}>Pathway</text>
-                                        {isModified && badge(`×${w}`, C.teal, P_X + 14, cy + h / 2 - 10)}
+                                        <text x={P_X + 12} y={cy + (d.pwModified ? h / 2 - 22 : h / 2 - 8)} fontSize="9" fill={C.textMuted} fontFamily={T.body}>Pathway</text>
+                                        {d.pwModified && badge(`×${d.pwW}`, C.teal, P_X + 12, cy + h / 2 - 10)}
                                     </g>
                                 );
                             })}
+                            {/* Biomarker nodes */}
+                            {pathData.map((d, pi) => d.bms.map((bmName, bi) => {
+                                const bioY = groupStartY[pi] + d.bioCentres[bi];
+                                const h = d.bioH[bi];
+                                const be = bioWeights[`${d.pw.id}::${bmName}`] ?? DEFAULT_BIO;
+                                const bw = be.weight ?? 1;
+                                const bcol = be.color ?? "red";
+                                const bdir = be.level ?? "both";
+                                const isMod = bw !== 1 || bcol !== "red" || bdir !== "both";
+                                const nameLines = wrapText(bmName, 24);
+                                return (
+                                    <g key={`b${pi}-${bi}`}>
+                                        <rect x={B_X} y={bioY - h / 2} width={B_W} height={h} rx="6"
+                                            fill={isMod ? `${C.teal}10` : C.surface} stroke={isMod ? C.teal : C.border}
+                                            strokeWidth={isMod ? 1.5 : 0.8} />
+                                        {nameLines.map((line, li) => (
+                                            <text key={li} x={B_X + 10} y={bioY - (nameLines.length - 1) * 6 + li * 12 - (isMod ? 6 : 0)}
+                                                fontSize="9" fill={C.textSecond} fontFamily={T.body}>{line}</text>
+                                        ))}
+                                        {isMod && (() => {
+                                            const badges = [];
+                                            let bx = B_X + 10; const by = bioY + h / 2 - 14;
+                                            if (bw !== 1) { badges.push(badge(`×${bw}`, C.teal, bx, by)); bx += String(bw).length * 5.5 + 20; }
+                                            if (bcol !== "red") { badges.push(badge(bcol, C.fair, bx, by)); bx += bcol.length * 5.5 + 16; }
+                                            if (bdir !== "both") { badges.push(badge(bdir === "high" ? "↑" : "↓", C.atRisk, bx, by)); }
+                                            return badges;
+                                        })()}
+                                    </g>
+                                );
+                            }))}
                         </svg>
                     </div>
                 );
