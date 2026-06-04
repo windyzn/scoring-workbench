@@ -5086,62 +5086,107 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
     const DEFAULT_SYS_RED = 70, DEFAULT_SYS_YELLOW = 91;
     const DEFAULT_PROC_RED = 70, DEFAULT_PROC_YELLOW = 91;
 
-    const selSys = assocSystems.find(s => s.id === histSysId) || sysGroups[0]?.systems[0] || assocSystems[0];
-    const procs = Object.keys(selSys.processes);
-    const validProc = procs.includes(histProcName) ? histProcName : procs[0];
+    const isCancerTier = CANCER_TIERS.some(t => t.id === histSysId);
+    const selTier = isCancerTier ? (CANCER_TIERS.find(t => t.id === histSysId) ?? CANCER_TIERS[0]) : null;
+    const selSys = !isCancerTier ? (assocSystems.find(s => s.id === histSysId) || sysGroups.find(g => g.groupId !== "cancer")?.systems[0] || assocSystems[0]) : null;
 
-    // Cancer domain scores only
-    const domainScores = nonDemoClients
-        .map(r => r.cancerDomainScore)
-        .filter(x => x != null);
+    // For cancer tiers, pathways within the tier serve as "processes"
+    const cancerPathways = selTier ? CANCER_SYSTEMS.filter(s => selTier.systems.includes(s.id)) : [];
+    const procList = isCancerTier
+        ? cancerPathways.map(s => ({ id: s.id, name: s.name }))
+        : Object.keys(selSys?.processes ?? {}).map(name => ({ id: name, name }));
+    const validProc = procList.find(p => p.id === histProcName)?.id ?? procList[0]?.id ?? "";
 
-    // One system score per client
+    const domainScores = nonDemoClients.map(r => r.cancerDomainScore).filter(x => x != null);
     const sysScores = nonDemoClients
-        .map(r => r.systems.find(s => s.id === histSysId)?.score)
+        .map(r => isCancerTier
+            ? r.cancerTierScores?.find(t => t.id === histSysId)?.score
+            : r.systems.find(s => s.id === histSysId)?.score)
+        .filter(x => x != null);
+    const procScores = !validProc ? [] : nonDemoClients
+        .map(r => isCancerTier
+            ? r.systems.find(s => s.id === validProc)?.score
+            : r.systems.find(s => s.id === histSysId)?.procs?.find(p => p.name === validProc)?.score)
         .filter(x => x != null);
 
-    // One process score per client for the selected process
-    const procScores = nonDemoClients
-        .map(r => r.systems.find(s => s.id === histSysId)?.procs?.find(p => p.name === validProc)?.score)
-        .filter(x => x != null);
+    const sysTitle = isCancerTier ? (selTier?.label ?? "") : (selSys?.name ?? "");
+    const procTitle = isCancerTier ? (CANCER_SYSTEMS.find(s => s.id === validProc)?.name ?? validProc) : validProc;
+
+    // Build group tabs — replace cancer group's systems with the 3 tiers
+    const groupTabs = sysGroups.map(g =>
+        g.groupId === "cancer"
+            ? { groupId: "cancer", label: g.label, items: CANCER_TIERS.map(t => ({ id: t.id, name: t.shortLabel })) }
+            : { groupId: g.groupId, label: g.label, items: g.systems.map(s => ({ id: s.id, name: s.name })) }
+    );
+    const histGroup = isCancerTier ? "cancer" : (sysGroups.find(g => g.systems.some(s => s.id === histSysId))?.groupId ?? groupTabs[0]?.groupId ?? "health");
+    const activeGroupItems = groupTabs.find(g => g.groupId === histGroup)?.items ?? [];
+
+    function selectSys(sId) {
+        setHistSysId(sId);
+        if (CANCER_TIERS.some(t => t.id === sId)) {
+            const tier = CANCER_TIERS.find(t => t.id === sId);
+            setHistProcName(CANCER_SYSTEMS.filter(s => tier.systems.includes(s.id))[0]?.id ?? "");
+        } else {
+            setHistProcName(Object.keys(assocSystems.find(s => s.id === sId)?.processes ?? {})[0] ?? "");
+        }
+    }
+
+    function selectGroup(gId) {
+        const first = groupTabs.find(t => t.groupId === gId)?.items[0];
+        if (first) selectSys(first.id);
+    }
 
     if (!nonDemoClients.length) return (
         <div style={{ fontSize: 13, color: C.textMuted, fontStyle: "italic" }}>Upload non-demo client data to view histograms.</div>
     );
 
+    const selectorTabStyle = (active) => ({
+        padding: "7px 16px", fontSize: 11, border: "none", cursor: "pointer",
+        borderRight: `1px solid ${C.border}`,
+        background: active ? C.surface : `${C.iceLight}50`,
+        color: active ? C.navy : C.textMuted,
+        fontWeight: active ? 700 : 400,
+        borderBottom: active ? `2px solid ${C.teal}` : "2px solid transparent",
+        marginBottom: -1, transition: "all 0.12s",
+    });
+
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-            {/* Domain histogram — Cancer only */}
+            {/* Cancer domain histogram */}
             <div style={{ ...card, padding: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Cancer Score</div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {domainScores.length} client report{domainScores.length !== 1 ? "s" : ""}. Bands reflect classification thresholds.</div>
                 <CancerHistogram scores={domainScores} />
             </div>
-            {/* System histograms */}
+
+            {/* System scores */}
             <div data-tutorial="first-sys-histogram" style={{ ...card, padding: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>System Scores</div>
-                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {sysScores.length} client report{sysScores.length !== 1 ? "s" : ""}.</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
-                    {sysGroups.map(({ label, systems }) => (
-                        <div key={label}>
-                            <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 5 }}>{label}</div>
-                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {systems.map(s => (
-                                    <button key={s.id} onClick={() => { setHistSysId(s.id); setHistProcName(Object.keys(s.processes)[0]); }}
-                                        style={{
-                                            padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-                                            border: `1px solid ${histSysId === s.id ? C.steel : C.border}`,
-                                            background: histSysId === s.id ? `${C.steel}18` : "transparent",
-                                            color: histSysId === s.id ? C.steel : C.textMuted, fontWeight: histSysId === s.id ? 700 : 400
-                                        }}>
-                                        {s.name}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Showing scores from {sysScores.length} client report{sysScores.length !== 1 ? "s" : ""}.</div>
+                <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden", marginBottom: 20 }}>
+                    <div style={{ display: "flex", background: `${C.iceLight}50`, borderBottom: `1px solid ${C.border}` }}>
+                        {groupTabs.map(g => (
+                            <button key={g.groupId} onClick={() => selectGroup(g.groupId)} style={selectorTabStyle(histGroup === g.groupId)}>
+                                {g.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div style={{ padding: "10px 12px", display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {activeGroupItems.map(item => (
+                            <button key={item.id} onClick={() => selectSys(item.id)}
+                                style={{
+                                    padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+                                    border: `1px solid ${histSysId === item.id ? C.steel : C.border}`,
+                                    background: histSysId === item.id ? `${C.steel}18` : "transparent",
+                                    color: histSysId === item.id ? C.steel : C.textMuted,
+                                    fontWeight: histSysId === item.id ? 700 : 400,
+                                }}>
+                                {item.name}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-                <Histogram scores={sysScores} title={selSys.name} redCutoff={sysRedCutoff} yellowCutoff={sysYellowCutoff} />
+                <Histogram scores={sysScores} title={sysTitle} redCutoff={sysRedCutoff} yellowCutoff={sysYellowCutoff} />
                 <CutoffControl
                     redCutoff={sysRedCutoff} setRedCutoff={setSysRedCutoff}
                     yellowCutoff={sysYellowCutoff} setYellowCutoff={setSysYellowCutoff}
@@ -5157,24 +5202,25 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
                     }} />
             </div>
 
-            {/* Process histograms */}
+            {/* Process / Pathway scores */}
             <div style={{ ...card, padding: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Process Scores</div>
-                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {procScores.length} client report{procScores.length !== 1 ? "s" : ""}.</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>{isCancerTier ? "Pathway Scores" : "Process Scores"}</div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Showing scores from {procScores.length} client report{procScores.length !== 1 ? "s" : ""}.</div>
                 <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
-                    {procs.map(p => (
-                        <button key={p} onClick={() => setHistProcName(p)}
+                    {procList.map(p => (
+                        <button key={p.id} onClick={() => setHistProcName(p.id)}
                             style={{
                                 padding: "4px 10px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-                                border: `1px solid ${validProc === p ? C.teal : C.border}`,
-                                background: validProc === p ? `${C.teal}18` : "transparent",
-                                color: validProc === p ? C.teal : C.textMuted, fontWeight: validProc === p ? 700 : 400
+                                border: `1px solid ${validProc === p.id ? C.teal : C.border}`,
+                                background: validProc === p.id ? `${C.teal}18` : "transparent",
+                                color: validProc === p.id ? C.teal : C.textMuted,
+                                fontWeight: validProc === p.id ? 700 : 400,
                             }}>
-                            {p}
+                            {p.name}
                         </button>
                     ))}
                 </div>
-                <Histogram scores={procScores} title={validProc} redCutoff={procRedCutoff} yellowCutoff={procYellowCutoff} />
+                <Histogram scores={procScores} title={procTitle} redCutoff={procRedCutoff} yellowCutoff={procYellowCutoff} />
                 <CutoffControl
                     redCutoff={procRedCutoff} setRedCutoff={setProcRedCutoff}
                     yellowCutoff={procYellowCutoff} setYellowCutoff={setProcYellowCutoff}
