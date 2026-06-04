@@ -569,34 +569,21 @@ This is intentionally unweighted — each system contributes equally. If differe
 
 ---
 
-## 14. Edge Cases to Handle
-
-| Situation | Behaviour |
-|-----------|-----------|
-| `ref_high = ref_low` (zero-width range) | Return score of NULL — cannot compute a meaningful distance; treated the same as a missing biomarker |
-| Biomarker not present in data | Exclude from all scores — do not treat as 0 |
-| Concentration value is BLQ, NR, or ND | Exclude from all scores — do not treat as 0 |
-| All biomarkers in a process are missing | Process score is NULL |
-| All processes in a system are NULL | System score is NULL |
-| Manual `bio_weight = 1` with conditions matching | Effective weight = 1 — the explicit 1× overrides the colour multiplier |
-
----
-
-## 15. Cancer Pathway Risk Scoring
+## 14. Cancer Pathway Risk Scoring
 
 The Cancer Pathway Risk Assessment product adds a domain-level aggregation layer on top of the standard three-tier hierarchy. Pathway health scores (computed using the standard biomarker → process → system logic from sections 3–8) are organised into three biological tiers of increasing cancer specificity, then combined into a single weighted composite that maps to a five-category risk classification.
 
 Full pipeline:
 
 ```
-Biomarker score  →  Process score  →  Pathway score  →  Tier average  →  Weighted composite  →  Classification
+Biomarker score  →  Health area score  → Health systems score (tier 1, 2, 3)  → Domain score (overall cancer classification)
 ```
 
 The scoring scale is not inverted — 100 still represents all biomarkers within normal reference ranges, and 0 represents maximum deviation. Lower composite scores indicate higher cancer risk.
 
 ---
 
-### 15.1 Pathway Tier Architecture
+### 14.1 Pathway Tier Architecture
 
 Pathways are organised into three tiers of increasing cancer specificity.
 
@@ -631,7 +618,7 @@ Pathways with the highest specificity for processes directly associated with est
 
 ---
 
-### 15.2 Step 1 — Tier Aggregation
+### 14.2 Step 1 — Tier Aggregation
 
 Within each tier, compute the arithmetic mean of all pathway health scores:
 
@@ -645,7 +632,7 @@ A pathway with a NULL score (no data) is excluded from the tier mean. If all pat
 
 ---
 
-### 15.3 Step 2 — Weighted Composite Score
+### 14.3 Step 2 — Weighted Composite Score
 
 The three tier averages are combined using differential weights that reflect each tier's cancer specificity. Tier 3 receives three times the weight of Tier 1; Tier 2 receives twice the weight of Tier 1:
 
@@ -665,7 +652,7 @@ The composite is on a 0–100 scale. 100 represents perfect health across all pa
 
 ---
 
-### 15.4 Risk Classification
+### 14.4 Risk Classification
 
 The composite score maps to five risk categories:
 
@@ -681,7 +668,7 @@ The upper range (Low Concern: 80–100) is intentionally wider because most heal
 
 ---
 
-### 15.5 Clinical Override Protocol
+### 14.5 Clinical Override Protocol
 
 The algorithmic classification is a reproducible first-pass result. A reviewing scientist or clinician may adjust the final classification by a maximum of **one category** in either direction when the biomarker narrative supports a different interpretation than the raw scores suggest.
 
@@ -696,7 +683,7 @@ Adjustments of **more than one category** require secondary review and sign-off 
 
 ---
 
-### 15.6 Worked Example
+### 14.6 Worked Example
 
 **Raw pathway health scores:**
 
@@ -729,3 +716,16 @@ Composite = (1 × 88.7  +  2 × 46.0  +  3 × 48.7) / 6
 ```
 
 **Classification:** Score 54.5 → **Moderate Concern** (45–59)
+
+---
+
+## 15. Edge Cases to Handle
+
+| Situation | Behaviour |
+|-----------|-----------|
+| `ref_high = ref_low` (zero-width range) | Return score of NULL — cannot compute a meaningful distance; treated the same as a missing biomarker |
+| Biomarker not present in data | Exclude from all scores — do not treat as 0 |
+| Concentration value is BLQ, NR, or ND | Exclude from all scores — do not treat as 0 |
+| All biomarkers in a process are missing | Process score is NULL |
+| All processes in a system are NULL | System score is NULL |
+| Manual `bio_weight = 1` with conditions matching | Effective weight = 1 — the explicit 1× overrides the colour multiplier |
