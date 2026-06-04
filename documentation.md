@@ -533,7 +533,7 @@ The scoring model is designed around a three-level hierarchy (biomarker → proc
 
 ### 12.1 Two-Tier Products
 
-Some products — for example, a cancer screening panel — may bypass the process level entirely and map biomarkers directly to a final score:
+Some products may bypass the process level entirely and map biomarkers directly to a final score:
 
 ```
 Biomarker score  →  Final score
@@ -579,3 +579,153 @@ This is intentionally unweighted — each system contributes equally. If differe
 | All biomarkers in a process are missing | Process score is NULL |
 | All processes in a system are NULL | System score is NULL |
 | Manual `bio_weight = 1` with conditions matching | Effective weight = 1 — the explicit 1× overrides the colour multiplier |
+
+---
+
+## 15. Cancer Pathway Risk Scoring
+
+The Cancer Pathway Risk Assessment product adds a domain-level aggregation layer on top of the standard three-tier hierarchy. Pathway health scores (computed using the standard biomarker → process → system logic from sections 3–8) are organised into three biological tiers of increasing cancer specificity, then combined into a single weighted composite that maps to a five-category risk classification.
+
+Full pipeline:
+
+```
+Biomarker score  →  Process score  →  Pathway score  →  Tier average  →  Weighted composite  →  Classification
+```
+
+The scoring scale is not inverted — 100 still represents all biomarkers within normal reference ranges, and 0 represents maximum deviation. Lower composite scores indicate higher cancer risk.
+
+---
+
+### 15.1 Pathway Tier Architecture
+
+Pathways are organised into three tiers of increasing cancer specificity.
+
+**Tier 1 — Systemic Risk Environment**
+
+Non-cancer-specific foundational conditions that create a permissive biological environment for tumour initiation. Abnormalities here are upstream risk amplifiers, not direct indicators of malignancy.
+
+| Pathway | Biomarkers | Cancer Specificity |
+|---------|------------|-------------------|
+| Metabolic Dysfunction | 17 | Low |
+| Inflammation | 15 | Low |
+| Oxidative Stress | 6 | Low |
+
+**Tier 2 — Transitional Biology**
+
+Middle-ground pathways representing necessary steps in cancer progression that can also occur in non-malignant contexts (e.g. tissue repair, chronic infection). Their cancer relevance increases substantially when Tier 1 signals are also present.
+
+| Pathway | Biomarkers | Cancer Specificity |
+|---------|------------|-------------------|
+| Cell Proliferation | 15 | Moderate |
+| Immune System Evasion | 15 | Moderate |
+
+**Tier 3 — Tumour-Associated Biology**
+
+Pathways with the highest specificity for processes directly associated with established tumour biology. Elevations here, particularly when accompanied by Tier 1 and Tier 2 abnormalities, warrant careful clinical correlation.
+
+| Pathway | Biomarkers | Cancer Specificity |
+|---------|------------|-------------------|
+| Angiogenesis | 6 | High |
+| Matrix Remodelling | 7 | High |
+| Metastasis | 13 | High |
+
+---
+
+### 15.2 Step 1 — Tier Aggregation
+
+Within each tier, compute the arithmetic mean of all pathway health scores:
+
+```
+T1 = mean(pathway scores in Tier 1)
+T2 = mean(pathway scores in Tier 2)
+T3 = mean(pathway scores in Tier 3)
+```
+
+A pathway with a NULL score (no data) is excluded from the tier mean. If all pathways in a tier are NULL, the tier average is NULL and that tier is excluded from the composite calculation.
+
+---
+
+### 15.3 Step 2 — Weighted Composite Score
+
+The three tier averages are combined using differential weights that reflect each tier's cancer specificity. Tier 3 receives three times the weight of Tier 1; Tier 2 receives twice the weight of Tier 1:
+
+```
+Composite = ( 1 × T1  +  2 × T2  +  3 × T3 ) / 6
+```
+
+| Tier | Weight | Rationale |
+|------|--------|-----------|
+| Tier 1 | 1 | Non-specific systemic risk |
+| Tier 2 | 2 | Transitional cancer biology |
+| Tier 3 | 3 | Direct tumour-associated biology |
+
+The composite is on a 0–100 scale. 100 represents perfect health across all pathways; 0 represents maximum deviation with full Tier 3 weighting.
+
+> **Note:** The denominator is always 6 (= 1 + 2 + 3), regardless of how many pathways exist within each tier. If a tier average is NULL, exclude that tier's weight from both the numerator and the denominator and recompute accordingly.
+
+---
+
+### 15.4 Risk Classification
+
+The composite score maps to five risk categories:
+
+| Score Range | Classification | Recommended Clinical Action |
+|-------------|---------------|----------------------------|
+| 80 – 100 | Low Concern | Routine cancer screening per age and sex guidelines. No additional follow-up required from this panel. |
+| 60 – 79 | Low to Moderate Concern | Routine screening continues. Consider lifestyle and metabolic optimisation. Retest in 6–12 months to assess trajectory. |
+| 45 – 59 | Moderate Concern | Discuss findings with primary care provider. Targeted follow-up investigations based on specific elevated pathways. Retest in 3–6 months. |
+| 25 – 44 | Moderate to High Concern | Physician consultation recommended. Consider cancer-specific screening (imaging, tumour markers) guided by elevated pathway profile. Retest in 3 months. |
+| 0 – 24 | High Concern | Urgent physician referral. Comprehensive cancer workup including appropriate imaging and specialist consultation. Priority retest to confirm or track trajectory. |
+
+The upper range (Low Concern: 80–100) is intentionally wider because most healthy individuals cluster there with minor isolated Tier 1 deviations. The lower ranges compress because once the composite falls below 25, the clinical response is uniform: urgent specialist follow-up.
+
+---
+
+### 15.5 Clinical Override Protocol
+
+The algorithmic classification is a reproducible first-pass result. A reviewing scientist or clinician may adjust the final classification by a maximum of **one category** in either direction when the biomarker narrative supports a different interpretation than the raw scores suggest.
+
+Overrides must be documented with:
+
+- The algorithmic classification and composite score
+- The adjusted classification
+- The biological rationale for adjustment (e.g., "complement activation pattern consistent with autoimmune rather than malignant aetiology")
+- Reviewer name and date
+
+Adjustments of **more than one category** require secondary review and sign-off by the Chief Science Officer or Medical Director.
+
+---
+
+### 15.6 Worked Example
+
+**Raw pathway health scores:**
+
+| Tier | Pathway | Health Score |
+|------|---------|-------------|
+| 1 | Metabolic Dysfunction | 66 |
+| 1 | Inflammation | 100 |
+| 1 | Oxidative Stress | 100 |
+| 2 | Cell Proliferation | 38 |
+| 2 | Immune System Evasion | 54 |
+| 3 | Angiogenesis | 38 |
+| 3 | Matrix Remodelling | 50 |
+| 3 | Metastasis | 58 |
+
+**Tier averages:**
+
+```
+T1 = (66 + 100 + 100) / 3 = 88.7
+T2 = (38 + 54) / 2        = 46.0
+T3 = (38 + 50 + 58) / 3   = 48.7
+```
+
+**Weighted composite:**
+
+```
+Composite = (1 × 88.7  +  2 × 46.0  +  3 × 48.7) / 6
+          = (88.7 + 92.0 + 146.1) / 6
+          = 326.8 / 6
+          = 54.5
+```
+
+**Classification:** Score 54.5 → **Moderate Concern** (45–59)
