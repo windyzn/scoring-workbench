@@ -1660,6 +1660,7 @@ export default function App() {
     const [procRedCutoff, setProcRedCutoff] = useState(70);
     const [editConc, setEditConc] = useState(false);   // unlock toggle
     const [concWarnModal, setConcWarnModal] = useState(false);   // warning popup
+    const [formulasModal, setFormulasModal] = useState(false);
     const fileRef = useRef();
     const weightFileRef = useRef();
     const [uploadModal, setUploadModal] = useState(false);
@@ -2167,8 +2168,8 @@ export default function App() {
                     <button data-tutorial="save-profile-btn" onClick={() => { setSaveModal(true); setTutorialStep(prev => prev === 5 ? 6 : prev); }} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Save Profile</button>
                     <button data-tutorial="manage-profiles-btn" onClick={() => { setEditingId(null); setProfileModal(true); setTutorialStep(prev => prev === 12 ? 13 : prev); }} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Manage Profiles</button>
                     <button onClick={resetWeights} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>↺ Reset</button>
-                    <a href="https://github.com/windyzn/scoring-workbench/blob/main/documentation.md" target="_blank" rel="noopener noreferrer" title="Documentation"
-                        style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>ℹ</a>
+                    <button onClick={() => setFormulasModal(true)} title="Scoring formulas"
+                        style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>ℹ</button>
                     <button onClick={() => { setTutorialStep(0); setShowTutorial(true); }} title="Show tutorial"
                         style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>?</button>
                     {hasData && <select value={clientId} onChange={e => setClientId(e.target.value)}
@@ -2778,6 +2779,9 @@ export default function App() {
                 </div>
             )}
 
+            {/* ── Formulas modal ── */}
+            {formulasModal && <FormulasModal onClose={() => setFormulasModal(false)} />}
+
             {/* ── Save modal ── */}
             {saveModal && (
                 <div style={{ position: "fixed", inset: 0, background: "rgba(24,55,75,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setSaveModal(false)}>
@@ -3308,6 +3312,218 @@ function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysS
                         </div>
                     );
                 })}
+            </div>
+        </div>
+    );
+}
+
+// ─── Formulas Modal ───────────────────────────────────────────────────────────
+function FormulasModal({ onClose }) {
+    const mono = { fontFamily: T.mono, background: "#f0f6f9", borderRadius: 6, padding: "10px 14px", fontSize: 12, color: C.navy, whiteSpace: "pre", overflowX: "auto", lineHeight: 1.6, margin: "8px 0 14px" };
+    const h2 = { fontFamily: T.display, fontSize: 17, color: C.navy, margin: "28px 0 6px", borderBottom: `1px solid ${C.border}`, paddingBottom: 6 };
+    const h3 = { fontSize: 13, fontWeight: 700, color: C.navyMid, margin: "16px 0 4px" };
+    const p = { fontSize: 13, color: C.textSecond, lineHeight: 1.65, margin: "4px 0 10px" };
+    const tbl = { width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 14 };
+    const th = { textAlign: "left", padding: "5px 10px", background: "#e8f2f7", color: C.navy, fontWeight: 700, border: `1px solid ${C.border}` };
+    const td = { padding: "5px 10px", border: `1px solid ${C.border}`, color: C.textSecond, verticalAlign: "top" };
+
+    return (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(24,55,75,0.6)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center" }}
+            onClick={onClose}>
+            <div style={{ background: C.surface, borderRadius: 14, width: "90vw", maxWidth: 860, height: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 16px 60px rgba(24,55,75,0.35)", overflow: "hidden" }}
+                onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div style={{ padding: "16px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+                    <span style={{ fontFamily: T.display, fontSize: 18, color: C.navy }}>Scoring Formulas</span>
+                    <button onClick={onClose} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
+                </div>
+
+                {/* Scrollable body */}
+                <div style={{ overflowY: "auto", padding: "8px 32px 32px", flex: 1 }}>
+                    {/* Docs link */}
+                    <div style={{ background: "#eef7fa", borderRadius: 8, padding: "12px 16px", margin: "20px 0 4px", display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 13, color: C.textSecond }}>Full technical documentation:</span>
+                        <a href="https://github.com/windyzn/scoring-workbench/blob/main/documentation.md" target="_blank" rel="noopener noreferrer"
+                            style={{ fontSize: 13, color: C.steel, fontWeight: 700 }}>
+                            github.com/windyzn/scoring-workbench — documentation.md ↗
+                        </a>
+                    </div>
+
+                    {/* ── 1. Biomarker Zone Classification ── */}
+                    <div style={h2}>1. Biomarker Zone Classification</div>
+                    <p style={p}>Each biomarker is classified into a colour zone before scoring. First, derive boundary values from the reference range:</p>
+                    <pre style={mono}>{`range       = ref_high − ref_low
+
+green_low   = ref_low  + green_pct × range      (default green_pct = 0.05)
+green_high  = ref_high − green_pct × range
+
+yellow_low  = ref_low  − green_pct × range
+yellow_high = ref_high + green_pct × range`}</pre>
+                    <div style={h3}>Colour assignment</div>
+                    <table style={tbl}>
+                        <thead><tr><th style={th}>Condition</th><th style={th}>Colour</th><th style={th}>Direction</th></tr></thead>
+                        <tbody>
+                            <tr><td style={td}>green_low ≤ concentration ≤ green_high</td><td style={td}>Green</td><td style={td}>Normal</td></tr>
+                            <tr><td style={td}>yellow_low ≤ concentration ≤ yellow_high (outside green)</td><td style={td}>Yellow</td><td style={td}>High / Low</td></tr>
+                            <tr><td style={td}>concentration &lt; yellow_low or &gt; yellow_high</td><td style={td}>Red</td><td style={td}>High / Low</td></tr>
+                        </tbody>
+                    </table>
+
+                    {/* ── 2. Biomarker Score ── */}
+                    <div style={h2}>2. Biomarker Score</div>
+                    <p style={p}>Green biomarkers score 100. Out-of-range biomarkers decay toward 0 based on how far they deviate from the green boundary.</p>
+                    <div style={h3}>Impact direction (impact_dir)</div>
+                    <p style={p}>Controls which side of the green zone reduces the score. Deviations on the non-penalised side score 100.</p>
+                    <table style={tbl}>
+                        <thead><tr><th style={th}>impact_dir</th><th style={th}>Behaviour</th></tr></thead>
+                        <tbody>
+                            <tr><td style={td}><code>"both"</code> (default)</td><td style={td}>High and low both penalised</td></tr>
+                            <tr><td style={td}><code>"high"</code></td><td style={td}>Only being above green_high penalises; being low scores 100</td></tr>
+                            <tr><td style={td}><code>"low"</code></td><td style={td}>Only being below green_low penalises; being high scores 100</td></tr>
+                        </tbody>
+                    </table>
+                    <div style={h3}>Distance-based decay</div>
+                    <pre style={mono}>{`green_range = green_high − green_low
+
+if direction = HIGH:  distance = (concentration − green_high) / green_range
+if direction = LOW:   distance = (green_low − concentration) / green_range
+
+t = clamp(distance / cutoff, 0, 1)          (default cutoff = 0.5)
+                                              t = 1 when distance = cutoff → score = 0`}</pre>
+                    <div style={h3}>Decay curves</div>
+                    <pre style={mono}>{`Linear (default):   score = 100 × (1 − t)
+Log2 (faster drop): score = max(0, 100 × (1 − log₂(1 + t)))`}</pre>
+
+                    {/* ── 3. Effective Biomarker Weight ── */}
+                    <div style={h2}>3. Effective Biomarker Weight</div>
+                    <p style={p}>Each biomarker's contribution to its process score is scaled by an effective weight. The science team may set a manual override; otherwise a global colour multiplier applies.</p>
+                    <div style={h3}>Global colour multipliers (defaults)</div>
+                    <table style={tbl}>
+                        <thead><tr><th style={th}>Colour</th><th style={th}>Default multiplier</th></tr></thead>
+                        <tbody>
+                            <tr><td style={td}>Green</td><td style={td}>1.0 (fixed)</td></tr>
+                            <tr><td style={td}>Yellow</td><td style={td}>2.0 (yellow_weight)</td></tr>
+                            <tr><td style={td}>Red</td><td style={td}>4.0 (red_weight)</td></tr>
+                        </tbody>
+                    </table>
+                    <div style={h3}>Manual weight override (bio_weight, bio_color, bio_level)</div>
+                    <pre style={mono}>{`color_match = (bio_color = "both")
+           OR (bio_color = "red"    AND colour = RED)
+           OR (bio_color = "yellow" AND colour = YELLOW)
+
+level_match = (bio_level = "both")
+           OR (bio_level = "high" AND direction = HIGH)
+           OR (bio_level = "low"  AND direction = LOW)
+
+if color_match AND level_match:  effective_weight = bio_weight
+else:                            effective_weight = colour multiplier`}</pre>
+                    <p style={p}>The manual weight fully replaces the colour multiplier — they do not stack.</p>
+
+                    {/* ── 4. Process Score ── */}
+                    <div style={h2}>4. Process Score</div>
+                    <p style={p}>Weighted average of all biomarker scores within the process. Missing/excluded biomarkers are skipped (not treated as 0).</p>
+                    <pre style={mono}>{`process_score = Σ(biomarker_score × effective_weight) / Σ(effective_weight)`}</pre>
+                    <p style={p}>Returns NULL if no biomarkers have data.</p>
+
+                    {/* ── 5. Effective Process Weight ── */}
+                    <div style={h2}>5. Effective Process Weight</div>
+                    <p style={p}>Each process has a weight that controls its influence on the system score. Process scores are first mapped to a colour zone:</p>
+                    <table style={tbl}>
+                        <thead><tr><th style={th}>Process score</th><th style={th}>Zone</th></tr></thead>
+                        <tbody>
+                            <tr><td style={td}>≥ 91</td><td style={td}>Green</td></tr>
+                            <tr><td style={td}>70 – 90</td><td style={td}>Yellow</td></tr>
+                            <tr><td style={td}>0 – 69</td><td style={td}>Red</td></tr>
+                        </tbody>
+                    </table>
+                    <pre style={mono}>{`color_match = (proc_color = "both")
+           OR (proc_color = "red"    AND proc_zone = RED)
+           OR (proc_color = "yellow" AND proc_zone = YELLOW)
+           OR (proc_color = "green"  AND proc_zone = GREEN)
+
+if color_match:  effective_process_weight = proc_weight
+else:            effective_process_weight = 1`}</pre>
+
+                    {/* ── 6. System Score ── */}
+                    <div style={h2}>6. System Score</div>
+                    <p style={p}>Weighted average of all process scores. NULL processes are excluded.</p>
+                    <pre style={mono}>{`system_score = Σ(process_score × effective_process_weight) / Σ(effective_process_weight)`}</pre>
+
+                    {/* ── 7. Cancer Pathway Risk Score ── */}
+                    <div style={h2}>7. Cancer Pathway Risk Score</div>
+                    <p style={p}>The cancer domain adds a fourth aggregation layer on top of the standard pipeline. Pathway scores (system-level scores) are grouped into three tiers of increasing cancer specificity, then combined into a weighted composite.</p>
+                    <pre style={mono}>{`Biomarker → Process → Pathway (system) → Tier average → Composite → Classification`}</pre>
+                    <div style={h3}>Tier architecture</div>
+                    <table style={tbl}>
+                        <thead><tr><th style={th}>Tier</th><th style={th}>Pathways</th><th style={th}>Weight</th></tr></thead>
+                        <tbody>
+                            <tr><td style={td}>Tier 1 — Systemic Risk</td><td style={td}>Metabolic Dysfunction, Inflammation, Oxidative Stress</td><td style={td}>1</td></tr>
+                            <tr><td style={td}>Tier 2 — Transitional Biology</td><td style={td}>Cell Proliferation, Immune System Evasion</td><td style={td}>2</td></tr>
+                            <tr><td style={td}>Tier 3 — Tumour-Associated</td><td style={td}>Angiogenesis, Matrix Remodelling, Metastasis</td><td style={td}>3</td></tr>
+                        </tbody>
+                    </table>
+                    <div style={h3}>Tier aggregation</div>
+                    <pre style={mono}>{`T1 = mean(pathway scores in Tier 1)
+T2 = mean(pathway scores in Tier 2)
+T3 = mean(pathway scores in Tier 3)`}</pre>
+                    <div style={h3}>Weighted composite</div>
+                    <pre style={mono}>{`Composite = (1 × T1  +  2 × T2  +  3 × T3) / 6
+
+100 = all pathways healthy   |   0 = maximum cancer risk`}</pre>
+                    <div style={h3}>Risk classification</div>
+                    <table style={tbl}>
+                        <thead><tr><th style={th}>Score range</th><th style={th}>Classification</th></tr></thead>
+                        <tbody>
+                            <tr><td style={td}>80 – 100</td><td style={td}>Low Concern</td></tr>
+                            <tr><td style={td}>60 – 79</td><td style={td}>Low to Moderate Concern</td></tr>
+                            <tr><td style={td}>45 – 59</td><td style={td}>Moderate Concern</td></tr>
+                            <tr><td style={td}>25 – 44</td><td style={td}>Moderate to High Concern</td></tr>
+                            <tr><td style={td}>0 – 24</td><td style={td}>High Concern</td></tr>
+                        </tbody>
+                    </table>
+
+                    {/* ── Worked Example ── */}
+                    <div style={h2}>Worked Examples</div>
+
+                    <div style={h3}>Example A — Single biomarker through to system score</div>
+                    <p style={p}>Homocysteine: concentration 18.0, ref_low 5.0, ref_high 15.0 (green_pct 0.05, cutoff 0.5, linear curve)</p>
+                    <pre style={mono}>{`range      = 15.0 − 5.0 = 10.0
+green_low  = 5.0 + 0.05 × 10.0 = 5.5
+green_high = 15.0 − 0.05 × 10.0 = 14.5   → colour = RED, direction = HIGH
+
+green_range = 14.5 − 5.5 = 9.0
+distance    = (18.0 − 14.5) / 9.0 = 0.389
+t           = clamp(0.389 / 0.5) = 0.778
+score       = 100 × (1 − 0.778) = 22.2
+
+bio_color="red", bio_level="high", bio_weight=5 → effective_weight = 5 (override)
+
+Process (2 biomarkers):
+  Homocysteine         score=22.2   weight=5
+  Methylmalonic acid   score=85.0   weight=2.0 (yellow, no override)
+  process_score = (22.2×5 + 85.0×2) / (5+2) = 281.0 / 7 ≈ 40.1   → RED zone
+
+Process weight: proc_weight=3, proc_color="red" → proc_zone=RED → effective_weight=3
+
+System (2 processes):
+  Methylation       score=40.1   eff_weight=3
+  Oxidative Stress  score=72.0   eff_weight=1
+  system_score = (40.1×3 + 72.0×1) / 4 = 192.3 / 4 = 48.1`}</pre>
+
+                    <div style={h3}>Example B — Cancer composite score</div>
+                    <p style={p}>Seven pathway scores across all three tiers:</p>
+                    <pre style={mono}>{`Tier 1: Metabolic Dysfunction=66, Inflammation=100, Oxidative Stress=100
+Tier 2: Cell Proliferation=38, Immune System Evasion=54
+Tier 3: Angiogenesis=38, Matrix Remodelling=50, Metastasis=58
+
+T1 = (66 + 100 + 100) / 3 = 88.7
+T2 = (38 + 54) / 2        = 46.0
+T3 = (38 + 50 + 58) / 3   = 48.7
+
+Composite = (1×88.7 + 2×46.0 + 3×48.7) / 6
+          = (88.7 + 92.0 + 146.1) / 6
+          = 54.5  →  Moderate Concern (45–59)`}</pre>
+                </div>
             </div>
         </div>
     );
