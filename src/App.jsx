@@ -1757,7 +1757,7 @@ export default function App() {
     const [editingId, setEditingId] = useState(null);
     const [editName, setEditName] = useState("");
 
-    const [showTutorial, setShowTutorial] = useState(true);
+    const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem("myco_visited"));
     const [tutorialStep, setTutorialStep] = useState(0);
     const [tutorialDone, setTutorialDone] = useState({
         procWeightChanged: false, bioWeightChanged: false, curveChanged: false,
@@ -2295,66 +2295,68 @@ export default function App() {
                             )}
 
                             {/* ── Stage: admin-name ── */}
-                            {uploadModalStage === "admin-name" && (
-                                <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-                                    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6, background: "#f0f6f9", borderRadius: 7, padding: "10px 12px" }}>
-                                        This file uses the admin portal format — no client ID was found. Enter a name to identify this client in the workbench.
-                                    </div>
-                                    <div>
-                                        <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecond, display: "block", marginBottom: 6 }}>Client name</label>
-                                        <input
-                                            autoFocus
-                                            value={uploadAdminName}
-                                            onChange={e => setUploadAdminName(e.target.value)}
-                                            onKeyDown={e => {
-                                                if (e.key === "Enter" && uploadAdminName.trim()) {
-                                                    const d = buildClientFromAdminPortal(uploadAdminRows, uploadAdminName);
-                                                    if (!Object.keys(d).length) { setUploadErr("No scoreable markers found."); return; }
-                                                    setClients(prev => ({ ...prev, ...d }));
-                                                    setDemoLoaded(false);
-                                                    setClientId(Object.keys(d)[0]);
-                                                    setActiveView("aggregate");
-                                                    closeModal();
-                                                }
-                                            }}
-                                            placeholder="e.g. Jane Smith"
-                                            style={{
-                                                width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 7,
-                                                border: `1px solid ${C.border}`, color: C.textPrimary,
-                                                background: C.white, outline: "none", boxSizing: "border-box"
-                                            }} />
-                                    </div>
-                                    {uploadErr && (
-                                        <div style={{ fontSize: 11, color: C.critical, background: `${C.critical}12`, border: `1px solid ${C.critical}33`, borderRadius: 6, padding: "8px 12px" }}>
-                                            {uploadErr}
+                            {uploadModalStage === "admin-name" && (() => {
+                                const loadAdminData = () => {
+                                    if (!uploadAdminName.trim()) return;
+                                    const d = buildClientFromAdminPortal(uploadAdminRows, uploadAdminName);
+                                    if (!Object.keys(d).length) { setUploadErr("No scoreable markers found."); return; }
+                                    // Replace clients, dropping demo data
+                                    setClients(prev => {
+                                        const withoutDemo = Object.fromEntries(Object.entries(prev).filter(([k]) => !DEMO_IDS.includes(k)));
+                                        return { ...withoutDemo, ...d };
+                                    });
+                                    setDemoLoaded(false);
+                                    setClientId(Object.keys(d)[0]);
+                                    setCol1Open(false);
+                                    setCol2Open(false);
+                                    setActiveView("aggregate");
+                                    localStorage.setItem("myco_visited", "1");
+                                    setShowTutorial(false);
+                                    closeModal();
+                                };
+                                return (
+                                    <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+                                        <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6, background: "#f0f6f9", borderRadius: 7, padding: "10px 12px" }}>
+                                            This file uses the admin portal format — no client ID was found. Enter a name to identify this client in the workbench.
                                         </div>
-                                    )}
-                                    <div style={{ display: "flex", gap: 8 }}>
-                                        <button onClick={closeModal}
-                                            style={{
-                                                flex: 1, padding: "9px 0", borderRadius: 7, fontSize: 12, cursor: "pointer",
-                                                border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted
-                                            }}>Cancel</button>
-                                        <button
-                                            disabled={!uploadAdminName.trim()}
-                                            onClick={() => {
-                                                const d = buildClientFromAdminPortal(uploadAdminRows, uploadAdminName);
-                                                if (!Object.keys(d).length) { setUploadErr("No scoreable markers found."); return; }
-                                                setClients(prev => ({ ...prev, ...d }));
-                                                setDemoLoaded(false);
-                                                setClientId(Object.keys(d)[0]);
-                                                setActiveView("aggregate");
-                                                closeModal();
-                                            }}
-                                            style={{
-                                                flex: 2, padding: "9px 0", borderRadius: 7, fontSize: 12, fontWeight: 700,
-                                                cursor: uploadAdminName.trim() ? "pointer" : "not-allowed",
-                                                border: "none", background: uploadAdminName.trim() ? C.navy : C.iceMid,
-                                                color: C.iceLight
-                                            }}>Load data</button>
+                                        <div>
+                                            <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecond, display: "block", marginBottom: 6 }}>Client name</label>
+                                            <input
+                                                autoFocus
+                                                value={uploadAdminName}
+                                                onChange={e => setUploadAdminName(e.target.value)}
+                                                onKeyDown={e => { if (e.key === "Enter") loadAdminData(); }}
+                                                placeholder="e.g. Jane Smith"
+                                                style={{
+                                                    width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 7,
+                                                    border: `1px solid ${C.border}`, color: C.textPrimary,
+                                                    background: C.white, outline: "none", boxSizing: "border-box"
+                                                }} />
+                                        </div>
+                                        {uploadErr && (
+                                            <div style={{ fontSize: 11, color: C.critical, background: `${C.critical}12`, border: `1px solid ${C.critical}33`, borderRadius: 6, padding: "8px 12px" }}>
+                                                {uploadErr}
+                                            </div>
+                                        )}
+                                        <div style={{ display: "flex", gap: 8 }}>
+                                            <button onClick={closeModal}
+                                                style={{
+                                                    flex: 1, padding: "9px 0", borderRadius: 7, fontSize: 12, cursor: "pointer",
+                                                    border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted
+                                                }}>Cancel</button>
+                                            <button
+                                                disabled={!uploadAdminName.trim()}
+                                                onClick={loadAdminData}
+                                                style={{
+                                                    flex: 2, padding: "9px 0", borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                                    cursor: uploadAdminName.trim() ? "pointer" : "not-allowed",
+                                                    border: "none", background: uploadAdminName.trim() ? C.navy : C.iceMid,
+                                                    color: C.iceLight
+                                                }}>Load data</button>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {/* ── Stage: weight-name ── */}
                             {uploadModalStage === "weight-name" && (
@@ -2776,7 +2778,7 @@ export default function App() {
                             {/* Header */}
                             <div style={{ background: C.navy, padding: "11px 15px 9px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                                 <div style={{ fontSize: 11, color: C.teal, fontWeight: 700, letterSpacing: "0.05em" }}>{step.title}</div>
-                                <button onClick={() => setShowTutorial(false)}
+                                <button onClick={() => { localStorage.setItem("myco_visited", "1"); setShowTutorial(false); }}
                                     style={{ background: "none", border: "none", color: `${C.iceLight}80`, fontSize: 16, cursor: "pointer", lineHeight: 1, padding: "0 0 0 10px", flexShrink: 0 }}>×</button>
                             </div>
 
@@ -2815,7 +2817,7 @@ export default function App() {
                                 </div>
                                 {/* buttons */}
                                 <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                                    <button onClick={() => setShowTutorial(false)}
+                                    <button onClick={() => { localStorage.setItem("myco_visited", "1"); setShowTutorial(false); }}
                                         style={{ fontSize: 10, color: C.textFaint, background: "none", border: "none", cursor: "pointer", padding: "2px 4px" }}>
                                         Skip
                                     </button>
@@ -2838,7 +2840,7 @@ export default function App() {
                                         </button>
                                     )}
                                     {isDone && (
-                                        <button onClick={() => { setShowTutorial(false); setProfileModal(false); setActiveView("aggregate"); setAggTab("overview"); }}
+                                        <button onClick={() => { localStorage.setItem("myco_visited", "1"); setShowTutorial(false); setProfileModal(false); setActiveView("aggregate"); setAggTab("overview"); }}
                                             style={{
                                                 padding: "5px 13px", border: "none", borderRadius: 7, fontSize: 11,
                                                 cursor: "pointer", background: C.teal, color: C.navy, fontWeight: 700
