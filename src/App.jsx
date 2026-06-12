@@ -1470,6 +1470,47 @@ function buildClients(rows) {
     return pts;
 }
 
+function isAdminPortalFormat(cols) {
+    const norm = c => c.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const normCols = cols.map(norm);
+    const has = name => normCols.includes(norm(name));
+    return has("measure_name") && has("lab_concentration") &&
+        has("lower_reference_range") && has("upper_reference_range") &&
+        !has("is_reported");
+}
+
+function buildClientFromAdminPortal(rows, clientName) {
+    if (!rows.length) return {};
+    const pid = clientName.trim() || "Client";
+    const client = { id: pid, label: pid, markers: {} };
+
+    const keys = Object.keys(rows[0]);
+    function col(row, ...names) {
+        for (const name of names) {
+            const norm = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+            const k = keys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g, "") === norm);
+            if (k !== undefined) return (row[k] ?? "").trim();
+        }
+        return "";
+    }
+
+    for (const row of rows) {
+        const name = col(row, "measure_name");
+        const concRaw = col(row, "lab_concentration");
+        if (!name || !concRaw) continue;
+        if (/^blq$|^nr$|^nd$/i.test(concRaw)) continue;
+
+        const conc = parseFloat(concRaw);
+        const lo = parseFloat(col(row, "lower_reference_range"));
+        const hi = parseFloat(col(row, "upper_reference_range"));
+
+        if (!isNaN(conc) && !isNaN(lo) && !isNaN(hi))
+            client.markers[name] = { value: conc, refLow: lo, refHigh: hi };
+    }
+
+    return Object.keys(client.markers).length ? { [pid]: client } : {};
+}
+
 function stats(arr) {
     const a = arr.filter(x => x != null).sort((a, b) => a - b);
     if (!a.length) return null;
@@ -1668,6 +1709,8 @@ export default function App() {
     const [uploadWeightName, setUploadWeightName] = useState("");
     const [uploadWeightFile, setUploadWeightFile] = useState(null);
     const [uploadWeightErr, setUploadWeightErr] = useState("");
+    const [uploadAdminRows, setUploadAdminRows] = useState(null);
+    const [uploadAdminName, setUploadAdminName] = useState("");
 
     const [assocSystems, setAssocSystems] = useState(() => {
         try {
@@ -1957,13 +2000,21 @@ export default function App() {
             setTimeout(() => {
                 try {
                     const rows = parseCSV(e.target.result);
-                    // Validate required columns exist
                     if (rows.length) {
                         const cols = Object.keys(rows[0]);
                         const norm = c => c.toLowerCase().replace(/[^a-z0-9]/g, "");
                         const required = ["myid", "measurename", "labconcentration", "lowerreferencerange", "upperreferencerange", "isreported"];
                         const missing = required.filter(r => !cols.some(c => norm(c) === r));
                         if (missing.length) {
+                            // Standard format check failed — try admin portal format
+                            if (isAdminPortalFormat(cols)) {
+                                setUploadAdminRows(rows);
+                                setUploadAdminName("");
+                                setUploadModal(true);
+                                setUploadModalStage("admin-name");
+                                setIsUploading(false);
+                                return;
+                            }
                             const friendly = { myid: "my_id", measurename: "measure_name", labconcentration: "lab_concentration", lowerreferencerange: "lower_reference_range", upperreferencerange: "upper_reference_range", isreported: "is_reported" };
                             throw new Error("Missing required columns: " + missing.map(m => friendly[m]).join(", ") + ". Expected columns: my_id, barcode, test_id, measure_name, lab_concentration, lower_reference_range, upper_reference_range, is_reported");
                         }
@@ -1975,6 +2026,7 @@ export default function App() {
                     setClientId(Object.keys(d)[0]);
                     setUploadErr("");
                     setIsUploading(false);
+                    setUploadModal(false);
                     setActiveView("aggregate");
                     setTutorialStep(prev => prev === 0 ? 1 : prev);
                 } catch (err) {
@@ -2183,17 +2235,22 @@ export default function App() {
                     <button onClick={() => { setUploadModal(true); setUploadModalStage("choose"); setUploadWeightName(""); setUploadWeightErr(""); }} style={{ background: C.teal, border: "none", color: C.navy, padding: "5px 14px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>
                         {hasData ? "+ Data" : "Upload Data"}
                     </button>
-                    <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={e => { handleFile(e.target.files[0]); setUploadModal(false); e.target.value = ""; }} />
+                    <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={e => { handleFile(e.target.files[0]); e.target.value = ""; }} />
                 </div>
             </div>
 
             {/* ── Upload chooser modal ── */}
             {uploadModal && (() => {
-                const closeModal = () => { setUploadModal(false); setUploadModalStage("choose"); setUploadWeightName(""); setUploadWeightFile(null); setUploadWeightErr(""); };
+                const closeModal = () => {
+                    setUploadModal(false); setUploadModalStage("choose");
+                    setUploadWeightName(""); setUploadWeightFile(null); setUploadWeightErr("");
+                    setUploadAdminRows(null); setUploadAdminName("");
+                };
                 const headerTitle = uploadModalStage === "choose" ? "Upload"
                     : uploadModalStage === "weight-name" ? "Import Weight Profile"
-                        : uploadModalStage === "success" ? "Profile Imported"
-                            : "Import Failed";
+                        : uploadModalStage === "admin-name" ? "Name This Client"
+                            : uploadModalStage === "success" ? "Profile Imported"
+                                : "Import Failed";
                 return (
                     <div style={{
                         position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 600,
@@ -2234,6 +2291,68 @@ export default function App() {
                                             <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>Import a previously exported weight profile CSV. Creates a new profile from the file.</div>
                                         </div>
                                     </button>
+                                </div>
+                            )}
+
+                            {/* ── Stage: admin-name ── */}
+                            {uploadModalStage === "admin-name" && (
+                                <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+                                    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6, background: "#f0f6f9", borderRadius: 7, padding: "10px 12px" }}>
+                                        This file uses the admin portal format — no client ID was found. Enter a name to identify this client in the workbench.
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecond, display: "block", marginBottom: 6 }}>Client name</label>
+                                        <input
+                                            autoFocus
+                                            value={uploadAdminName}
+                                            onChange={e => setUploadAdminName(e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === "Enter" && uploadAdminName.trim()) {
+                                                    const d = buildClientFromAdminPortal(uploadAdminRows, uploadAdminName);
+                                                    if (!Object.keys(d).length) { setUploadErr("No scoreable markers found."); return; }
+                                                    setClients(prev => ({ ...prev, ...d }));
+                                                    setDemoLoaded(false);
+                                                    setClientId(Object.keys(d)[0]);
+                                                    setActiveView("aggregate");
+                                                    closeModal();
+                                                }
+                                            }}
+                                            placeholder="e.g. Jane Smith"
+                                            style={{
+                                                width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 7,
+                                                border: `1px solid ${C.border}`, color: C.textPrimary,
+                                                background: C.white, outline: "none", boxSizing: "border-box"
+                                            }} />
+                                    </div>
+                                    {uploadErr && (
+                                        <div style={{ fontSize: 11, color: C.critical, background: `${C.critical}12`, border: `1px solid ${C.critical}33`, borderRadius: 6, padding: "8px 12px" }}>
+                                            {uploadErr}
+                                        </div>
+                                    )}
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                        <button onClick={closeModal}
+                                            style={{
+                                                flex: 1, padding: "9px 0", borderRadius: 7, fontSize: 12, cursor: "pointer",
+                                                border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted
+                                            }}>Cancel</button>
+                                        <button
+                                            disabled={!uploadAdminName.trim()}
+                                            onClick={() => {
+                                                const d = buildClientFromAdminPortal(uploadAdminRows, uploadAdminName);
+                                                if (!Object.keys(d).length) { setUploadErr("No scoreable markers found."); return; }
+                                                setClients(prev => ({ ...prev, ...d }));
+                                                setDemoLoaded(false);
+                                                setClientId(Object.keys(d)[0]);
+                                                setActiveView("aggregate");
+                                                closeModal();
+                                            }}
+                                            style={{
+                                                flex: 2, padding: "9px 0", borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                                cursor: uploadAdminName.trim() ? "pointer" : "not-allowed",
+                                                border: "none", background: uploadAdminName.trim() ? C.navy : C.iceMid,
+                                                color: C.iceLight
+                                            }}>Load data</button>
+                                    </div>
                                 </div>
                             )}
 
