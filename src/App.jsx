@@ -275,42 +275,148 @@ const CANCER_SYSTEMS = [
     {
         id: "cancer_inflammation", name: "Inflammation", processes: {
             "Inflammation": ["C-reactive protein", "Alpha-1-acid glycoprotein 1", "Alpha-1-antichymotrypsin", "Ceruloplasmin", "Haptoglobin", "Serum amyloid A-1 protein", "Histamine", "Asymmetric dimethylarginine", "Phenylalanine", "Fibrinogen alpha chain", "Fibrinogen beta chain", "Fibrinogen gamma chain", "Coagulation factor XIII A chain", "Coagulation factor XI", "Coagulation factor XIII B chain"],
-        }
+        },
+        levels: {
+            "Inflammation::C-reactive protein": "high",
+            "Inflammation::Alpha-1-acid glycoprotein 1": "high",
+            "Inflammation::Alpha-1-antichymotrypsin": "high",
+            "Inflammation::Ceruloplasmin": "high",
+            "Inflammation::Haptoglobin": "high",
+            "Inflammation::Serum amyloid A-1 protein": "high",
+            "Inflammation::Histamine": "high",
+            "Inflammation::Asymmetric dimethylarginine": "high",
+            "Inflammation::Phenylalanine": "high",
+            "Inflammation::Fibrinogen alpha chain": "high",
+            "Inflammation::Fibrinogen beta chain": "high",
+            "Inflammation::Fibrinogen gamma chain": "high",
+            "Inflammation::Coagulation factor XIII A chain": "high",
+            "Inflammation::Coagulation factor XI": "high",
+            "Inflammation::Coagulation factor XIII B chain": "high",
+        },
     },
     {
         id: "cancer_cell_proliferation", name: "Cell Proliferation", processes: {
             "Cell Proliferation": ["Putrescine", "Spermidine", "Spermine", "Diacetylspermine", "Sex hormone-binding globulin", "Tyrosine", "Leucine", "Asparagine", "Methionine", "Ornithine", "Phenylethylamine"],
-        }
+        },
+        levels: {
+            "Cell Proliferation::Putrescine": "high",
+            "Cell Proliferation::Spermidine": "high",
+            "Cell Proliferation::Spermine": "high",
+            "Cell Proliferation::Diacetylspermine": "high",
+            "Cell Proliferation::Sex hormone-binding globulin": "low",
+            "Cell Proliferation::Tyrosine": "high",
+            "Cell Proliferation::Leucine": "high",
+            "Cell Proliferation::Asparagine": "high",
+            "Cell Proliferation::Methionine": "low",
+            "Cell Proliferation::Ornithine": "high",
+            "Cell Proliferation::Phenylethylamine": "high",
+        },
     },
     {
         id: "cancer_angiogenesis", name: "Angiogenesis", processes: {
             "Angiogenesis": ["Angiogenin", "Leucine-rich alpha-2-glycoprotein 1", "von Willebrand Factor", "Tetranectin", "Serotonin", "Prothrombin"],
-        }
+        },
+        levels: {
+            "Angiogenesis::Angiogenin": "high",
+            "Angiogenesis::Leucine-rich alpha-2-glycoprotein 1": "high",
+            "Angiogenesis::von Willebrand Factor": "high",
+            "Angiogenesis::Tetranectin": "low",
+            "Angiogenesis::Serotonin": "high",
+            "Angiogenesis::Prothrombin": "high",
+        },
     },
     {
         id: "cancer_oxidative_stress", name: "Oxidative Stress", processes: {
             "Oxidative Stress": ["Nitro-Tyrosine", "Methionine-Sulfoxide", "Cotinine", "Serum albumin", "Taurine", "Alpha-amino-N-butyric acid"],
-        }
+        },
+        levels: {
+            "Oxidative Stress::Nitro-Tyrosine": "high",
+            "Oxidative Stress::Methionine-Sulfoxide": "high",
+            "Oxidative Stress::Cotinine": "high",
+            "Oxidative Stress::Serum albumin": "low",
+            "Oxidative Stress::Taurine": "high",
+            "Oxidative Stress::Alpha-amino-N-butyric acid": "low",
+        },
     },
     {
         id: "cancer_metabolic_dysfunction", name: "Metabolic Dysfunction", processes: {
             "Metabolic Dysfunction": ["Glutamine", "Glutamic acid", "Glycine", "Serine", "Proline", "Isoleucine", "Valine", "Alanine", "Threonine", "Creatinine", "Apolipoprotein B-100", "Apolipoprotein C-III", "Apolipoprotein A-II", "Choline", "Betaine", "Sarcosine", "Histidine"],
-        }
+        },
+        levels: {
+            "Metabolic Dysfunction::Glutamine": "high",
+            "Metabolic Dysfunction::Glutamic acid": "high",
+            "Metabolic Dysfunction::Glycine": "high",
+            "Metabolic Dysfunction::Serine": "high",
+            "Metabolic Dysfunction::Proline": "low",
+            "Metabolic Dysfunction::Isoleucine": "high",
+            "Metabolic Dysfunction::Valine": "both",
+            "Metabolic Dysfunction::Alanine": "both",
+            "Metabolic Dysfunction::Threonine": "low",
+            "Metabolic Dysfunction::Creatinine": "both",
+            "Metabolic Dysfunction::Apolipoprotein B-100": "high",
+            "Metabolic Dysfunction::Apolipoprotein C-III": "high",
+            "Metabolic Dysfunction::Apolipoprotein A-II": "high",
+            "Metabolic Dysfunction::Choline": "high",
+            "Metabolic Dysfunction::Betaine": "high",
+            "Metabolic Dysfunction::Sarcosine": "high",
+            "Metabolic Dysfunction::Histidine": "low",
+        },
     },
     {
         id: "cancer_immune_system_evasion", name: "Immune System Evasion", processes: {
             "Immune System Evasion": ["Tryptophan", "Kynurenine", "Arginine", "Complement factor I", "Complement component C9", "Complement factor B", "CD5 antigen-like", "Ficolin-3", "Mannan-binding lectin serine protease 2", "Complement C1q subcomponent subunit B", "C4b-binding protein alpha chain", "Plasma protease C1 inhibitor", "Transthyretin", "Serotransferrin", "Vitamin D-binding protein"],
-        }
+        },
+        levels: {
+            "Immune System Evasion::Tryptophan": "low",
+            "Immune System Evasion::Kynurenine": "high",
+            "Immune System Evasion::Arginine": "low",
+            "Immune System Evasion::Complement factor I": "high",
+            "Immune System Evasion::Complement component C9": "high",
+            "Immune System Evasion::Complement factor B": "low",
+            "Immune System Evasion::CD5 antigen-like": "both",
+            "Immune System Evasion::Ficolin-3": "low",
+            "Immune System Evasion::Mannan-binding lectin serine protease 2": "high",
+            "Immune System Evasion::Complement C1q subcomponent subunit B": "high",
+            "Immune System Evasion::C4b-binding protein alpha chain": "high",
+            "Immune System Evasion::Plasma protease C1 inhibitor": "high",
+            "Immune System Evasion::Transthyretin": "low",
+            "Immune System Evasion::Serotransferrin": "low",
+            "Immune System Evasion::Vitamin D-binding protein": "low",
+        },
     },
     {
         id: "cancer_matrix_remodelling", name: "Matrix Remodelling", processes: {
             "Matrix Remodelling": ["Fibronectin", "Vitronectin", "Galectin-3-binding protein", "Alpha-2-macroglobulin", "Alpha-1B-glycoprotein", "Kininogen-1", "Protein AMBP"],
-        }
+        },
+        levels: {
+            "Matrix Remodelling::Fibronectin": "high",
+            "Matrix Remodelling::Vitronectin": "high",
+            "Matrix Remodelling::Galectin-3-binding protein": "high",
+            "Matrix Remodelling::Alpha-2-macroglobulin": "high",
+            "Matrix Remodelling::Alpha-1B-glycoprotein": "high",
+            "Matrix Remodelling::Kininogen-1": "high",
+            "Matrix Remodelling::Protein AMBP": "high",
+        },
     },
     {
         id: "cancer_metastasis", name: "Metastasis", processes: {
             "Metastasis": ["Intercellular adhesion molecule 1", "Gamma-aminobutyric acid", "Apolipoprotein D", "Apolipoprotein M", "Plasma serine protease inhibitor", "Beta-2-glycoprotein 1", "Retinol-binding protein 4", "Apolipoprotein E", "Apolipoprotein C-I", "Complement C1r subcomponent", "Hemopexin", "Alpha-2-HS-glycoprotein", "Apolipoprotein A-I"],
-        }
+        },
+        levels: {
+            "Metastasis::Intercellular adhesion molecule 1": "high",
+            "Metastasis::Gamma-aminobutyric acid": "high",
+            "Metastasis::Apolipoprotein D": "low",
+            "Metastasis::Apolipoprotein M": "low",
+            "Metastasis::Plasma serine protease inhibitor": "low",
+            "Metastasis::Beta-2-glycoprotein 1": "low",
+            "Metastasis::Retinol-binding protein 4": "high",
+            "Metastasis::Apolipoprotein E": "high",
+            "Metastasis::Apolipoprotein C-I": "high",
+            "Metastasis::Complement C1r subcomponent": "high",
+            "Metastasis::Hemopexin": "both",
+            "Metastasis::Alpha-2-HS-glycoprotein": "both",
+            "Metastasis::Apolipoprotein A-I": "low",
+        },
     },
 ];
 
