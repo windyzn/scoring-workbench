@@ -6215,7 +6215,9 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
         const map = new Map();
         defaultSystems.forEach(sys => {
             Object.entries(sys.processes).forEach(([proc, bms]) => {
-                bms.forEach(bm => map.set(`${sys.id}::${proc}::${bm}`, true));
+                bms.forEach(bm => map.set(`${sys.id}::${proc}::${bm}`, {
+                    level: sys.levels?.[`${proc}::${bm}`] ?? "both",
+                }));
             });
         });
         return map;
@@ -6223,8 +6225,9 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
 
     function rowStatus(row) {
         const key = `${row.systemId}::${row.process}::${row.biomarker}`;
-        if (!defaultLookup.has(key)) return "new";
-        if (row.level !== "both" || row.pmid !== "") return "modified";
+        const def = defaultLookup.get(key);
+        if (!def) return "new";
+        if (row.level !== def.level || row.pmid !== "") return "modified";
         return "default";
     }
 
