@@ -1821,7 +1821,16 @@ export default function App() {
     const [assocSystems, setAssocSystems] = useState(() => {
         try {
             const saved = localStorage.getItem("myco_assoc_systems");
-            if (saved) return JSON.parse(saved);
+            if (saved) {
+                const loaded = JSON.parse(saved);
+                const defaultMap = new Map(DEFAULT_ALL_SYSTEMS.map(s => [s.id, s]));
+                return loaded.map(s => {
+                    const def = defaultMap.get(s.id);
+                    if (!def?.levels) return s;
+                    // Merge default levels as base; any stored per-key overrides take precedence
+                    return { ...s, levels: { ...def.levels, ...(s.levels ?? {}) } };
+                });
+            }
         } catch {}
         return DEFAULT_ALL_SYSTEMS;
     });
