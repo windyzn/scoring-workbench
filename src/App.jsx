@@ -1626,6 +1626,28 @@ function stats(arr) {
     return { n, mean, median, sd, min: a[0], max: a[n - 1] };
 }
 
+// Percentage of scores falling in the red / yellow / green zones (red < redCutoff <= yellow < greenCutoff <= green)
+function rygBreakdown(scores, redCutoff, greenCutoff) {
+    if (!scores.length) return null;
+    const nRed = scores.filter(s => Math.floor(s) < redCutoff).length;
+    const nGreen = scores.filter(s => Math.floor(s) >= greenCutoff).length;
+    const nYellow = scores.length - nRed - nGreen;
+    return { red: (nRed / scores.length) * 100, yellow: (nYellow / scores.length) * 100, green: (nGreen / scores.length) * 100 };
+}
+
+function RygCell({ breakdown }) {
+    if (!breakdown) return <span style={{ color: C.textFaint }}>—</span>;
+    return (
+        <span style={{ fontFamily: T.mono, fontSize: 10.5, display: "inline-flex", alignItems: "baseline", gap: 3, whiteSpace: "nowrap" }}>
+            <span style={{ color: C.critical, fontWeight: 700 }}>{Math.round(breakdown.red)}%</span>
+            <span style={{ color: C.textFaint }}>/</span>
+            <span style={{ color: C.fair, fontWeight: 700 }}>{Math.round(breakdown.yellow)}%</span>
+            <span style={{ color: C.textFaint }}>/</span>
+            <span style={{ color: C.teal, fontWeight: 700 }}>{Math.round(breakdown.green)}%</span>
+        </span>
+    );
+}
+
 // ─── Atoms ────────────────────────────────────────────────────────────────────
 function ArcGauge({ score, size = 64, label }) {
     const col = procColour(score), r = size * 0.37, cx = size / 2, cy = size / 2, circ = 2 * Math.PI * r;
@@ -4517,10 +4539,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
         });
     };
     const isComparing = aggregateData.length > 1;
-    const STAT_COLS = ["Mean", "Median", "SD", "Range"];
+    const STAT_COLS = ["Mean", "Median", "SD", "Range", "R/Y/G %"];
     function sysStatsForProfile(profData, sysId) {
         const scores = profData.clients.map(r => r.systems.find(s => s.id === sysId)?.score).filter(x => x != null);
-        return stats(scores);
+        const st = stats(scores);
+        return st ? { ...st, breakdown: rygBreakdown(scores, overviewYellow, overviewGreen) } : null;
     }
     const nonDemoClients = aggregateData[0]?.clients.filter(r => !DEMO_IDS.includes(r.pid)) ?? [];
 
@@ -4653,7 +4676,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                     // Cancer domain score stats across profiles
                     function cancerDomainStats(profData) {
                         const scores = profData.clients.map(r => r.cancerDomainScore).filter(x => x != null);
-                        return stats(scores);
+                        const st = stats(scores);
+                        return st ? { ...st, breakdown: rygBreakdown(scores, overviewYellow, overviewGreen) } : null;
                     }
                     function cancerClass(score) {
                         if (score == null) return null;
@@ -4805,6 +4829,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                 <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-ryg`} style={{ padding: "9px 10px", textAlign: "center" }}><RygCell breakdown={st?.breakdown} /></td>,
                                                             ];
                                                         })}
                                                     </tr>
@@ -5036,7 +5061,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                             ...(groupId === "cancer" ? CANCER_TIERS.map((tier, si) => {
                                                 const allStats = aggregateData.map(pd => {
                                                     const scores = pd.clients.map(r => r.cancerTierScores?.find(t => t.id === tier.id)?.score).filter(x => x != null);
-                                                    return stats(scores);
+                                                    const st = stats(scores);
+                                                    return st ? { ...st, breakdown: rygBreakdown(scores, overviewYellow, overviewGreen) } : null;
                                                 });
                                                 const baseStats = allStats[0];
                                                 const procC = overviewColour(baseStats?.mean);
@@ -5052,6 +5078,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                 <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-ryg`} style={{ padding: "9px 10px", textAlign: "center" }}><RygCell breakdown={st?.breakdown} /></td>,
                                                                 ...(pi > 0 ? [<td key={`${profile.id}-delta`} style={{ padding: "9px 8px", textAlign: "center" }}>{deltaMean != null ? <span style={{ fontFamily: T.mono, fontSize: 12, fontWeight: 700, color: deltaMean > 0 ? C.green : deltaMean < 0 ? C.critical : C.textFaint }}>{deltaMean > 0 ? "+" : ""}{deltaMean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>] : [])
                                                             ];
                                                         })}
@@ -5073,6 +5100,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                 <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{Math.floor(st.median * 10) / 10}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-ryg`} style={{ padding: "9px 10px", textAlign: "center" }}><RygCell breakdown={st?.breakdown} /></td>,
                                                                 ...(pi > 0 ? [<td key={`${profile.id}-delta`} style={{ padding: "9px 8px", textAlign: "center" }}>{deltaMean != null ? <span style={{ fontFamily: T.mono, fontSize: 12, fontWeight: 700, color: deltaMean > 0 ? C.green : deltaMean < 0 ? C.critical : C.textFaint }}>{deltaMean > 0 ? "+" : ""}{deltaMean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>] : [])
                                                             ];
                                                         })}
@@ -5099,7 +5127,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                         const scores = profData.clients.flatMap(r =>
                             r.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))
                         ).filter(x => x != null);
-                        return stats(scores);
+                        const st = stats(scores);
+                        return st ? { ...st, breakdown: rygBreakdown(scores, procRedCutoff, procYellowCutoff) } : null;
                     }
                     return (
                         <div>
@@ -5365,6 +5394,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                 <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-ryg`} style={{ padding: "9px 10px", textAlign: "center" }}><RygCell breakdown={st?.breakdown} /></td>,
                                                                 ...(pii > 0 ? [<td key={`${profile.id}-delta`} style={{ padding: "9px 8px", textAlign: "center" }}>{deltaMean != null ? <span style={{ fontFamily: T.mono, fontSize: 12, fontWeight: 700, color: deltaMean > 0 ? C.teal : deltaMean < 0 ? C.critical : C.textFaint }}>{deltaMean > 0 ? "+" : ""}{deltaMean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>] : [])
                                                             ];
                                                         })}
