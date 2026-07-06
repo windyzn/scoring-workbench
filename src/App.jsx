@@ -4489,6 +4489,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const overviewBg = s => s == null ? "transparent" : `${overviewColour(s)}18`;
     const ALL_GROUP_LABELS = ["Health Systems", "Diseases", "Cancer"];
     const [visibleSysGroups, setVisibleSysGroups] = useState(new Set(ALL_GROUP_LABELS));
+    const DOMAIN_COLUMNS = ["Cancer Score", "Classification"];
+    const [visibleDomainCols, setVisibleDomainCols] = useState(new Set(DOMAIN_COLUMNS));
     const PROC_GROUPS = sysGroups;
     const ALL_PROCS_FLAT = [...new Set(assocSystems.flatMap(s => Object.keys(s.processes)))];
     const [visibleProcs, setVisibleProcs] = useState(new Set(ALL_PROCS_FLAT));
@@ -4537,6 +4539,25 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
         const a = document.createElement("a");
         a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
         a.download = "system_client_scores.csv"; a.click();
+    };
+
+    const downloadDomainCSV = () => {
+        const rows = aggregateData[isComparing ? clientTab : 0].clients;
+        function classifyCancer(score) {
+            if (score == null) return null;
+            return CANCER_CLASSIFICATIONS.find(c => score >= c.min) ?? CANCER_CLASSIFICATIONS[CANCER_CLASSIFICATIONS.length - 1];
+        }
+        const header = ["Client", ...(visibleDomainCols.has("Cancer Score") ? ["Cancer Score"] : []), ...(visibleDomainCols.has("Classification") ? ["Classification"] : [])];
+        const csvRows = rows.map(row => {
+            const vals = [row.label ?? row.pid];
+            if (visibleDomainCols.has("Cancer Score")) vals.push(row.cancerDomainScore != null ? Math.floor(row.cancerDomainScore) : "");
+            if (visibleDomainCols.has("Classification")) vals.push(classifyCancer(row.cancerDomainScore)?.label ?? "");
+            return vals;
+        });
+        const csv = [header, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        a.download = "domain_client_scores.csv"; a.click();
     };
 
     const downloadProcCSV = () => {
@@ -4593,6 +4614,39 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px" }}>
 
+                {/* Profile selector — shown on Domain Summary and System Summary tabs */}
+                {(aggTab === "domain-summary" || aggTab === "overview") && <div style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>
+                        {isComparing
+                            ? <><strong>{aggregateData.length}</strong> profiles selected. <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> is the baseline.</>
+                            : "Select profiles to compare side-by-side."}
+                    </div>
+                    <div data-tutorial="profile-pills" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {profiles.map((p) => {
+                            const active = compareIds.includes(p.id);
+                            const idx = compareIds.indexOf(p.id);
+                            const col = active ? PROF_COLORS[idx % PROF_COLORS.length] : C.textFaint;
+                            return (
+                                <button key={p.id} onClick={() => toggleCompare(p.id)} style={{
+                                    padding: "5px 14px", fontSize: 11, borderRadius: 20, cursor: "pointer",
+                                    border: `1.5px solid ${active ? col : C.border}`, background: active ? `${col}18` : "transparent",
+                                    color: active ? col : C.textMuted, fontWeight: active ? 700 : 400, transition: "all 0.15s",
+                                    display: "flex", alignItems: "center", gap: 5
+                                }}>
+                                    {active && <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, display: "inline-block" }} />}
+                                    {p.name}
+                                </button>
+                            );
+                        })}
+                        {compareIds.length > 0 && (
+                            <button onClick={() => setCompareIds([])} style={{
+                                padding: "5px 14px", fontSize: 11, borderRadius: 20,
+                                border: `1px solid ${C.border}`, cursor: "pointer", background: "transparent", color: C.textMuted
+                            }}>Clear</button>
+                        )}
+                    </div>
+                </div>}
+
                 {/* ── Domain Summary tab — Cancer only ── */}
                 {aggTab === "domain-summary" && (() => {
                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
@@ -4629,20 +4683,53 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         })}
                                     </div>
                                 )}
+                                {/* Column filter */}
+                                {(() => {
+                                    const toggleDomainCol = lbl => setVisibleDomainCols(prev => { const n = new Set(prev); n.has(lbl) ? n.delete(lbl) : n.add(lbl); return n; });
+                                    const allOn = visibleDomainCols.size === DOMAIN_COLUMNS.length;
+                                    return (
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                                            <button onClick={downloadDomainCSV} style={{
+                                                fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                                border: `1px solid ${C.teal}55`, background: "transparent", color: C.teal, fontWeight: 600,
+                                            }}>⬇ CSV</button>
+                                            <span style={{ fontSize: 10, color: C.textFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Columns</span>
+                                            {DOMAIN_COLUMNS.map(lbl => {
+                                                const on = visibleDomainCols.has(lbl);
+                                                return (
+                                                    <button key={lbl} onClick={() => toggleDomainCol(lbl)} style={{
+                                                        fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                                        border: `1px solid ${on ? C.steel : C.border}`,
+                                                        background: on ? `${C.steel}18` : "transparent",
+                                                        color: on ? C.steel : C.textFaint, fontWeight: on ? 700 : 400,
+                                                    }}>{lbl}</button>
+                                                );
+                                            })}
+                                            <button onClick={() => setVisibleDomainCols(allOn ? new Set() : new Set(DOMAIN_COLUMNS))} style={{
+                                                fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                                                border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint,
+                                            }}>{allOn ? "Clear all" : "Select all"}</button>
+                                        </div>
+                                    );
+                                })()}
+                                {(() => {
+                                    const showScore = visibleDomainCols.has("Cancer Score");
+                                    const showClass = visibleDomainCols.has("Classification");
+                                    return (
                                 <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                     <table style={{ borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
                                         <colgroup>
                                             <col style={{ width: 160 }} />
                                             <col style={{ width: 44 }} />
-                                            <col style={{ width: 130 }} />
-                                            <col style={{ width: 180 }} />
+                                            {showScore && <col style={{ width: 130 }} />}
+                                            {showClass && <col style={{ width: 180 }} />}
                                         </colgroup>
                                         <thead>
                                             <tr style={{ background: C.navy }}>
                                                 <th style={{ position: "sticky", left: 0, zIndex: 2, padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Client</th>
                                                 <th style={{ position: "sticky", left: 160, zIndex: 2, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, background: C.navy }}>⚠</th>
-                                                <th style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, borderLeft: `2px solid ${C.teal}55` }}>Cancer Score</th>
-                                                <th style={{ padding: "10px 14px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600 }}>Classification</th>
+                                                {showScore && <th style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, borderLeft: `2px solid ${C.teal}55` }}>Cancer Score</th>}
+                                                {showClass && <th style={{ padding: "10px 14px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600 }}>Classification</th>}
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -4661,7 +4748,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                 ? <span style={{ fontSize: 9, fontWeight: 700, color: cls?.color ?? C.critical }}>!</span>
                                                                 : <span style={{ fontSize: 9, color: C.teal }}>✓</span>}
                                                         </td>
-                                                        {(() => {
+                                                        {showScore && (() => {
                                                             const d = domScore != null && baseDomScore != null ? domScore - baseDomScore : null;
                                                             return (
                                                                 <td style={{ padding: "8px 10px", textAlign: "center", background: cls ? `${cls.color}14` : "transparent", borderLeft: `2px solid ${C.teal}30` }}>
@@ -4672,17 +4759,19 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                 </td>
                                                             );
                                                         })()}
-                                                        <td style={{ padding: "8px 14px" }}>
+                                                        {showClass && <td style={{ padding: "8px 14px" }}>
                                                             {cls
                                                                 ? <span style={{ fontSize: 11, fontWeight: 600, color: cls.color }}>{cls.label}</span>
                                                                 : <span style={{ color: C.textFaint }}>—</span>}
-                                                        </td>
+                                                        </td>}
                                                     </tr>
                                                 );
                                             })}
                                         </tbody>
                                     </table>
                                 </div>
+                                    );
+                                })()}
                             </div>
                             {/* Population summary */}
                             <div>
@@ -4728,39 +4817,6 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                         </div>
                     );
                 })()}
-
-                {/* Profile selector — only shown on Overview tab */}
-                {aggTab === "overview" && <div style={{ marginBottom: 24 }}>
-                    <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>
-                        {isComparing
-                            ? <><strong>{aggregateData.length}</strong> profiles selected. <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> is the baseline.</>
-                            : "Select profiles to compare side-by-side."}
-                    </div>
-                    <div data-tutorial="profile-pills" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {profiles.map((p) => {
-                            const active = compareIds.includes(p.id);
-                            const idx = compareIds.indexOf(p.id);
-                            const col = active ? PROF_COLORS[idx % PROF_COLORS.length] : C.textFaint;
-                            return (
-                                <button key={p.id} onClick={() => toggleCompare(p.id)} style={{
-                                    padding: "5px 14px", fontSize: 11, borderRadius: 20, cursor: "pointer",
-                                    border: `1.5px solid ${active ? col : C.border}`, background: active ? `${col}18` : "transparent",
-                                    color: active ? col : C.textMuted, fontWeight: active ? 700 : 400, transition: "all 0.15s",
-                                    display: "flex", alignItems: "center", gap: 5
-                                }}>
-                                    {active && <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, display: "inline-block" }} />}
-                                    {p.name}
-                                </button>
-                            );
-                        })}
-                        {compareIds.length > 0 && (
-                            <button onClick={() => setCompareIds([])} style={{
-                                padding: "5px 14px", fontSize: 11, borderRadius: 20,
-                                border: `1px solid ${C.border}`, cursor: "pointer", background: "transparent", color: C.textMuted
-                            }}>Clear</button>
-                        )}
-                    </div>
-                </div>}
 
                 {aggTab === "overview" && (
                     <div>
