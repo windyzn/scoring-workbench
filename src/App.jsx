@@ -4962,9 +4962,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                             {(() => {
                                                                 const syScores = visibleSystems.map(s => row.systems.find(rs => rs.id === s.id)?.score).filter(x => x != null);
                                                                 const tierScores = cancerColsVisible ? (row.cancerTierScores?.map(t => t.score).filter(x => x != null) ?? []) : [];
-                                                                const scores = [...syScores, ...tierScores];
-                                                                const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
-                                                                const nR = scores.filter(s => Math.floor(s) < overviewYellow).length;
+                                                                const nY = syScores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length
+                                                                    + tierScores.filter(s => Math.floor(s) >= 70 && Math.floor(s) < 80).length;
+                                                                const nR = syScores.filter(s => Math.floor(s) < overviewYellow).length
+                                                                    + tierScores.filter(s => Math.floor(s) < 70).length;
                                                                 return (
                                                                     <td style={{ ...stickyWarnCell, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap" }}>
                                                                         {nR > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.critical, marginRight: 2 }}>{nR}R</span>}
@@ -4991,9 +4992,9 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                 const baseScore = baseRow?.cancerTierScores?.find(x => x.id === t.id)?.score ?? null;
                                                                 const d = score != null && baseScore != null ? score - baseScore : null;
                                                                 return (
-                                                                    <td key={t.id} style={{ padding: "6px 8px", textAlign: "center", background: overviewBg(score) }}>
+                                                                    <td key={t.id} style={{ padding: "6px 8px", textAlign: "center", background: score == null ? "transparent" : `${cancerTierColour(score)}18` }}>
                                                                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                                                                            {score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: overviewColour(score) }}>{Math.floor(score)}</span> : <span style={{ color: C.textFaint }}>—</span>}
+                                                                            {score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: cancerTierColour(score) }}>{Math.floor(score)}</span> : <span style={{ color: C.textFaint }}>—</span>}
                                                                             {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, lineHeight: 1, color: d > 0 ? C.green : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
                                                                         </div>
                                                                     </td>
@@ -5075,10 +5076,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 const allStats = aggregateData.map(pd => {
                                                     const scores = pd.clients.map(r => r.cancerTierScores?.find(t => t.id === tier.id)?.score).filter(x => x != null);
                                                     const st = stats(scores);
-                                                    return st ? { ...st, breakdown: rygBreakdown(scores, overviewYellow, overviewGreen) } : null;
+                                                    return st ? { ...st, breakdown: rygBreakdown(scores, 70, 80) } : null;
                                                 });
                                                 const baseStats = allStats[0];
-                                                const procC = overviewColour(baseStats?.mean);
+                                                const procC = cancerTierColour(baseStats?.mean);
                                                 return (
                                                     <tr key={tier.id} style={{ borderTop: `1px solid ${C.border}`, background: si % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
                                                         <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}` }}>{tier.shortLabel} — {tier.label.replace(/^Tier \d — /, "")}</td>
@@ -5087,8 +5088,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                             const col = PROF_COLORS[pi % PROF_COLORS.length];
                                                             const deltaMean = pi > 0 && st && baseStats ? st.mean - baseStats.mean : null;
                                                             return [
-                                                                <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center", borderLeft: `2px solid ${col}30`, background: st ? overviewBg(st.mean) : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: overviewColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
-                                                                <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: overviewColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center", borderLeft: `2px solid ${col}30`, background: st ? `${cancerTierColour(st.mean)}18` : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: cancerTierColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: cancerTierColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-ryg`} style={{ padding: "9px 10px", textAlign: "center" }}><RygCell breakdown={st?.breakdown} /></td>,
