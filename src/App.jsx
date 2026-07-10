@@ -1399,6 +1399,15 @@ function procColour(s) {
     return C.critical;
 }
 
+// Colour for cancer Tier 1/2/3 scores — green >=80, yellow 70-80, red <70
+function cancerTierColour(s) {
+    if (s == null) return C.textFaint;
+    const f = Math.floor(s);
+    if (f >= 80) return C.teal;
+    if (f >= 70) return C.fair;
+    return C.critical;
+}
+
 function wavg(pairs) {
     const tw = pairs.reduce((s, [, w]) => s + w, 0);
     return tw ? pairs.reduce((s, [v, w]) => s + v * w, 0) / tw : 0;
@@ -3116,7 +3125,7 @@ export default function App() {
                                                             style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 14px 7px 18px", border: "none", cursor: "pointer", transition: "all 0.12s", background: tierActive ? `${C.teal}18` : `${C.iceLight}30`, borderLeft: `3px solid ${tierActive ? C.teal : "transparent"}`, borderBottom: `1px solid ${C.border}` }}>
                                                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
                                                                 <div style={{ fontSize: 10, color: tierActive ? C.navy : C.textSecond, fontWeight: tierActive ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>{tier.shortLabel} · {tier.label.replace(/^Tier \d — /, "")}</div>
-                                                                {tierResult?.score != null && <span style={{ fontSize: 11, color: procColour(Math.floor(tierResult.score)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(tierResult.score)}</span>}
+                                                                {tierResult?.score != null && <span style={{ fontSize: 11, color: cancerTierColour(Math.floor(tierResult.score)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(tierResult.score)}</span>}
                                                             </div>
                                                         </button>
                                                     );
@@ -3353,10 +3362,10 @@ function CancerDomainView({ cancerDomain, allSysScores, card, cancerTierWeights,
                                         <div style={{ fontSize: 10, color: C.textFaint }}>{tier.shortLabel}</div>
                                     </div>
                                     {tierResult?.score != null
-                                        ? <div style={{ fontSize: 26, color: procColour(tierResult.score), fontWeight: 700, lineHeight: 1, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(tierResult.score)}</div>
+                                        ? <div style={{ fontSize: 26, color: cancerTierColour(tierResult.score), fontWeight: 700, lineHeight: 1, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(tierResult.score)}</div>
                                         : <div style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic" }}>No data</div>}
                                 </div>
-                                {tierResult?.score != null && <div style={{ marginBottom: 10 }}><ScoreBar score={tierResult.score} h={3} /></div>}
+                                {tierResult?.score != null && <div style={{ marginBottom: 10 }}><ScoreBar score={tierResult.score} h={3} colour={cancerTierColour(tierResult.score)} /></div>}
                                 <Slider label="Weight" value={w} min={1} max={10} step={1}
                                     onChange={v => setCancerTierWeights(prev => ({ ...prev, [tier.id]: v }))}
                                     color={C.steel} fmt={v => `${v}×`} />
@@ -3374,7 +3383,7 @@ function CancerDomainView({ cancerDomain, allSysScores, card, cancerTierWeights,
                         <div key={tier.id} style={{ ...card, marginBottom: 16 }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.border}` }}>
                                 <div style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>{tier.label.replace(/^Tier \d — /, "")}</div>
-                                {tierResult?.score != null && <span style={{ fontSize: 16, fontWeight: 800, color: procColour(tierResult.score), fontFamily: T.mono }}>{Math.floor(tierResult.score)}</span>}
+                                {tierResult?.score != null && <span style={{ fontSize: 16, fontWeight: 800, color: cancerTierColour(tierResult.score), fontFamily: T.mono }}>{Math.floor(tierResult.score)}</span>}
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                                 {tierSystems.map(sys => {
@@ -4511,8 +4520,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const overviewBg = s => s == null ? "transparent" : `${overviewColour(s)}18`;
     const ALL_GROUP_LABELS = ["Health Systems", "Diseases", "Cancer"];
     const [visibleSysGroups, setVisibleSysGroups] = useState(new Set(ALL_GROUP_LABELS));
-    const DOMAIN_COLUMNS = ["Cancer Score", "Classification"];
-    const [visibleDomainCols, setVisibleDomainCols] = useState(new Set(DOMAIN_COLUMNS));
+    const CANCER_CLASS_LABELS = CANCER_CLASSIFICATIONS.map(c => c.label);
+    const [visibleClassifications, setVisibleClassifications] = useState(new Set(CANCER_CLASS_LABELS));
     const PROC_GROUPS = sysGroups;
     const ALL_PROCS_FLAT = [...new Set(assocSystems.flatMap(s => Object.keys(s.processes)))];
     const [visibleProcs, setVisibleProcs] = useState(new Set(ALL_PROCS_FLAT));
@@ -4565,18 +4574,20 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     };
 
     const downloadDomainCSV = () => {
-        const rows = aggregateData[isComparing ? clientTab : 0].clients;
         function classifyCancer(score) {
             if (score == null) return null;
             return CANCER_CLASSIFICATIONS.find(c => score >= c.min) ?? CANCER_CLASSIFICATIONS[CANCER_CLASSIFICATIONS.length - 1];
         }
-        const header = ["Client", ...(visibleDomainCols.has("Cancer Score") ? ["Cancer Score"] : []), ...(visibleDomainCols.has("Classification") ? ["Classification"] : [])];
-        const csvRows = rows.map(row => {
-            const vals = [row.label ?? row.pid];
-            if (visibleDomainCols.has("Cancer Score")) vals.push(row.cancerDomainScore != null ? Math.floor(row.cancerDomainScore) : "");
-            if (visibleDomainCols.has("Classification")) vals.push(classifyCancer(row.cancerDomainScore)?.label ?? "");
-            return vals;
+        const rows = aggregateData[isComparing ? clientTab : 0].clients.filter(row => {
+            const cls = classifyCancer(row.cancerDomainScore);
+            return cls ? visibleClassifications.has(cls.label) : visibleClassifications.size === CANCER_CLASS_LABELS.length;
         });
+        const header = ["Client", "Cancer Score", "Classification"];
+        const csvRows = rows.map(row => [
+            row.label ?? row.pid,
+            row.cancerDomainScore != null ? Math.floor(row.cancerDomainScore) : "",
+            classifyCancer(row.cancerDomainScore)?.label ?? "",
+        ]);
         const csv = [header, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
         const a = document.createElement("a");
         a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -4707,29 +4718,29 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         })}
                                     </div>
                                 )}
-                                {/* Column filter */}
+                                {/* Classification filter */}
                                 {(() => {
-                                    const toggleDomainCol = lbl => setVisibleDomainCols(prev => { const n = new Set(prev); n.has(lbl) ? n.delete(lbl) : n.add(lbl); return n; });
-                                    const allOn = visibleDomainCols.size === DOMAIN_COLUMNS.length;
+                                    const toggleClass = lbl => setVisibleClassifications(prev => { const n = new Set(prev); n.has(lbl) ? n.delete(lbl) : n.add(lbl); return n; });
+                                    const allOn = visibleClassifications.size === CANCER_CLASS_LABELS.length;
                                     return (
                                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
                                             <button onClick={downloadDomainCSV} style={{
                                                 fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
                                                 border: `1px solid ${C.teal}55`, background: "transparent", color: C.teal, fontWeight: 600,
                                             }}>⬇ CSV</button>
-                                            <span style={{ fontSize: 10, color: C.textFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Columns</span>
-                                            {DOMAIN_COLUMNS.map(lbl => {
-                                                const on = visibleDomainCols.has(lbl);
+                                            <span style={{ fontSize: 10, color: C.textFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Classification</span>
+                                            {CANCER_CLASSIFICATIONS.map(({ label, color }) => {
+                                                const on = visibleClassifications.has(label);
                                                 return (
-                                                    <button key={lbl} onClick={() => toggleDomainCol(lbl)} style={{
+                                                    <button key={label} onClick={() => toggleClass(label)} style={{
                                                         fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
-                                                        border: `1px solid ${on ? C.steel : C.border}`,
-                                                        background: on ? `${C.steel}18` : "transparent",
-                                                        color: on ? C.steel : C.textFaint, fontWeight: on ? 700 : 400,
-                                                    }}>{lbl}</button>
+                                                        border: `1px solid ${on ? color : C.border}`,
+                                                        background: on ? `${color}18` : "transparent",
+                                                        color: on ? color : C.textFaint, fontWeight: on ? 700 : 400,
+                                                    }}>{label}</button>
                                                 );
                                             })}
-                                            <button onClick={() => setVisibleDomainCols(allOn ? new Set() : new Set(DOMAIN_COLUMNS))} style={{
+                                            <button onClick={() => setVisibleClassifications(allOn ? new Set() : new Set(CANCER_CLASS_LABELS))} style={{
                                                 fontSize: 10, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
                                                 border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint,
                                             }}>{allOn ? "Clear all" : "Select all"}</button>
@@ -4737,27 +4748,29 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     );
                                 })()}
                                 {(() => {
-                                    const showScore = visibleDomainCols.has("Cancer Score");
-                                    const showClass = visibleDomainCols.has("Classification");
+                                    const filteredRows = rows.filter(row => {
+                                        const cls = cancerClass(row.cancerDomainScore);
+                                        return cls ? visibleClassifications.has(cls.label) : visibleClassifications.size === CANCER_CLASS_LABELS.length;
+                                    });
                                     return (
                                 <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                     <table style={{ borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
                                         <colgroup>
                                             <col style={{ width: 160 }} />
                                             <col style={{ width: 44 }} />
-                                            {showScore && <col style={{ width: 130 }} />}
-                                            {showClass && <col style={{ width: 180 }} />}
+                                            <col style={{ width: 130 }} />
+                                            <col style={{ width: 180 }} />
                                         </colgroup>
                                         <thead>
                                             <tr style={{ background: C.navy }}>
                                                 <th style={{ position: "sticky", left: 0, zIndex: 2, padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Client</th>
                                                 <th style={{ position: "sticky", left: 160, zIndex: 2, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, background: C.navy }}>⚠</th>
-                                                {showScore && <th style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, borderLeft: `2px solid ${C.teal}55` }}>Cancer Score</th>}
-                                                {showClass && <th style={{ padding: "10px 14px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600 }}>Classification</th>}
+                                                <th style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, borderLeft: `2px solid ${C.teal}55` }}>Cancer Score</th>
+                                                <th style={{ padding: "10px 14px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600 }}>Classification</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {rows.map((row, ri) => {
+                                            {filteredRows.map((row, ri) => {
                                                 const baseRow = isComparing && clientTab > 0 ? aggregateData[0].clients.find(r => r.pid === row.pid) : null;
                                                 const rowBg = ri % 2 === 0 ? C.surface : "#EDF4F7";
                                                 const domScore = row.cancerDomainScore ?? null;
@@ -4772,7 +4785,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                 ? <span style={{ fontSize: 9, fontWeight: 700, color: cls?.color ?? C.critical }}>!</span>
                                                                 : <span style={{ fontSize: 9, color: C.teal }}>✓</span>}
                                                         </td>
-                                                        {showScore && (() => {
+                                                        {(() => {
                                                             const d = domScore != null && baseDomScore != null ? domScore - baseDomScore : null;
                                                             return (
                                                                 <td style={{ padding: "8px 10px", textAlign: "center", background: cls ? `${cls.color}14` : "transparent", borderLeft: `2px solid ${C.teal}30` }}>
@@ -4783,11 +4796,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                 </td>
                                                             );
                                                         })()}
-                                                        {showClass && <td style={{ padding: "8px 14px" }}>
+                                                        <td style={{ padding: "8px 14px" }}>
                                                             {cls
                                                                 ? <span style={{ fontSize: 11, fontWeight: 600, color: cls.color }}>{cls.label}</span>
                                                                 : <span style={{ color: C.textFaint }}>—</span>}
-                                                        </td>}
+                                                        </td>
                                                     </tr>
                                                 );
                                             })}
