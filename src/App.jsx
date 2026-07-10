@@ -5670,7 +5670,6 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
             ? { groupId: "cancer", label: g.label, items: CANCER_TIERS.map(t => ({ id: t.id, name: t.shortLabel })) }
             : { groupId: g.groupId, label: g.label, items: g.systems.map(s => ({ id: s.id, name: s.name })) }
     );
-    const histGroup = isCancerTier ? "cancer" : (sysGroups.find(g => g.systems.some(s => s.id === histSysId))?.groupId ?? groupTabs[0]?.groupId ?? "health");
     function selectSys(sId) {
         setHistSysId(sId);
         if (CANCER_TIERS.some(t => t.id === sId)) {
@@ -5703,42 +5702,42 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
             <div data-tutorial="first-sys-histogram" style={{ ...card, padding: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>System Scores</div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Showing scores from {sysScores.length} client report{sysScores.length !== 1 ? "s" : ""}.</div>
-                <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap", alignItems: "flex-end" }}>
-                    {groupTabs.map(g => {
-                        const active = histGroup === g.groupId;
-                        const val = g.items.some(i => i.id === histSysId) ? histSysId : g.items[0]?.id ?? "";
-                        return (
-                            <div key={g.groupId} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                <div style={{ fontSize: 9, fontWeight: 700, color: active ? C.teal : C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em" }}>{g.label}</div>
-                                <select value={val} onChange={e => selectSys(e.target.value)}
-                                    style={{
-                                        padding: "6px 10px", fontSize: 11, borderRadius: 6, cursor: "pointer",
-                                        border: `1.5px solid ${active ? C.teal : C.border}`,
-                                        background: active ? `${C.teal}08` : C.surface,
-                                        color: active ? C.navy : C.textSecond,
-                                        fontWeight: active ? 600 : 400, outline: "none",
-                                        minWidth: 150,
-                                    }}>
-                                    {g.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-                                </select>
-                            </div>
-                        );
-                    })}
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 20, maxWidth: 320 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: C.teal, textTransform: "uppercase", letterSpacing: "0.1em" }}>System / Tier</div>
+                    <select value={histSysId} onChange={e => selectSys(e.target.value)}
+                        style={{
+                            padding: "6px 10px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+                            border: `1.5px solid ${C.teal}`,
+                            background: `${C.teal}08`,
+                            color: C.navy, fontWeight: 600, outline: "none",
+                        }}>
+                        {groupTabs.map(g => (
+                            <optgroup key={g.groupId} label={g.label}>
+                                {g.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                            </optgroup>
+                        ))}
+                    </select>
                 </div>
-                <Histogram scores={sysScores} title={sysTitle} redCutoff={sysRedCutoff} yellowCutoff={sysYellowCutoff} />
-                <CutoffControl
-                    redCutoff={sysRedCutoff} setRedCutoff={setSysRedCutoff}
-                    yellowCutoff={sysYellowCutoff} setYellowCutoff={setSysYellowCutoff}
-                    defaultRed={DEFAULT_SYS_RED} defaultYellow={DEFAULT_SYS_YELLOW}
-                    onReset={() => { setSysRedCutoff(DEFAULT_SYS_RED); setSysYellowCutoff(DEFAULT_SYS_YELLOW); }}
-                    onSuggest={() => {
-                        const allSysScores = nonDemoClients.flatMap(r => r.systems.map(s => s.score).filter(x => x != null));
-                        if (!allSysScores.length) return;
-                        const sorted = [...allSysScores].sort((a, b) => a - b);
-                        const r = Math.floor(sorted[Math.floor(sorted.length / 3)]);
-                        const y = Math.floor(sorted[Math.floor(sorted.length * 2 / 3)]);
-                        if (r >= 1 && y > r && y <= 100) { setSysRedCutoff(r); setSysYellowCutoff(y); }
-                    }} />
+                <Histogram scores={sysScores} title={sysTitle} redCutoff={isCancerTier ? 70 : sysRedCutoff} yellowCutoff={isCancerTier ? 80 : sysYellowCutoff} />
+                {isCancerTier ? (
+                    <div style={{ fontSize: 10, color: C.textFaint, marginTop: 24 }}>
+                        <span style={{ color: C.critical, fontWeight: 600 }}>Red: 0 – 69</span> · <span style={{ color: C.fair, fontWeight: 600 }}>Yellow: 70 – 79</span> · <span style={{ color: C.teal, fontWeight: 600 }}>Green: 80+</span>
+                    </div>
+                ) : (
+                    <CutoffControl
+                        redCutoff={sysRedCutoff} setRedCutoff={setSysRedCutoff}
+                        yellowCutoff={sysYellowCutoff} setYellowCutoff={setSysYellowCutoff}
+                        defaultRed={DEFAULT_SYS_RED} defaultYellow={DEFAULT_SYS_YELLOW}
+                        onReset={() => { setSysRedCutoff(DEFAULT_SYS_RED); setSysYellowCutoff(DEFAULT_SYS_YELLOW); }}
+                        onSuggest={() => {
+                            const allSysScores = nonDemoClients.flatMap(r => r.systems.map(s => s.score).filter(x => x != null));
+                            if (!allSysScores.length) return;
+                            const sorted = [...allSysScores].sort((a, b) => a - b);
+                            const r = Math.floor(sorted[Math.floor(sorted.length / 3)]);
+                            const y = Math.floor(sorted[Math.floor(sorted.length * 2 / 3)]);
+                            if (r >= 1 && y > r && y <= 100) { setSysRedCutoff(r); setSysYellowCutoff(y); }
+                        }} />
+                )}
             </div>
 
             {/* Process / Pathway scores */}
