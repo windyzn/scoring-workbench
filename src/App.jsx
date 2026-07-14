@@ -1569,7 +1569,7 @@ function buildClients(rows) {
         if (!pts[pid]) pts[pid] = { id: pid, label, markers: {} };
 
         const name = col(row, "measure_name", "measurename");
-        const concRaw = col(row, "lab_concentration", "labconcentration");
+        const concRaw = col(row, "concentration", "lab_concentration", "labconcentration");
 
         // Skip missing, BLQ, NR, ND
         if (!name || !concRaw) continue;
@@ -1589,7 +1589,7 @@ function isAdminPortalFormat(cols) {
     const norm = c => c.toLowerCase().replace(/[^a-z0-9]/g, "");
     const normCols = cols.map(norm);
     const has = name => normCols.includes(norm(name));
-    return has("measure_name") && has("lab_concentration") &&
+    return has("measure_name") && (has("concentration") || has("lab_concentration")) &&
         has("lower_reference_range") && has("upper_reference_range") &&
         !has("is_reported");
 }
@@ -1611,7 +1611,7 @@ function buildClientFromAdminPortal(rows, clientName) {
 
     for (const row of rows) {
         const name = col(row, "measure_name");
-        const concRaw = col(row, "lab_concentration");
+        const concRaw = col(row, "concentration", "lab_concentration");
         if (!name || !concRaw) continue;
         if (/^blq$|^nr$|^nd$/i.test(concRaw)) continue;
 
@@ -2149,8 +2149,11 @@ export default function App() {
                     if (rows.length) {
                         const cols = Object.keys(rows[0]);
                         const norm = c => c.toLowerCase().replace(/[^a-z0-9]/g, "");
-                        const required = ["myid", "measurename", "labconcentration", "lowerreferencerange", "upperreferencerange", "isreported"];
-                        const missing = required.filter(r => !cols.some(c => norm(c) === r));
+                        const normCols = cols.map(norm);
+                        const required = ["myid", "measurename", "lowerreferencerange", "upperreferencerange", "isreported"];
+                        const missing = required.filter(r => !normCols.includes(r));
+                        const hasConc = normCols.includes("concentration") || normCols.includes("labconcentration");
+                        if (!hasConc) missing.push("labconcentration");
                         if (missing.length) {
                             // Standard format check failed — try admin portal format
                             if (isAdminPortalFormat(cols)) {
@@ -2161,12 +2164,12 @@ export default function App() {
                                 setIsUploading(false);
                                 return;
                             }
-                            const friendly = { myid: "my_id", measurename: "measure_name", labconcentration: "lab_concentration", lowerreferencerange: "lower_reference_range", upperreferencerange: "upper_reference_range", isreported: "is_reported" };
-                            throw new Error("Missing required columns: " + missing.map(m => friendly[m]).join(", ") + ". Expected columns: my_id, barcode, test_id, measure_name, lab_concentration, lower_reference_range, upper_reference_range, is_reported");
+                            const friendly = { myid: "my_id", measurename: "measure_name", labconcentration: "concentration (or lab_concentration)", lowerreferencerange: "lower_reference_range", upperreferencerange: "upper_reference_range", isreported: "is_reported" };
+                            throw new Error("Missing required columns: " + missing.map(m => friendly[m]).join(", ") + ". Expected columns: my_id, barcode, test_id, measure_name, concentration (or lab_concentration), lower_reference_range, upper_reference_range, is_reported");
                         }
                     }
                     const d = buildClients(rows);
-                    if (!Object.keys(d).length) throw new Error("No scoreable rows found. Make sure is_reported = True for at least some rows and that lab_concentration is numeric (not BLQ/NR/ND).");
+                    if (!Object.keys(d).length) throw new Error("No scoreable rows found. Make sure is_reported = True for at least some rows and that concentration (or lab_concentration) is numeric (not BLQ/NR/ND).");
                     setClients(d);
                     setDemoLoaded(false);
                     setClientId(Object.keys(d)[0]);
@@ -3465,7 +3468,7 @@ function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, i
                         <>
                             <div style={{ fontSize: 26, color: C.teal, marginBottom: 8 }}>↑</div>
                             <div style={{ fontSize: 13, color: C.textSecond, fontWeight: 600, marginBottom: 4 }}>Drop CSV or click to upload</div>
-                            <div style={{ fontSize: 11, color: C.textFaint }}>Columns: my_id · barcode · measure_name · lab_concentration · lower/upper_reference_range · is_reported</div>
+                            <div style={{ fontSize: 11, color: C.textFaint }}>Columns: my_id · barcode · measure_name · concentration (or lab_concentration) · lower/upper_reference_range · is_reported</div>
                         </>
                     )}
                     {uploadErr && !isUploading && (
