@@ -274,148 +274,165 @@ const DISEASE_SYSTEMS = [
 const CANCER_SYSTEMS = [
     {
         id: "cancer_inflammation", name: "Inflammation", processes: {
-            "Inflammation": ["C-reactive protein", "Alpha-1-acid glycoprotein 1", "Alpha-1-antichymotrypsin", "Ceruloplasmin", "Haptoglobin", "Serum amyloid A-1 protein", "Histamine", "Asymmetric dimethylarginine", "Phenylalanine", "Fibrinogen alpha chain", "Fibrinogen beta chain", "Fibrinogen gamma chain", "Coagulation factor XIII A chain", "Coagulation factor XI", "Coagulation factor XIII B chain"],
+            "Acute Phase Response": ["C-reactive protein", "Alpha-1-acid glycoprotein 1", "Alpha-1-antichymotrypsin", "Ceruloplasmin", "Haptoglobin", "Serum amyloid A-1 protein"],
+            "Inflammatory Signaling": ["Histamine", "Asymmetric dimethylarginine", "Phenylalanine"],
+            "Coagulation-Inflammation Crosstalk": ["Fibrinogen alpha chain", "Fibrinogen beta chain", "Fibrinogen gamma chain", "Coagulation factor XIII A chain", "Coagulation factor XI", "Coagulation factor XIII B chain"],
         },
         levels: {
-            "Inflammation::C-reactive protein": "high",
-            "Inflammation::Alpha-1-acid glycoprotein 1": "high",
-            "Inflammation::Alpha-1-antichymotrypsin": "high",
-            "Inflammation::Ceruloplasmin": "high",
-            "Inflammation::Haptoglobin": "high",
-            "Inflammation::Serum amyloid A-1 protein": "high",
-            "Inflammation::Histamine": "high",
-            "Inflammation::Asymmetric dimethylarginine": "high",
-            "Inflammation::Phenylalanine": "high",
-            "Inflammation::Fibrinogen alpha chain": "high",
-            "Inflammation::Fibrinogen beta chain": "high",
-            "Inflammation::Fibrinogen gamma chain": "high",
-            "Inflammation::Coagulation factor XIII A chain": "high",
-            "Inflammation::Coagulation factor XI": "high",
-            "Inflammation::Coagulation factor XIII B chain": "high",
+            "Acute Phase Response::C-reactive protein": "high",
+            "Acute Phase Response::Alpha-1-acid glycoprotein 1": "high",
+            "Acute Phase Response::Alpha-1-antichymotrypsin": "high",
+            "Acute Phase Response::Ceruloplasmin": "high",
+            "Acute Phase Response::Haptoglobin": "high",
+            "Acute Phase Response::Serum amyloid A-1 protein": "high",
+            "Inflammatory Signaling::Histamine": "high",
+            "Inflammatory Signaling::Asymmetric dimethylarginine": "high",
+            "Inflammatory Signaling::Phenylalanine": "high",
+            "Coagulation-Inflammation Crosstalk::Fibrinogen alpha chain": "high",
+            "Coagulation-Inflammation Crosstalk::Fibrinogen beta chain": "high",
+            "Coagulation-Inflammation Crosstalk::Fibrinogen gamma chain": "high",
+            "Coagulation-Inflammation Crosstalk::Coagulation factor XIII A chain": "high",
+            "Coagulation-Inflammation Crosstalk::Coagulation factor XI": "high",
+            "Coagulation-Inflammation Crosstalk::Coagulation factor XIII B chain": "high",
         },
     },
     {
         id: "cancer_cell_proliferation", name: "Cell Proliferation", processes: {
-            "Cell Proliferation": ["Putrescine", "Spermidine", "Spermine", "Diacetylspermine", "Sex hormone-binding globulin", "Tyrosine", "Leucine", "Asparagine", "Methionine", "Ornithine", "Phenylethylamine"],
+            "Polyamine Biosynthesis": ["Putrescine", "Spermidine", "Spermine", "Diacetylspermine"],
+            "Growth Signaling & Hormonal Regulation": ["Sex hormone-binding globulin", "Tyrosine", "Leucine"],
+            "Nucleotide & Amino Acid Supply": ["Asparagine", "Methionine", "Ornithine", "Phenylethylamine"],
         },
         levels: {
-            "Cell Proliferation::Putrescine": "high",
-            "Cell Proliferation::Spermidine": "high",
-            "Cell Proliferation::Spermine": "high",
-            "Cell Proliferation::Diacetylspermine": "high",
-            "Cell Proliferation::Sex hormone-binding globulin": "low",
-            "Cell Proliferation::Tyrosine": "high",
-            "Cell Proliferation::Leucine": "high",
-            "Cell Proliferation::Asparagine": "high",
-            "Cell Proliferation::Methionine": "low",
-            "Cell Proliferation::Ornithine": "high",
-            "Cell Proliferation::Phenylethylamine": "high",
+            "Polyamine Biosynthesis::Putrescine": "high",
+            "Polyamine Biosynthesis::Spermidine": "high",
+            "Polyamine Biosynthesis::Spermine": "high",
+            "Polyamine Biosynthesis::Diacetylspermine": "high",
+            "Growth Signaling & Hormonal Regulation::Sex hormone-binding globulin": "low",
+            "Growth Signaling & Hormonal Regulation::Tyrosine": "high",
+            "Growth Signaling & Hormonal Regulation::Leucine": "high",
+            "Nucleotide & Amino Acid Supply::Asparagine": "high",
+            "Nucleotide & Amino Acid Supply::Methionine": "low",
+            "Nucleotide & Amino Acid Supply::Ornithine": "high",
+            "Nucleotide & Amino Acid Supply::Phenylethylamine": "high",
         },
     },
     {
         id: "cancer_angiogenesis", name: "Angiogenesis", processes: {
-            "Angiogenesis": ["Angiogenin", "Leucine-rich alpha-2-glycoprotein 1", "von Willebrand Factor", "Tetranectin", "Serotonin", "Prothrombin"],
+            "Vascular Growth Promotion": ["Angiogenin", "Leucine-rich alpha-2-glycoprotein 1", "von Willebrand Factor"],
+            "Anti-Angiogenic Regulation": ["Tetranectin", "Serotonin", "Prothrombin"],
         },
         levels: {
-            "Angiogenesis::Angiogenin": "high",
-            "Angiogenesis::Leucine-rich alpha-2-glycoprotein 1": "high",
-            "Angiogenesis::von Willebrand Factor": "high",
-            "Angiogenesis::Tetranectin": "low",
-            "Angiogenesis::Serotonin": "high",
-            "Angiogenesis::Prothrombin": "high",
+            "Vascular Growth Promotion::Angiogenin": "high",
+            "Vascular Growth Promotion::Leucine-rich alpha-2-glycoprotein 1": "high",
+            "Vascular Growth Promotion::von Willebrand Factor": "high",
+            "Anti-Angiogenic Regulation::Tetranectin": "low",
+            "Anti-Angiogenic Regulation::Serotonin": "high",
+            "Anti-Angiogenic Regulation::Prothrombin": "high",
         },
     },
     {
         id: "cancer_oxidative_stress", name: "Oxidative Stress", processes: {
-            "Oxidative Stress": ["Nitro-Tyrosine", "Methionine-Sulfoxide", "Cotinine", "Serum albumin", "Taurine", "Alpha-amino-N-butyric acid"],
+            "Nitrosative & Oxidative Damage": ["Nitro-Tyrosine", "Methionine-Sulfoxide", "Cotinine"],
+            "Antioxidant Defense": ["Serum albumin", "Taurine", "Alpha-amino-N-butyric acid"],
         },
         levels: {
-            "Oxidative Stress::Nitro-Tyrosine": "high",
-            "Oxidative Stress::Methionine-Sulfoxide": "high",
-            "Oxidative Stress::Cotinine": "high",
-            "Oxidative Stress::Serum albumin": "low",
-            "Oxidative Stress::Taurine": "high",
-            "Oxidative Stress::Alpha-amino-N-butyric acid": "low",
+            "Nitrosative & Oxidative Damage::Nitro-Tyrosine": "high",
+            "Nitrosative & Oxidative Damage::Methionine-Sulfoxide": "high",
+            "Nitrosative & Oxidative Damage::Cotinine": "high",
+            "Antioxidant Defense::Serum albumin": "low",
+            "Antioxidant Defense::Taurine": "high",
+            "Antioxidant Defense::Alpha-amino-N-butyric acid": "low",
         },
     },
     {
         id: "cancer_metabolic_dysfunction", name: "Metabolic Dysfunction", processes: {
-            "Metabolic Dysfunction": ["Glutamine", "Glutamic acid", "Glycine", "Serine", "Proline", "Isoleucine", "Valine", "Alanine", "Threonine", "Creatinine", "Apolipoprotein B-100", "Apolipoprotein C-III", "Apolipoprotein A-II", "Choline", "Betaine", "Sarcosine", "Histidine"],
+            "Amino Acid Reprogramming": ["Glutamine", "Glutamic acid", "Glycine", "Serine", "Proline"],
+            "BCAA & Energy Sensing": ["Isoleucine", "Valine", "Alanine", "Threonine", "Creatinine"],
+            "Lipid Metabolism Reprogramming": ["Apolipoprotein B-100", "Apolipoprotein C-III", "Apolipoprotein A-II"],
+            "One-Carbon Metabolism": ["Choline", "Betaine", "Sarcosine", "Histidine"],
         },
         levels: {
-            "Metabolic Dysfunction::Glutamine": "high",
-            "Metabolic Dysfunction::Glutamic acid": "high",
-            "Metabolic Dysfunction::Glycine": "high",
-            "Metabolic Dysfunction::Serine": "high",
-            "Metabolic Dysfunction::Proline": "low",
-            "Metabolic Dysfunction::Isoleucine": "high",
-            "Metabolic Dysfunction::Valine": "both",
-            "Metabolic Dysfunction::Alanine": "both",
-            "Metabolic Dysfunction::Threonine": "low",
-            "Metabolic Dysfunction::Creatinine": "both",
-            "Metabolic Dysfunction::Apolipoprotein B-100": "high",
-            "Metabolic Dysfunction::Apolipoprotein C-III": "high",
-            "Metabolic Dysfunction::Apolipoprotein A-II": "high",
-            "Metabolic Dysfunction::Choline": "high",
-            "Metabolic Dysfunction::Betaine": "high",
-            "Metabolic Dysfunction::Sarcosine": "high",
-            "Metabolic Dysfunction::Histidine": "low",
+            "Amino Acid Reprogramming::Glutamine": "high",
+            "Amino Acid Reprogramming::Glutamic acid": "high",
+            "Amino Acid Reprogramming::Glycine": "high",
+            "Amino Acid Reprogramming::Serine": "high",
+            "Amino Acid Reprogramming::Proline": "low",
+            "BCAA & Energy Sensing::Isoleucine": "high",
+            "BCAA & Energy Sensing::Valine": "both",
+            "BCAA & Energy Sensing::Alanine": "both",
+            "BCAA & Energy Sensing::Threonine": "low",
+            "BCAA & Energy Sensing::Creatinine": "both",
+            "Lipid Metabolism Reprogramming::Apolipoprotein B-100": "high",
+            "Lipid Metabolism Reprogramming::Apolipoprotein C-III": "high",
+            "Lipid Metabolism Reprogramming::Apolipoprotein A-II": "high",
+            "One-Carbon Metabolism::Choline": "high",
+            "One-Carbon Metabolism::Betaine": "high",
+            "One-Carbon Metabolism::Sarcosine": "high",
+            "One-Carbon Metabolism::Histidine": "low",
         },
     },
     {
         id: "cancer_immune_system_evasion", name: "Immune System Evasion", processes: {
-            "Immune System Evasion": ["Tryptophan", "Kynurenine", "Arginine", "Complement factor I", "Complement component C9", "Complement factor B", "CD5 antigen-like", "Ficolin-3", "Mannan-binding lectin serine protease 2", "Complement C1q subcomponent subunit B", "C4b-binding protein alpha chain", "Plasma protease C1 inhibitor", "Transthyretin", "Serotransferrin", "Vitamin D-binding protein"],
+            "Tryptophan-Kynurenine Pathway": ["Tryptophan", "Kynurenine"],
+            "Arginine Depletion": ["Arginine"],
+            "Complement Dysregulation": ["Complement factor I", "Complement component C9", "Complement factor B"],
+            "Immune Modulator Proteins": ["CD5 antigen-like", "Ficolin-3", "Mannan-binding lectin serine protease 2", "Complement C1q subcomponent subunit B", "C4b-binding protein alpha chain", "Plasma protease C1 inhibitor"],
+            "Nutritional & Inflammatory Immune Suppression": ["Transthyretin", "Serotransferrin", "Vitamin D-binding protein"],
         },
         levels: {
-            "Immune System Evasion::Tryptophan": "low",
-            "Immune System Evasion::Kynurenine": "high",
-            "Immune System Evasion::Arginine": "low",
-            "Immune System Evasion::Complement factor I": "high",
-            "Immune System Evasion::Complement component C9": "high",
-            "Immune System Evasion::Complement factor B": "low",
-            "Immune System Evasion::CD5 antigen-like": "both",
-            "Immune System Evasion::Ficolin-3": "low",
-            "Immune System Evasion::Mannan-binding lectin serine protease 2": "high",
-            "Immune System Evasion::Complement C1q subcomponent subunit B": "high",
-            "Immune System Evasion::C4b-binding protein alpha chain": "high",
-            "Immune System Evasion::Plasma protease C1 inhibitor": "high",
-            "Immune System Evasion::Transthyretin": "low",
-            "Immune System Evasion::Serotransferrin": "low",
-            "Immune System Evasion::Vitamin D-binding protein": "low",
+            "Tryptophan-Kynurenine Pathway::Tryptophan": "low",
+            "Tryptophan-Kynurenine Pathway::Kynurenine": "high",
+            "Arginine Depletion::Arginine": "low",
+            "Complement Dysregulation::Complement factor I": "high",
+            "Complement Dysregulation::Complement component C9": "high",
+            "Complement Dysregulation::Complement factor B": "low",
+            "Immune Modulator Proteins::CD5 antigen-like": "both",
+            "Immune Modulator Proteins::Ficolin-3": "low",
+            "Immune Modulator Proteins::Mannan-binding lectin serine protease 2": "high",
+            "Immune Modulator Proteins::Complement C1q subcomponent subunit B": "high",
+            "Immune Modulator Proteins::C4b-binding protein alpha chain": "high",
+            "Immune Modulator Proteins::Plasma protease C1 inhibitor": "high",
+            "Nutritional & Inflammatory Immune Suppression::Transthyretin": "low",
+            "Nutritional & Inflammatory Immune Suppression::Serotransferrin": "low",
+            "Nutritional & Inflammatory Immune Suppression::Vitamin D-binding protein": "low",
         },
     },
     {
         id: "cancer_matrix_remodelling", name: "Matrix Remodelling", processes: {
-            "Matrix Remodelling": ["Fibronectin", "Vitronectin", "Galectin-3-binding protein", "Alpha-2-macroglobulin", "Alpha-1B-glycoprotein", "Kininogen-1", "Protein AMBP"],
+            "ECM Protein Dysregulation": ["Fibronectin", "Vitronectin", "Galectin-3-binding protein"],
+            "Protease Regulation": ["Alpha-2-macroglobulin", "Alpha-1B-glycoprotein", "Kininogen-1", "Protein AMBP"],
         },
         levels: {
-            "Matrix Remodelling::Fibronectin": "high",
-            "Matrix Remodelling::Vitronectin": "high",
-            "Matrix Remodelling::Galectin-3-binding protein": "high",
-            "Matrix Remodelling::Alpha-2-macroglobulin": "high",
-            "Matrix Remodelling::Alpha-1B-glycoprotein": "high",
-            "Matrix Remodelling::Kininogen-1": "high",
-            "Matrix Remodelling::Protein AMBP": "high",
+            "ECM Protein Dysregulation::Fibronectin": "high",
+            "ECM Protein Dysregulation::Vitronectin": "high",
+            "ECM Protein Dysregulation::Galectin-3-binding protein": "high",
+            "Protease Regulation::Alpha-2-macroglobulin": "high",
+            "Protease Regulation::Alpha-1B-glycoprotein": "high",
+            "Protease Regulation::Kininogen-1": "high",
+            "Protease Regulation::Protein AMBP": "high",
         },
     },
     {
         id: "cancer_metastasis", name: "Metastasis", processes: {
-            "Metastasis": ["Intercellular adhesion molecule 1", "Gamma-aminobutyric acid", "Apolipoprotein D", "Apolipoprotein M", "Plasma serine protease inhibitor", "Beta-2-glycoprotein 1", "Retinol-binding protein 4", "Apolipoprotein E", "Apolipoprotein C-I", "Complement C1r subcomponent", "Hemopexin", "Alpha-2-HS-glycoprotein", "Apolipoprotein A-I"],
+            "Cell Adhesion & Migration": ["Intercellular adhesion molecule 1", "Gamma-aminobutyric acid"],
+            "Tumor Suppressor Loss": ["Apolipoprotein D", "Apolipoprotein M", "Plasma serine protease inhibitor", "Beta-2-glycoprotein 1"],
+            "Lipid-Mediated Tumor Spread": ["Retinol-binding protein 4", "Apolipoprotein E", "Apolipoprotein C-I"],
+            "Invasion & ECM Degradation": ["Complement C1r subcomponent", "Hemopexin", "Alpha-2-HS-glycoprotein", "Apolipoprotein A-I"],
         },
         levels: {
-            "Metastasis::Intercellular adhesion molecule 1": "high",
-            "Metastasis::Gamma-aminobutyric acid": "high",
-            "Metastasis::Apolipoprotein D": "low",
-            "Metastasis::Apolipoprotein M": "low",
-            "Metastasis::Plasma serine protease inhibitor": "low",
-            "Metastasis::Beta-2-glycoprotein 1": "low",
-            "Metastasis::Retinol-binding protein 4": "high",
-            "Metastasis::Apolipoprotein E": "high",
-            "Metastasis::Apolipoprotein C-I": "high",
-            "Metastasis::Complement C1r subcomponent": "high",
-            "Metastasis::Hemopexin": "both",
-            "Metastasis::Alpha-2-HS-glycoprotein": "both",
-            "Metastasis::Apolipoprotein A-I": "low",
+            "Cell Adhesion & Migration::Intercellular adhesion molecule 1": "high",
+            "Cell Adhesion & Migration::Gamma-aminobutyric acid": "high",
+            "Tumor Suppressor Loss::Apolipoprotein D": "low",
+            "Tumor Suppressor Loss::Apolipoprotein M": "low",
+            "Tumor Suppressor Loss::Plasma serine protease inhibitor": "low",
+            "Tumor Suppressor Loss::Beta-2-glycoprotein 1": "low",
+            "Lipid-Mediated Tumor Spread::Retinol-binding protein 4": "high",
+            "Lipid-Mediated Tumor Spread::Apolipoprotein E": "high",
+            "Lipid-Mediated Tumor Spread::Apolipoprotein C-I": "high",
+            "Invasion & ECM Degradation::Complement C1r subcomponent": "high",
+            "Invasion & ECM Degradation::Hemopexin": "both",
+            "Invasion & ECM Degradation::Alpha-2-HS-glycoprotein": "both",
+            "Invasion & ECM Degradation::Apolipoprotein A-I": "low",
         },
     },
 ];
@@ -2264,6 +2281,15 @@ export default function App() {
 
     const cancerDomain = useMemo(() => computeCancerDomain(allSysScores, cancerSysWeights, cancerTierWeights), [allSysScores, cancerSysWeights, cancerTierWeights]);
 
+    // For a cancer pathway, the header "system" gauge shows its Tier score instead of
+    // the pathway's own wavg — the pathway now has several real processes (see
+    // CANCER_SYSTEMS), so its own score is shown by the "Process" gauge / Process
+    // Weights tab, and the layer above it worth surfacing here is the Tier.
+    const headerGaugeScore = isCancerSystem
+        ? cancerDomain.tierResults.find(t => t.id === activeCancerTierId)?.score ?? null
+        : sysScore;
+    const headerGaugeLabel = isCancerSystem ? "Tier" : "System";
+
     const aggregateData = useMemo(() => {
         const pids = Object.keys(clients); if (!pids.length) return null;
         // Preserve compareIds selection order so first-selected = baseline
@@ -3279,7 +3305,7 @@ export default function App() {
                                 </div>
                                 {/* Dual gauges side by side — no box, no decimal */}
                                 <div style={{ display: "flex", gap: 18, alignItems: "center", flexShrink: 0 }}>
-                                    <ArcGauge score={sysScore} size={60} label="System" />
+                                    <ArcGauge score={headerGaugeScore} size={60} label={headerGaugeLabel} />
                                     {activeProcResult?.score != null && (
                                         <>
                                             <div style={{ width: 1, height: 50, background: C.border }} />
@@ -5992,7 +6018,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
 
                 // Per-pathway: extract biomarkers, compute bio heights + centres
                 const pathData = pathways.map(pw => {
-                    const bms = Object.values(pw.processes)[0] ?? [];
+                    const bms = Object.values(pw.processes).flat();
                     const pwW = cancerSysWeights[pw.id] ?? 1;
                     const pwModified = pwW !== 1;
                     const bioH = bms.map(bmName => {
