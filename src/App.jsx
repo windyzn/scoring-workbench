@@ -273,7 +273,7 @@ const DISEASE_SYSTEMS = [
 
 const CANCER_SYSTEMS = [
     {
-        id: "cancer_inflammation", name: "Inflammation", processes: {
+        id: "cancer_inflammation", name: "Thromboinflammation", processes: {
             "Acute Phase Response": ["C-reactive protein", "Alpha-1-acid glycoprotein 1", "Alpha-1-antichymotrypsin", "Ceruloplasmin", "Haptoglobin", "Serum amyloid A-1 protein"],
             "Inflammatory Signaling": ["Histamine", "Asymmetric dimethylarginine", "Phenylalanine"],
             "Coagulation-Inflammation Crosstalk": ["Fibrinogen alpha chain", "Fibrinogen beta chain", "Fibrinogen gamma chain", "Coagulation factor XIII A chain", "Coagulation factor XI", "Coagulation factor XIII B chain"],
@@ -3756,7 +3756,7 @@ else:            effective_process_weight = 1`}</pre>
                     <table style={tbl}>
                         <thead><tr><th style={th}>Tier</th><th style={th}>Pathways</th><th style={th}>Weight</th></tr></thead>
                         <tbody>
-                            <tr><td style={td}>Tier 1 — Systemic Risk</td><td style={td}>Metabolic Dysfunction, Inflammation, Oxidative Stress</td><td style={td}>1</td></tr>
+                            <tr><td style={td}>Tier 1 — Systemic Risk</td><td style={td}>Metabolic Dysfunction, Thromboinflammation, Oxidative Stress</td><td style={td}>1</td></tr>
                             <tr><td style={td}>Tier 2 — Transitional Biology</td><td style={td}>Cell Proliferation, Immune System Evasion</td><td style={td}>2</td></tr>
                             <tr><td style={td}>Tier 3 — Tumour-Associated</td><td style={td}>Angiogenesis, Matrix Remodelling, Metastasis</td><td style={td}>3</td></tr>
                         </tbody>
@@ -3811,7 +3811,7 @@ System (2 processes):
 
                     <div style={h3}>Example B — Cancer composite score</div>
                     <p style={p}>Seven pathway scores across all three tiers:</p>
-                    <pre style={mono}>{`Tier 1: Metabolic Dysfunction=66, Inflammation=100, Oxidative Stress=100
+                    <pre style={mono}>{`Tier 1: Metabolic Dysfunction=66, Thromboinflammation=100, Oxidative Stress=100
 Tier 2: Cell Proliferation=38, Immune System Evasion=54
 Tier 3: Angiogenesis=38, Matrix Remodelling=50, Metastasis=58
 
@@ -6049,6 +6049,25 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
                 // Pathway node centres = centroid of their biomarker group
                 const pathCentres = pathData.map((d, i) => groupStartY[i] + d.totalBioH / 2);
 
+                // Hover highlighting — mirrors the non-cancer flowchart's getActiveSets/hoveredNode pattern
+                function getActiveCancerSets(hov) {
+                    if (!hov) return { activeBios: null, activePathways: null };
+                    if (hov.type === "tier") return { activeBios: new Set(pathData.flatMap(d => d.bms)), activePathways: new Set(pathData.map(d => d.pw.id)) };
+                    if (hov.type === "pathway") {
+                        const d = pathData.find(d => d.pw.id === hov.id);
+                        return { activeBios: new Set(d ? d.bms : []), activePathways: new Set([hov.id]) };
+                    }
+                    if (hov.type === "bio") {
+                        const linkedPathways = pathData.filter(d => d.bms.includes(hov.name)).map(d => d.pw.id);
+                        return { activeBios: new Set([hov.name]), activePathways: new Set(linkedPathways) };
+                    }
+                    return { activeBios: null, activePathways: null };
+                }
+                const { activeBios: cActiveBios, activePathways } = getActiveCancerSets(hoveredNode);
+                const isHoveringCancer = hoveredNode !== null;
+                const cNodeDim = (active) => isHoveringCancer && !active ? 0.15 : 1;
+                const cEdgeDim = (active) => isHoveringCancer ? (active ? 1 : 0.08) : 1;
+
                 const D_X = 8, D_W = 120;
                 const T_X = D_X + D_W + 50, T_W = 160;
                 const P_X = T_X + T_W + 60, P_W = 170;
@@ -6062,10 +6081,12 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
                             {/* Tier → Pathway */}
                             {pathData.map((d, i) => {
                                 const y2 = pathCentres[i]; const mx = (T_X + T_W + P_X) / 2;
+                                const active = !isHoveringCancer || activePathways?.has(d.pw.id);
                                 return <path key={`tp${i}`} d={`M${T_X + T_W},${midY} C${mx},${midY} ${mx},${y2} ${P_X},${y2}`}
-                                    fill="none" stroke={d.pwModified ? C.teal : C.steel}
-                                    strokeWidth={d.pwModified ? Math.min(3, Math.max(1.5, d.pwW * 0.8)) : 1}
-                                    opacity={d.pwModified ? 0.6 : 0.35} />;
+                                    fill="none" stroke={active && isHoveringCancer ? C.teal : d.pwModified ? C.teal : C.steel}
+                                    strokeWidth={active && isHoveringCancer ? 2 : d.pwModified ? Math.min(3, Math.max(1.5, d.pwW * 0.8)) : 1}
+                                    opacity={isHoveringCancer ? cEdgeDim(active) : (d.pwModified ? 0.6 : 0.35)}
+                                    style={{ transition: "opacity 0.15s, stroke 0.15s" }} />;
                             })}
                             {/* Pathway → Biomarker */}
                             {pathData.map((d, pi) => d.bms.map((bmName, bi) => {
@@ -6073,8 +6094,12 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
                                 const mx = (P_X + P_W + B_X) / 2;
                                 const be = bioWeights[`${d.pw.id}::${bmName}`] ?? DEFAULT_BIO;
                                 const bioMod = (be.weight ?? 1) !== 1 || (be.color ?? "red") !== "red" || (be.level ?? "both") !== "both";
+                                const active = !isHoveringCancer || (activePathways?.has(d.pw.id) && cActiveBios?.has(bmName));
                                 return <path key={`pb${pi}-${bi}`} d={`M${P_X + P_W},${pathCentres[pi]} C${mx},${pathCentres[pi]} ${mx},${bioY} ${B_X},${bioY}`}
-                                    fill="none" stroke={bioMod ? C.teal : C.border} strokeWidth={bioMod ? 1.5 : 0.8} opacity={bioMod ? 0.5 : 0.25} />;
+                                    fill="none" stroke={active && isHoveringCancer ? C.teal : bioMod ? C.teal : C.border}
+                                    strokeWidth={active && isHoveringCancer ? 2 : bioMod ? 1.5 : 0.8}
+                                    opacity={isHoveringCancer ? cEdgeDim(active) : (bioMod ? 0.5 : 0.25)}
+                                    style={{ transition: "opacity 0.15s, stroke 0.15s" }} />;
                             }))}
                             {/* Domain node */}
                             <rect x={D_X} y={midY - 36} width={D_W} height={72} rx="8" fill={`${C.navy}08`} stroke={C.navy} strokeWidth="1.2" strokeDasharray="5,3" />
@@ -6082,26 +6107,36 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
                             <text x={D_X + D_W / 2} y={midY + 8} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>Score</text>
                             <text x={D_X + D_W / 2} y={midY + 23} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Domain</text>
                             {/* Tier node */}
-                            <rect x={T_X} y={midY - TIER_H / 2} width={T_W} height={TIER_H} rx="8"
-                                fill={tierModified ? `${C.teal}18` : `${C.navy}14`}
-                                stroke={tierModified ? C.teal : C.navy} strokeWidth={tierModified ? 2 : 1.5} />
-                            <text x={T_X + T_W / 2} y={midY - TIER_H / 2 + 18} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>{tier.shortLabel}</text>
-                            {wrapText(tier.label.replace(/^Tier \d — /, ""), 20).map((line, li, arr) => (
-                                <text key={li} x={T_X + T_W / 2} y={midY - 6 + li * 13 - (arr.length - 1) * 6} textAnchor="middle" fontSize="10" fill={C.textSecond} fontFamily={T.body}>{line}</text>
-                            ))}
-                            <text x={T_X + T_W / 2} y={midY + TIER_H / 2 - 26} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Tier</text>
-                            {/* Tier weight badge — always teal */}
-                            {badge(`×${effectiveTierW}`, C.teal, T_X + 12, midY + TIER_H / 2 - 12)}
+                            <g onMouseEnter={() => setHoveredNode({ type: "tier" })} onMouseLeave={() => setHoveredNode(null)}
+                                style={{ cursor: "default", opacity: 1, transition: "opacity 0.15s" }}>
+                                <rect x={T_X} y={midY - TIER_H / 2} width={T_W} height={TIER_H} rx="8"
+                                    fill={isHoveringCancer ? `${C.navy}28` : tierModified ? `${C.teal}18` : `${C.navy}14`}
+                                    stroke={tierModified ? C.teal : C.navy} strokeWidth={isHoveringCancer ? 2.5 : tierModified ? 2 : 1.5}
+                                    style={{ transition: "fill 0.15s, stroke-width 0.15s" }} />
+                                <text x={T_X + T_W / 2} y={midY - TIER_H / 2 + 18} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>{tier.shortLabel}</text>
+                                {wrapText(tier.label.replace(/^Tier \d — /, ""), 20).map((line, li, arr) => (
+                                    <text key={li} x={T_X + T_W / 2} y={midY - 6 + li * 13 - (arr.length - 1) * 6} textAnchor="middle" fontSize="10" fill={C.textSecond} fontFamily={T.body}>{line}</text>
+                                ))}
+                                <text x={T_X + T_W / 2} y={midY + TIER_H / 2 - 26} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Tier</text>
+                                {/* Tier weight badge — always teal */}
+                                {badge(`×${effectiveTierW}`, C.teal, T_X + 12, midY + TIER_H / 2 - 12)}
+                            </g>
                             {/* Pathway nodes */}
                             {pathData.map((d, i) => {
                                 const cy = pathCentres[i];
                                 const h = d.nodeH;
                                 const nameLines = wrapText(d.pw.name, 20);
+                                const active = !isHoveringCancer || activePathways?.has(d.pw.id);
                                 return (
-                                    <g key={d.pw.id}>
+                                    <g key={d.pw.id}
+                                        onMouseEnter={() => setHoveredNode({ type: "pathway", id: d.pw.id })}
+                                        onMouseLeave={() => setHoveredNode(null)}
+                                        style={{ cursor: "default", opacity: cNodeDim(active), transition: "opacity 0.15s" }}>
                                         <rect x={P_X} y={cy - h / 2} width={P_W} height={h} rx="7"
-                                            fill={`${C.steel}10`} stroke={d.pwModified ? C.teal : C.steel}
-                                            strokeWidth={d.pwModified ? 1.5 : 1} />
+                                            fill={isHoveringCancer && active ? `${C.steel}22` : `${C.steel}10`}
+                                            stroke={isHoveringCancer && active ? C.teal : d.pwModified ? C.teal : C.steel}
+                                            strokeWidth={isHoveringCancer && active ? 2 : d.pwModified ? 1.5 : 1}
+                                            style={{ transition: "fill 0.15s, stroke 0.15s, stroke-width 0.15s" }} />
                                         {nameLines.map((line, li) => (
                                             <text key={li} x={P_X + 12} y={cy - (nameLines.length - 1) * 6 + li * 13 - (d.pwModified ? 8 : 0)}
                                                 fontSize="10" fontWeight="600" fill={C.navy} fontFamily={T.body}>{line}</text>
@@ -6121,11 +6156,17 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
                                 const bdir = be.level ?? "both";
                                 const isMod = bw !== 1 || bcol !== "red" || bdir !== "both";
                                 const nameLines = wrapText(bmName, 24);
+                                const active = !isHoveringCancer || cActiveBios?.has(bmName);
                                 return (
-                                    <g key={`b${pi}-${bi}`}>
+                                    <g key={`b${pi}-${bi}`}
+                                        onMouseEnter={() => setHoveredNode({ type: "bio", name: bmName })}
+                                        onMouseLeave={() => setHoveredNode(null)}
+                                        style={{ cursor: "default", opacity: cNodeDim(active), transition: "opacity 0.15s" }}>
                                         <rect x={B_X} y={bioY - h / 2} width={B_W} height={h} rx="6"
-                                            fill={isMod ? `${C.teal}10` : C.surface} stroke={isMod ? C.teal : C.border}
-                                            strokeWidth={isMod ? 1.5 : 0.8} />
+                                            fill={isHoveringCancer && active ? `${C.teal}12` : isMod ? `${C.teal}10` : C.surface}
+                                            stroke={isHoveringCancer && active ? C.teal : isMod ? C.teal : C.border}
+                                            strokeWidth={isHoveringCancer && active ? 2 : isMod ? 1.5 : 0.8}
+                                            style={{ transition: "fill 0.15s, stroke 0.15s, stroke-width 0.15s" }} />
                                         {nameLines.map((line, li) => (
                                             <text key={li} x={B_X + 10} y={bioY - (nameLines.length - 1) * 6 + li * 12 - (isMod ? 6 : 0)}
                                                 fontSize="9" fill={C.textSecond} fontFamily={T.body}>{line}</text>
