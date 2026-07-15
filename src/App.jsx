@@ -1423,9 +1423,12 @@ function effectiveWeight(entry, hasEntry, zone, status, yellowW, redW, level = "
     }
     const w = typeof entry === "object" ? entry.weight : entry;
     const color = typeof entry === "object" ? (entry.color ?? "both") : "both";
-    const colorMatch = color === "both"
+    // "both" means red-or-yellow, never green — a manual weight override must never
+    // apply to an in-range biomarker, or it can inflate a healthy patient's score.
+    const colorMatch = zone !== "green" && (
+        color === "both"
         || (color === "red" && zone === "red")
-        || (color === "yellow" && zone === "yellow");
+        || (color === "yellow" && zone === "yellow"));
     const levelMatch = level === "both"
         || (level === "high" && status === "HIGH")
         || (level === "low" && status === "LOW");
