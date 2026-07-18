@@ -420,7 +420,7 @@ const CANCER_SYSTEMS = [
     },
 ];
 
-const CANCER_TIERS = [
+const CANCER_HEALTH_SYSTEMS = [
     { id: "tier1", label: "Tier 1 — Systemic Environment",  shortLabel: "Tier 1", weight: 1,
       systems: ["cancer_metabolic_dysfunction", "cancer_inflammation", "cancer_oxidative_stress"] },
     { id: "tier2", label: "Tier 2 — Transitional Biology",        shortLabel: "Tier 2", weight: 2,
@@ -1400,7 +1400,7 @@ function procColour(s) {
 }
 
 // Colour for cancer Tier 1/2/3 scores — green >=80, yellow 70-80, red <70
-function cancerTierColour(s) {
+function cancerHealthSystemColour(s) {
     if (s == null) return C.textFaint;
     const f = Math.floor(s);
     if (f >= 80) return C.teal;
@@ -1474,35 +1474,37 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
         const pw = typeof pe === "object" ? (pe.weight ?? 1) : pe;
         const pcolor = typeof pe === "object" ? (pe.color ?? "red") : "red";
         const pzone = procZone(p.score);
-        const colorMatch = pcolor === "both"
+        // "both" means red-or-yellow, never green — mirrors effectiveWeight's biomarker-level
+        // guard so a manual process weight can never apply to an already-healthy process.
+        const colorMatch = pzone !== "green" && (
+            pcolor === "both"
             || (pcolor === "red" && pzone === "red")
-            || (pcolor === "yellow" && pzone === "yellow")
-            || (pcolor === "green" && pzone === "green");
+            || (pcolor === "yellow" && pzone === "yellow"));
         const effPw = hasProcEntry && colorMatch ? pw : 1;
         return [p.score, effPw];
     })) : null;
     return { procResults, sysScore };
 }
 
-function computeCancerDomain(sysScores, cancerSysWeights = {}, cancerTierWeights = {}) {
-    const tierResults = CANCER_TIERS.map(tier => {
-        const tw = cancerTierWeights[tier.id] ?? tier.weight;
-        const entries = tier.systems
+function computeCancerDomain(sysScores, cancerSysWeights = {}, cancerHealthSystemWeights = {}) {
+    const healthSystemResults = CANCER_HEALTH_SYSTEMS.map(healthSystem => {
+        const tw = cancerHealthSystemWeights[healthSystem.id] ?? healthSystem.weight;
+        const entries = healthSystem.systems
             .map(id => ({ id, score: sysScores.find(s => s.id === id)?.score, w: cancerSysWeights[id] ?? 1 }))
             .filter(e => e.score != null);
         const totalW = entries.reduce((a, e) => a + e.w, 0);
         const score = entries.length ? entries.reduce((a, e) => a + e.score * e.w, 0) / totalW : null;
-        return { ...tier, score, tierWeight: tw };
+        return { ...healthSystem, score, healthSystemWeight: tw };
     });
-    const validTiers = tierResults.filter(t => t.score != null);
-    const totalWeight = validTiers.reduce((a, t) => a + t.tierWeight, 0);
-    const composite = validTiers.length && totalWeight > 0
-        ? validTiers.reduce((acc, t) => acc + t.tierWeight * t.score, 0) / totalWeight
+    const validHealthSystems = healthSystemResults.filter(t => t.score != null);
+    const totalWeight = validHealthSystems.reduce((a, t) => a + t.healthSystemWeight, 0);
+    const domainScore = validHealthSystems.length && totalWeight > 0
+        ? validHealthSystems.reduce((acc, t) => acc + t.healthSystemWeight * t.score, 0) / totalWeight
         : null;
-    const classification = composite != null
-        ? CANCER_CLASSIFICATIONS.find(c => composite >= c.min) ?? CANCER_CLASSIFICATIONS[CANCER_CLASSIFICATIONS.length - 1]
+    const classification = domainScore != null
+        ? CANCER_CLASSIFICATIONS.find(c => domainScore >= c.min) ?? CANCER_CLASSIFICATIONS[CANCER_CLASSIFICATIONS.length - 1]
         : null;
-    return { tierResults, composite, classification };
+    return { healthSystemResults, domainScore, classification };
 }
 
 // ─── CSV parsing ──────────────────────────────────────────────────────────────
@@ -1812,7 +1814,7 @@ function Slider({ label, value, min, max, step, onChange, color, fmt, tooltip })
 const DEFAULT_PARAMS = { cutoff: 0.5, greenPct: 0.05, curve: "linear", yellowWeight: 2.0, redWeight: 4.0 };
 
 function makeProfile(id, name, params) {
-    return { id, name, bioWeights: makeDefaultBioWeights(), procWeights: makeDefaultProcWeights(), cancerSysWeights: {}, cancerTierWeights: {}, ...DEFAULT_PARAMS, ...(params || {}) };
+    return { id, name, bioWeights: makeDefaultBioWeights(), procWeights: makeDefaultProcWeights(), cancerSysWeights: {}, cancerHealthSystemWeights: {}, ...DEFAULT_PARAMS, ...(params || {}) };
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -1831,7 +1833,7 @@ export default function App() {
     const [col2Open, setCol2Open] = useState(true);
     const [collapsedGroups, setCollapsedGroups] = useState(new Set()); // all expanded by default
     const [activeCancerView, setActiveCancerView] = useState(false); // true = showing cancer domain overview
-    const [selectedCancerTierId, setSelectedCancerTierId] = useState(null); // tier selected in col1
+    const [selectedCancerHealthSystemId, setSelectedCancerHealthSystemId] = useState(null); // healthSystem selected in col1
     const sidebarRef = useRef(null);
     const [concOverrides, setConcOverrides] = useState({});  // { [clientId]: { [markerName]: value } }
     const [aggTab, setAggTab] = useState("overview");
@@ -1988,7 +1990,7 @@ export default function App() {
     }, [systemId, activeCancerView, sysGroups]);
 
     const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
-    const { bioWeights, procWeights, cancerSysWeights = {}, cancerTierWeights = {}, cutoff, greenPct, curve, yellowWeight, redWeight } = activeProfile;
+    const { bioWeights, procWeights, cancerSysWeights = {}, cancerHealthSystemWeights = {}, cutoff, greenPct, curve, yellowWeight, redWeight } = activeProfile;
 
     // True when Default profile has been modified from its factory values
     const isDefaultDirty = activeProfileId === "default" && (() => {
@@ -2021,8 +2023,8 @@ export default function App() {
     const setCancerSysWeights = useCallback(fn => {
         setProfiles(prev => prev.map(p => p.id === activeProfileId ? { ...p, cancerSysWeights: fn(p.cancerSysWeights ?? {}) } : p));
     }, [activeProfileId]);
-    const setCancerTierWeights = useCallback(fn => {
-        setProfiles(prev => prev.map(p => p.id === activeProfileId ? { ...p, cancerTierWeights: fn(p.cancerTierWeights ?? {}) } : p));
+    const setCancerHealthSystemWeights = useCallback(fn => {
+        setProfiles(prev => prev.map(p => p.id === activeProfileId ? { ...p, cancerHealthSystemWeights: fn(p.cancerHealthSystemWeights ?? {}) } : p));
     }, [activeProfileId]);
     const resetWeights = useCallback(() => {
         if (!window.confirm("Reset all weights and concentration overrides for this profile and client? This cannot be undone.")) return;
@@ -2244,10 +2246,10 @@ export default function App() {
     const selProc = activeProc || Object.keys(system.processes)[0];
     const isTwoTier = Object.keys(system.processes).length === 1;
     const isCancerSystem = CANCER_SYSTEMS.some(s => s.id === systemId);
-    // Which tier's pathways to show in col2: tier selected in domain view, or the tier that owns the active pathway
-    const activeCancerTierId = activeCancerView
-        ? selectedCancerTierId
-        : CANCER_TIERS.find(t => t.systems.includes(systemId))?.id ?? null;
+    // Which health system's pathways to show in col2: health system selected in domain view, or the health system that owns the active pathway
+    const activeCancerHealthSystemId = activeCancerView
+        ? selectedCancerHealthSystemId
+        : CANCER_HEALTH_SYSTEMS.find(t => t.systems.includes(systemId))?.id ?? null;
     const showCol2 = activeCancerView || isCancerSystem || !isTwoTier;
 
     const { procResults, sysScore } = useMemo(() => {
@@ -2262,14 +2264,14 @@ export default function App() {
             : null
     })), [markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight]);
 
-    const cancerDomain = useMemo(() => computeCancerDomain(allSysScores, cancerSysWeights, cancerTierWeights), [allSysScores, cancerSysWeights, cancerTierWeights]);
+    const cancerDomain = useMemo(() => computeCancerDomain(allSysScores, cancerSysWeights, cancerHealthSystemWeights), [allSysScores, cancerSysWeights, cancerHealthSystemWeights]);
 
     // For a cancer pathway, the header "system" gauge shows its Tier score instead of
     // the pathway's own wavg — the pathway now has several real processes (see
     // CANCER_SYSTEMS), so its own score is shown by the "Process" gauge / Process
     // Weights tab, and the layer above it worth surfacing here is the Tier.
     const headerGaugeScore = isCancerSystem
-        ? cancerDomain.tierResults.find(t => t.id === activeCancerTierId)?.score ?? null
+        ? cancerDomain.healthSystemResults.find(t => t.id === activeCancerHealthSystemId)?.score ?? null
         : sysScore;
     const headerGaugeLabel = isCancerSystem ? "Tier" : "System";
 
@@ -2293,10 +2295,10 @@ export default function App() {
                     const procs = res.procResults.map(pr => ({ name: pr.process, score: pr.score }));
                     return { id: s.id, name: s.name, score: res.sysScore, procs };
                 });
-                const cancerResult = computeCancerDomain(syss, prof.cancerSysWeights ?? {}, prof.cancerTierWeights ?? {});
-                const cancerTierScores = cancerResult.tierResults.map(t => ({ id: t.id, label: t.label, shortLabel: t.shortLabel, score: t.score }));
-                const cancerDomainScore = cancerResult.composite;
-                return { pid, label: clients[pid]?.label ?? pid, systems: syss, cancerTierScores, cancerDomainScore };
+                const cancerResult = computeCancerDomain(syss, prof.cancerSysWeights ?? {}, prof.cancerHealthSystemWeights ?? {});
+                const cancerHealthSystemScores = cancerResult.healthSystemResults.map(t => ({ id: t.id, label: t.label, shortLabel: t.shortLabel, score: t.score }));
+                const cancerDomainScore = cancerResult.domainScore;
+                return { pid, label: clients[pid]?.label ?? pid, systems: syss, cancerHealthSystemScores, cancerDomainScore };
             })
         }));
     }, [clients, profiles, compareIds, activeProfile, assocSystems]);
@@ -2323,13 +2325,18 @@ export default function App() {
         return bioAdj + procAdj;
     }, [bioWeights, procWeights]);
 
+    // Cancer health_areas have no process layer to weight (a single-process wavg is a no-op),
+    // so — like any other flat/single-process system — they skip the Process Weights tab.
     const TABS = [
-        ...(!isTwoTier || isCancerSystem ? [{ key: "weights-proc", label: "Process Weights" }] : []),
+        ...(!isTwoTier ? [{ key: "weights-proc", label: "Process Weights" }] : []),
         { key: "weights-bio", label: "Biomarker Weights" },
         { key: "curves", label: "Biomarker Curves" },
         { key: "flags", label: `Biomarker Flags${oorFlags.length ? ` (${oorFlags.length})` : ""}` },
         { key: "adjustments", label: `Active Adjustments${adjustmentCount ? ` (${adjustmentCount})` : ""}` },
     ];
+    // Guard against the current tab not existing for this system (e.g. default "weights-proc"
+    // landing on a system with no Process Weights tab) by falling back to Biomarker Weights.
+    const effectiveTab = TABS.some(t => t.key === tab) ? tab : "weights-bio";
 
     const hasData = demoLoaded || Object.keys(clients).some(k => !DEMO_IDS.includes(k));
     const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 20, boxShadow: "0 1px 4px rgba(24,55,75,0.04)" };
@@ -3105,7 +3112,7 @@ export default function App() {
 
                                 if (groupId === "cancer") {
                                     const domainActive = activeCancerView && activeView === "client";
-                                    const domainScore = cancerDomain?.composite;
+                                    const domainScore = cancerDomain?.domainScore;
                                     return (
                                         <div key={label}>
                                             {/* Cancer group header */}
@@ -3116,10 +3123,10 @@ export default function App() {
                                             </button>
                                             {!isCollapsed && <>
                                                 {/* Domain-level entry */}
-                                                <button onClick={() => { setActiveCancerView(true); setSelectedCancerTierId(null); setActiveView("client"); }}
-                                                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", cursor: "pointer", transition: "all 0.12s", background: domainActive && !selectedCancerTierId ? `${C.teal}18` : "transparent", borderLeft: `3px solid ${domainActive && !selectedCancerTierId ? C.teal : "transparent"}` }}>
+                                                <button onClick={() => { setActiveCancerView(true); setSelectedCancerHealthSystemId(null); setActiveView("client"); }}
+                                                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", cursor: "pointer", transition: "all 0.12s", background: domainActive && !selectedCancerHealthSystemId ? `${C.teal}18` : "transparent", borderLeft: `3px solid ${domainActive && !selectedCancerHealthSystemId ? C.teal : "transparent"}` }}>
                                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
-                                                        <span style={{ fontSize: 12, color: domainActive && !selectedCancerTierId ? C.navy : C.textSecond, fontWeight: 600, lineHeight: 1.3, flex: 1 }}>Cancer Score</span>
+                                                        <span style={{ fontSize: 12, color: domainActive && !selectedCancerHealthSystemId ? C.navy : C.textSecond, fontWeight: 600, lineHeight: 1.3, flex: 1 }}>Cancer Score</span>
                                                         {domainScore != null
                                                             ? <span style={{ fontSize: 12, color: procColour(Math.floor(domainScore)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(domainScore)}</span>
                                                             : <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
@@ -3130,17 +3137,17 @@ export default function App() {
                                                     </>}
                                                 </button>
                                                 {/* Tier selection buttons — pathways live in col2 */}
-                                                {CANCER_TIERS.map(tier => {
-                                                    const tierResult = cancerDomain?.tierResults?.find(t => t.id === tier.id);
-                                                    const tierActive = (activeCancerView && selectedCancerTierId === tier.id && activeView === "client")
-                                                        || (!activeCancerView && CANCER_TIERS.find(t => t.systems.includes(systemId))?.id === tier.id && activeView === "client");
+                                                {CANCER_HEALTH_SYSTEMS.map(healthSystem => {
+                                                    const healthSystemResult = cancerDomain?.healthSystemResults?.find(t => t.id === healthSystem.id);
+                                                    const healthSystemActive = (activeCancerView && selectedCancerHealthSystemId === healthSystem.id && activeView === "client")
+                                                        || (!activeCancerView && CANCER_HEALTH_SYSTEMS.find(t => t.systems.includes(systemId))?.id === healthSystem.id && activeView === "client");
                                                     return (
-                                                        <button key={tier.id}
-                                                            onClick={() => { setSystemId(tier.systems[0]); setSelectedCancerTierId(tier.id); setActiveCancerView(false); setActiveProc(null); setActiveView("client"); }}
-                                                            style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 14px 7px 18px", border: "none", cursor: "pointer", transition: "all 0.12s", background: tierActive ? `${C.teal}18` : `${C.iceLight}30`, borderLeft: `3px solid ${tierActive ? C.teal : "transparent"}`, borderBottom: `1px solid ${C.border}` }}>
+                                                        <button key={healthSystem.id}
+                                                            onClick={() => { setSystemId(healthSystem.systems[0]); setSelectedCancerHealthSystemId(healthSystem.id); setActiveCancerView(false); setActiveProc(null); setActiveView("client"); }}
+                                                            style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 14px 7px 18px", border: "none", cursor: "pointer", transition: "all 0.12s", background: healthSystemActive ? `${C.teal}18` : `${C.iceLight}30`, borderLeft: `3px solid ${healthSystemActive ? C.teal : "transparent"}`, borderBottom: `1px solid ${C.border}` }}>
                                                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
-                                                                <div style={{ fontSize: 10, color: tierActive ? C.navy : C.textSecond, fontWeight: tierActive ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>{tier.shortLabel} · {tier.label.replace(/^Tier \d — /, "")}</div>
-                                                                {tierResult?.score != null && <span style={{ fontSize: 11, color: cancerTierColour(Math.floor(tierResult.score)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(tierResult.score)}</span>}
+                                                                <div style={{ fontSize: 10, color: healthSystemActive ? C.navy : C.textSecond, fontWeight: healthSystemActive ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>{healthSystem.shortLabel} · {healthSystem.label.replace(/^Tier \d — /, "")}</div>
+                                                                {healthSystemResult?.score != null && <span style={{ fontSize: 11, color: cancerHealthSystemColour(Math.floor(healthSystemResult.score)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(healthSystemResult.score)}</span>}
                                                             </div>
                                                         </button>
                                                     );
@@ -3211,18 +3218,18 @@ export default function App() {
 
                     {col2Open && <div data-tutorial="processes-panel" style={{ overflowY: "auto", flex: 1 }}>
                         {(activeCancerView || isCancerSystem) ? (() => {
-                            const tier = CANCER_TIERS.find(t => t.id === activeCancerTierId);
-                            const tierResult = cancerDomain?.tierResults?.find(t => t.id === activeCancerTierId);
-                            if (!tier) return (
+                            const healthSystem = CANCER_HEALTH_SYSTEMS.find(t => t.id === activeCancerHealthSystemId);
+                            const healthSystemResult = cancerDomain?.healthSystemResults?.find(t => t.id === activeCancerHealthSystemId);
+                            if (!healthSystem) return (
                                 <div style={{ padding: "14px", fontSize: 11, color: C.textFaint, fontStyle: "italic", lineHeight: 1.5 }}>
-                                    Select a tier from the left panel to view its pathways.
+                                    Select a health system from the left panel to view its pathways.
                                 </div>
                             );
                             return <>
                                 <div style={{ padding: "10px 14px 8px" }}>
-                                    <div style={{ fontSize: 11, color: C.textSecond, fontWeight: 600, lineHeight: 1.3 }}>{tier.label.replace(/^Tier \d — /, "")}</div>
+                                    <div style={{ fontSize: 11, color: C.textSecond, fontWeight: 600, lineHeight: 1.3 }}>{healthSystem.label.replace(/^Tier \d — /, "")}</div>
                                 </div>
-                                {tier.systems.map(sysId => {
+                                {healthSystem.systems.map(sysId => {
                                     const sys = assocSystems.find(s => s.id === sysId);
                                     if (!sys) return null;
                                     const s = allSysScores.find(x => x.id === sysId)?.score;
@@ -3276,7 +3283,7 @@ export default function App() {
                         <AggregateView aggregateData={aggregateData} profiles={profiles} compareIds={compareIds} setCompareIds={setCompareIds} card={card} tutorialStep={tutorialStep} setTutorialStep={setTutorialStep} tutorialDone={tutorialDone} setTutorialDone={setTutorialDone} showTutorial={showTutorial} setShowTutorial={setShowTutorial} bioWeights={bioWeights} procWeights={procWeights} sysYellowCutoff={sysYellowCutoff} setSysYellowCutoff={setSysYellowCutoff} sysRedCutoff={sysRedCutoff} setSysRedCutoff={setSysRedCutoff} procYellowCutoff={procYellowCutoff} setProcYellowCutoff={setProcYellowCutoff} procRedCutoff={procRedCutoff} setProcRedCutoff={setProcRedCutoff} exportProfile={exportProfile} activeProfile={activeProfile} aggTab={aggTab} setAggTab={setAggTab} onNavigate={(pid) => { setClientId(pid); setActiveView("client"); }} assocSystems={assocSystems} sysGroups={sysGroups} assocGroups={assocGroups} />
                     ) : activeCancerView ? (
                         <CancerDomainView cancerDomain={cancerDomain} allSysScores={allSysScores} card={card}
-                            cancerTierWeights={cancerTierWeights} setCancerTierWeights={setCancerTierWeights}
+                            cancerHealthSystemWeights={cancerHealthSystemWeights} setCancerHealthSystemWeights={setCancerHealthSystemWeights}
                             onSelectPathway={(id) => { setSystemId(id); setActiveCancerView(false); setActiveView("client"); }} />
                     ) : (
                         <>
@@ -3311,9 +3318,9 @@ export default function App() {
                                             }}
                                             style={{
                                                 padding: "9px 16px", fontSize: 12,
-                                                color: tab === key ? C.steel : C.textFaint, background: "none", border: "none",
-                                                borderBottom: `2px solid ${tab === key ? C.steel : "transparent"}`,
-                                                cursor: "pointer", fontWeight: tab === key ? 600 : 400, transition: "all 0.15s"
+                                                color: effectiveTab === key ? C.steel : C.textFaint, background: "none", border: "none",
+                                                borderBottom: `2px solid ${effectiveTab === key ? C.steel : "transparent"}`,
+                                                cursor: "pointer", fontWeight: effectiveTab === key ? 600 : 400, transition: "all 0.15s"
                                             }}>
                                             {label}
                                         </button>
@@ -3322,11 +3329,11 @@ export default function App() {
                             </div>
 
                             <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px" }}>
-                                {tab === "weights-proc" && <ProcWeightsTab system={system} procResults={procResults} procWeights={procWeights} setProcWeights={setProcWeights} sysScore={sysScore} selProc={selProc} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
-                                {tab === "weights-bio" && <BioWeightsTab activeProcResult={activeProcResult} selProc={selProc} bioWeights={bioWeights} setBioWeights={setBioWeights} greenPct={greenPct} yellowWeight={yellowWeight} setYellowWeight={setYellowWeight} redWeight={redWeight} setRedWeight={setRedWeight} card={card} editConc={editConc} setEditConc={setEditConc} setConcWarnModal={setConcWarnModal} concOverrides={concOverrides[clientId] ?? {}} setConcOverrides={v => setConcOverrides(prev => ({ ...prev, [clientId]: v }))} clientMarkers={clients[clientId]?.markers ?? {}} systemId={systemId} />}
-                                {tab === "curves" && <CurvesTab activeProcResult={activeProcResult} selProc={selProc} cutoff={cutoff} setCutoff={setCutoff} greenPct={greenPct} setGreenPct={setGreenPct} curve={curve} setCurve={setCurve} card={card} />}
-                                {tab === "flags" && <FlagsTab oorFlags={oorFlags} setActiveProc={setActiveProc} setTab={setTab} card={card} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} assocSystems={assocSystems} />}
-                                {tab === "adjustments" && <AdjustmentsTab bioWeights={bioWeights} procWeights={procWeights} setBioWeights={setBioWeights} setProcWeights={setProcWeights} setActiveProc={setActiveProc} setTab={setTab} card={card} assocSystems={assocSystems} healthSystems={healthSystems} />}
+                                {effectiveTab === "weights-proc" && <ProcWeightsTab system={system} procResults={procResults} procWeights={procWeights} setProcWeights={setProcWeights} sysScore={sysScore} selProc={selProc} setActiveProc={setActiveProc} setTab={setTab} card={card} />}
+                                {effectiveTab === "weights-bio" && <BioWeightsTab activeProcResult={activeProcResult} selProc={selProc} bioWeights={bioWeights} setBioWeights={setBioWeights} greenPct={greenPct} yellowWeight={yellowWeight} setYellowWeight={setYellowWeight} redWeight={redWeight} setRedWeight={setRedWeight} card={card} editConc={editConc} setEditConc={setEditConc} setConcWarnModal={setConcWarnModal} concOverrides={concOverrides[clientId] ?? {}} setConcOverrides={v => setConcOverrides(prev => ({ ...prev, [clientId]: v }))} clientMarkers={clients[clientId]?.markers ?? {}} systemId={systemId} />}
+                                {effectiveTab === "curves" && <CurvesTab activeProcResult={activeProcResult} selProc={selProc} cutoff={cutoff} setCutoff={setCutoff} greenPct={greenPct} setGreenPct={setGreenPct} curve={curve} setCurve={setCurve} card={card} />}
+                                {effectiveTab === "flags" && <FlagsTab oorFlags={oorFlags} setActiveProc={setActiveProc} setTab={setTab} card={card} bioWeights={bioWeights} cutoff={cutoff} greenPct={greenPct} curve={curve} assocSystems={assocSystems} />}
+                                {effectiveTab === "adjustments" && <AdjustmentsTab bioWeights={bioWeights} procWeights={procWeights} setBioWeights={setBioWeights} setProcWeights={setProcWeights} setActiveProc={setActiveProc} setTab={setTab} card={card} assocSystems={assocSystems} healthSystems={healthSystems} />}
                             </div>
                         </>
                     )}
@@ -3337,9 +3344,9 @@ export default function App() {
 }
 
 // ─── Cancer Domain View ───────────────────────────────────────────────────────
-function CancerDomainView({ cancerDomain, allSysScores, card, cancerTierWeights, setCancerTierWeights, onSelectPathway }) {
-    const { tierResults, composite, classification } = cancerDomain ?? {};
-    const hasScores = composite != null;
+function CancerDomainView({ cancerDomain, allSysScores, card, cancerHealthSystemWeights, setCancerHealthSystemWeights, onSelectPathway }) {
+    const { healthSystemResults, domainScore, classification } = cancerDomain ?? {};
+    const hasScores = domainScore != null;
 
     return (
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -3351,7 +3358,7 @@ function CancerDomainView({ cancerDomain, allSysScores, card, cancerTierWeights,
                 </div>
                 {hasScores ? (
                     <div style={{ display: "flex", gap: 22, alignItems: "center", flexShrink: 0 }}>
-                        <ArcGauge score={composite} size={72} label="Domain" />
+                        <ArcGauge score={domainScore} size={72} label="Domain" />
                         <div>
                             <div style={{ fontSize: 10, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Classification</div>
                             <div style={{ fontSize: 15, fontWeight: 700, color: classification?.color ?? C.textFaint, lineHeight: 1.2 }}>{classification?.label ?? "—"}</div>
@@ -3366,23 +3373,23 @@ function CancerDomainView({ cancerDomain, allSysScores, card, cancerTierWeights,
                 {/* Tier weight cards — same style as ProcWeightsTab */}
                 <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12 }}>Tier Weights</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16, marginBottom: 24 }}>
-                    {CANCER_TIERS.map(tier => {
-                        const tierResult = tierResults?.find(t => t.id === tier.id);
-                        const w = cancerTierWeights[tier.id] ?? tier.weight;
+                    {CANCER_HEALTH_SYSTEMS.map(healthSystem => {
+                        const healthSystemResult = healthSystemResults?.find(t => t.id === healthSystem.id);
+                        const w = cancerHealthSystemWeights[healthSystem.id] ?? healthSystem.weight;
                         return (
-                            <div key={tier.id} style={{ ...card, borderLeft: `3px solid ${C.border}` }}>
+                            <div key={healthSystem.id} style={{ ...card, borderLeft: `3px solid ${C.border}` }}>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                                     <div style={{ flex: 1, paddingRight: 10 }}>
-                                        <div style={{ fontSize: 13, color: C.textPrimary, fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>{tier.label.replace(/^Tier \d — /, "")}</div>
-                                        <div style={{ fontSize: 10, color: C.textFaint }}>{tier.shortLabel}</div>
+                                        <div style={{ fontSize: 13, color: C.textPrimary, fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>{healthSystem.label.replace(/^Tier \d — /, "")}</div>
+                                        <div style={{ fontSize: 10, color: C.textFaint }}>{healthSystem.shortLabel}</div>
                                     </div>
-                                    {tierResult?.score != null
-                                        ? <div style={{ fontSize: 26, color: cancerTierColour(tierResult.score), fontWeight: 700, lineHeight: 1, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(tierResult.score)}</div>
+                                    {healthSystemResult?.score != null
+                                        ? <div style={{ fontSize: 26, color: cancerHealthSystemColour(healthSystemResult.score), fontWeight: 700, lineHeight: 1, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(healthSystemResult.score)}</div>
                                         : <div style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic" }}>No data</div>}
                                 </div>
-                                {tierResult?.score != null && <div style={{ marginBottom: 10 }}><ScoreBar score={tierResult.score} h={3} colour={cancerTierColour(tierResult.score)} /></div>}
+                                {healthSystemResult?.score != null && <div style={{ marginBottom: 10 }}><ScoreBar score={healthSystemResult.score} h={3} colour={cancerHealthSystemColour(healthSystemResult.score)} /></div>}
                                 <Slider label="Weight" value={w} min={1} max={10} step={1}
-                                    onChange={v => setCancerTierWeights(prev => ({ ...prev, [tier.id]: v }))}
+                                    onChange={v => setCancerHealthSystemWeights(prev => ({ ...prev, [healthSystem.id]: v }))}
                                     color={C.steel} fmt={v => `${v}×`} />
                             </div>
                         );
@@ -3391,17 +3398,17 @@ function CancerDomainView({ cancerDomain, allSysScores, card, cancerTierWeights,
 
                 {/* Tier pathway rows */}
                 <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12 }}>Pathways</div>
-                {CANCER_TIERS.map(tier => {
-                    const tierResult = tierResults?.find(t => t.id === tier.id);
-                    const tierSystems = CANCER_SYSTEMS.filter(s => tier.systems.includes(s.id));
+                {CANCER_HEALTH_SYSTEMS.map(healthSystem => {
+                    const healthSystemResult = healthSystemResults?.find(t => t.id === healthSystem.id);
+                    const healthSystemPathways = CANCER_SYSTEMS.filter(s => healthSystem.systems.includes(s.id));
                     return (
-                        <div key={tier.id} style={{ ...card, marginBottom: 16 }}>
+                        <div key={healthSystem.id} style={{ ...card, marginBottom: 16 }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.border}` }}>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>{tier.label.replace(/^Tier \d — /, "")}</div>
-                                {tierResult?.score != null && <span style={{ fontSize: 16, fontWeight: 800, color: cancerTierColour(tierResult.score), fontFamily: T.mono }}>{Math.floor(tierResult.score)}</span>}
+                                <div style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>{healthSystem.label.replace(/^Tier \d — /, "")}</div>
+                                {healthSystemResult?.score != null && <span style={{ fontSize: 16, fontWeight: 800, color: cancerHealthSystemColour(healthSystemResult.score), fontFamily: T.mono }}>{Math.floor(healthSystemResult.score)}</span>}
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                                {tierSystems.map(sys => {
+                                {healthSystemPathways.map(sys => {
                                     const sysSc = allSysScores.find(s => s.id === sys.id)?.score;
                                     return (
                                         <button key={sys.id} onClick={() => onSelectPathway(sys.id)}
@@ -3427,7 +3434,7 @@ function CancerDomainView({ cancerDomain, allSysScores, card, cancerTierWeights,
                 <div style={{ ...card, marginBottom: 8 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 10 }}>Classification Reference</div>
                     {CANCER_CLASSIFICATIONS.map((cls, i) => {
-                        const isActive = hasScores && composite >= cls.min && (i === 0 || composite < CANCER_CLASSIFICATIONS[i - 1].min);
+                        const isActive = hasScores && domainScore >= cls.min && (i === 0 || domainScore < CANCER_CLASSIFICATIONS[i - 1].min);
                         return (
                             <div key={cls.label} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 5, marginBottom: 3, background: isActive ? `${cls.color}18` : "transparent", border: `1px solid ${isActive ? cls.color : "transparent"}`, transition: "all 0.15s" }}>
                                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: cls.color, flexShrink: 0 }} />
@@ -3718,13 +3725,15 @@ else:                            effective_weight = colour multiplier`}</pre>
                             <tr><td style={td}>0 – 69</td><td style={td}>Red</td></tr>
                         </tbody>
                     </table>
-                    <pre style={mono}>{`color_match = (proc_color = "both")
-           OR (proc_color = "red"    AND proc_zone = RED)
-           OR (proc_color = "yellow" AND proc_zone = YELLOW)
-           OR (proc_color = "green"  AND proc_zone = GREEN)
+                    <pre style={mono}>{`color_match = proc_zone ≠ GREEN AND (
+    (proc_color = "both")
+    OR (proc_color = "red"    AND proc_zone = RED)
+    OR (proc_color = "yellow" AND proc_zone = YELLOW)
+)
 
 if color_match:  effective_process_weight = proc_weight
 else:            effective_process_weight = 1`}</pre>
+                    <p style={p}>Same rule as biomarker weights: "both" means red-or-yellow, never green — a manual override must never apply to an already-healthy process.</p>
 
                     {/* ── 6. System Score ── */}
                     <div style={h2}>6. System Score</div>
@@ -4546,7 +4555,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const [histSysId, setHistSysId] = useState(healthSystems[0]?.id ?? "");
     const [histProcName, setHistProcName] = useState(Object.keys(healthSystems[0]?.processes ?? {})[0] ?? "");
     const [flowSysId, setFlowSysId] = useState(healthSystems[0]?.id ?? "");
-    const [flowCancerTierId, setFlowCancerTierId] = useState(CANCER_TIERS[0].id);
+    const [flowCancerHealthSystemId, setFlowCancerHealthSystemId] = useState(CANCER_HEALTH_SYSTEMS[0].id);
     const [isCancerFlow, setIsCancerFlow] = useState(false);
 
     if (!aggregateData || !aggregateData.length) return (
@@ -4942,7 +4951,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             })()}
                             {(() => {
                                 const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                // Cancer pathway systems excluded — show tier columns instead
+                                // Cancer pathway systems excluded — show health system columns instead
                                 const visibleSystems = assocSystems.filter(s => {
                                     const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Diseases" : "Cancer";
                                     return visibleSysGroups.has(grp) && s.group !== "cancer";
@@ -4957,14 +4966,14 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 <col style={{ width: 160 }} />
                                                 <col style={{ width: 44 }} />
                                                 {visibleSystems.map(s => <col key={s.id} style={{ width: 88 }} />)}
-                                                {cancerColsVisible && CANCER_TIERS.map(t => <col key={t.id} style={{ width: 88 }} />)}
+                                                {cancerColsVisible && CANCER_HEALTH_SYSTEMS.map(t => <col key={t.id} style={{ width: 88 }} />)}
                                             </colgroup>
                                             <thead>
                                                 <tr style={{ background: C.navy }}>
                                                     <th style={{ ...stickyCell, padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Client</th>
                                                     <th style={{ ...stickyWarnCell, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>⚠</th>
                                                     {visibleSystems.map(s => <th key={s.id} style={{ padding: "10px 6px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, minWidth: 80 }}><div style={{ minWidth: 72, maxWidth: 100, margin: "0 auto", lineHeight: 1.3 }}>{s.name}</div></th>)}
-                                                    {cancerColsVisible && CANCER_TIERS.map(t => <th key={t.id} style={{ padding: "10px 6px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, minWidth: 80 }}><div style={{ minWidth: 72, maxWidth: 100, margin: "0 auto", lineHeight: 1.3 }}>{t.shortLabel}</div></th>)}
+                                                    {cancerColsVisible && CANCER_HEALTH_SYSTEMS.map(t => <th key={t.id} style={{ padding: "10px 6px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, minWidth: 80 }}><div style={{ minWidth: 72, maxWidth: 100, margin: "0 auto", lineHeight: 1.3 }}>{t.shortLabel}</div></th>)}
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -4976,11 +4985,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                             <td onClick={() => onNavigate(row.pid)} style={{ ...stickyCell, padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: rowBg, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="Explore in Adjust Weighting">{row.label ?? row.pid}</td>
                                                             {(() => {
                                                                 const syScores = visibleSystems.map(s => row.systems.find(rs => rs.id === s.id)?.score).filter(x => x != null);
-                                                                const tierScores = cancerColsVisible ? (row.cancerTierScores?.map(t => t.score).filter(x => x != null) ?? []) : [];
+                                                                const healthSystemScores = cancerColsVisible ? (row.cancerHealthSystemScores?.map(t => t.score).filter(x => x != null) ?? []) : [];
                                                                 const nY = syScores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length
-                                                                    + tierScores.filter(s => Math.floor(s) >= 70 && Math.floor(s) < 80).length;
+                                                                    + healthSystemScores.filter(s => Math.floor(s) >= 70 && Math.floor(s) < 80).length;
                                                                 const nR = syScores.filter(s => Math.floor(s) < overviewYellow).length
-                                                                    + tierScores.filter(s => Math.floor(s) < 70).length;
+                                                                    + healthSystemScores.filter(s => Math.floor(s) < 70).length;
                                                                 return (
                                                                     <td style={{ ...stickyWarnCell, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap" }}>
                                                                         {nR > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.critical, marginRight: 2 }}>{nR}R</span>}
@@ -5002,14 +5011,14 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                     </td>
                                                                 );
                                                             })}
-                                                            {cancerColsVisible && CANCER_TIERS.map(t => {
-                                                                const score = row.cancerTierScores?.find(x => x.id === t.id)?.score ?? null;
-                                                                const baseScore = baseRow?.cancerTierScores?.find(x => x.id === t.id)?.score ?? null;
+                                                            {cancerColsVisible && CANCER_HEALTH_SYSTEMS.map(t => {
+                                                                const score = row.cancerHealthSystemScores?.find(x => x.id === t.id)?.score ?? null;
+                                                                const baseScore = baseRow?.cancerHealthSystemScores?.find(x => x.id === t.id)?.score ?? null;
                                                                 const d = score != null && baseScore != null ? score - baseScore : null;
                                                                 return (
-                                                                    <td key={t.id} style={{ padding: "6px 8px", textAlign: "center", background: score == null ? "transparent" : `${cancerTierColour(score)}18` }}>
+                                                                    <td key={t.id} style={{ padding: "6px 8px", textAlign: "center", background: score == null ? "transparent" : `${cancerHealthSystemColour(score)}18` }}>
                                                                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                                                                            {score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: cancerTierColour(score) }}>{Math.floor(score)}</span> : <span style={{ color: C.textFaint }}>—</span>}
+                                                                            {score != null ? <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: cancerHealthSystemColour(score) }}>{Math.floor(score)}</span> : <span style={{ color: C.textFaint }}>—</span>}
                                                                             {d != null && Math.abs(d) > 0.05 && <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, lineHeight: 1, color: d > 0 ? C.green : C.critical }}>{d > 0 ? "▲" : "▼"}{Math.abs(d).toFixed(1)}</span>}
                                                                         </div>
                                                                     </td>
@@ -5087,24 +5096,24 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                             <tr key={`group-${label}`}>
                                                 <td colSpan={1 + aggregateData.length * STAT_COLS.length + Math.max(0, aggregateData.length - 1)} style={{ padding: "5px 16px 3px", fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", background: `${C.iceLight}40`, borderTop: `1px solid ${C.border}` }}>{label}</td>
                                             </tr>,
-                                            ...(groupId === "cancer" ? CANCER_TIERS.map((tier, si) => {
+                                            ...(groupId === "cancer" ? CANCER_HEALTH_SYSTEMS.map((healthSystem, si) => {
                                                 const allStats = aggregateData.map(pd => {
-                                                    const scores = pd.clients.map(r => r.cancerTierScores?.find(t => t.id === tier.id)?.score).filter(x => x != null);
+                                                    const scores = pd.clients.map(r => r.cancerHealthSystemScores?.find(t => t.id === healthSystem.id)?.score).filter(x => x != null);
                                                     const st = stats(scores);
                                                     return st ? { ...st, breakdown: rygBreakdown(scores, 70, 80) } : null;
                                                 });
                                                 const baseStats = allStats[0];
-                                                const procC = cancerTierColour(baseStats?.mean);
+                                                const procC = cancerHealthSystemColour(baseStats?.mean);
                                                 return (
-                                                    <tr key={tier.id} style={{ borderTop: `1px solid ${C.border}`, background: si % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
-                                                        <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}` }}>{tier.shortLabel} — {tier.label.replace(/^Tier \d — /, "")}</td>
+                                                    <tr key={healthSystem.id} style={{ borderTop: `1px solid ${C.border}`, background: si % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
+                                                        <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}` }}>{healthSystem.shortLabel} — {healthSystem.label.replace(/^Tier \d — /, "")}</td>
                                                         {aggregateData.map(({ profile }, pi) => {
                                                             const st = allStats[pi];
                                                             const col = PROF_COLORS[pi % PROF_COLORS.length];
                                                             const deltaMean = pi > 0 && st && baseStats ? st.mean - baseStats.mean : null;
                                                             return [
-                                                                <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center", borderLeft: `2px solid ${col}30`, background: st ? `${cancerTierColour(st.mean)}18` : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: cancerTierColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
-                                                                <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: cancerTierColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-mean`} style={{ padding: "9px 10px", textAlign: "center", borderLeft: `2px solid ${col}30`, background: st ? `${cancerHealthSystemColour(st.mean)}18` : "transparent" }}>{st ? <span style={{ fontFamily: T.mono, fontWeight: 700, color: cancerHealthSystemColour(st.mean), fontSize: 13 }}>{st.mean.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
+                                                                <td key={`${profile.id}-median`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: cancerHealthSystemColour(st.median), fontSize: 12 }}>{st.median.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-sd`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 12 }}>{st.sd.toFixed(1)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-range`} style={{ padding: "9px 10px", textAlign: "center" }}>{st ? <span style={{ fontFamily: T.mono, color: C.textMuted, fontSize: 11 }}>{Math.floor(st.min)}–{Math.floor(st.max)}</span> : <span style={{ color: C.textFaint }}>—</span>}</td>,
                                                                 <td key={`${profile.id}-ryg`} style={{ padding: "9px 10px", textAlign: "center" }}><RygCell breakdown={st?.breakdown} /></td>,
@@ -5449,7 +5458,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                 )}
 
                 {aggTab === "flowchart" && (
-                    <FlowchartTab flowSysId={flowSysId} setFlowSysId={setFlowSysId} flowCancerTierId={flowCancerTierId} setFlowCancerTierId={setFlowCancerTierId} isCancerFlow={isCancerFlow} setIsCancerFlow={setIsCancerFlow} bioWeights={bioWeights} procWeights={procWeights} cancerSysWeights={activeProfile?.cancerSysWeights ?? {}} cancerTierWeights={activeProfile?.cancerTierWeights ?? {}} card={card} assocSystems={assocSystems} sysGroups={sysGroups} />
+                    <FlowchartTab flowSysId={flowSysId} setFlowSysId={setFlowSysId} flowCancerHealthSystemId={flowCancerHealthSystemId} setFlowCancerHealthSystemId={setFlowCancerHealthSystemId} isCancerFlow={isCancerFlow} setIsCancerFlow={setIsCancerFlow} bioWeights={bioWeights} procWeights={procWeights} cancerSysWeights={activeProfile?.cancerSysWeights ?? {}} cancerHealthSystemWeights={activeProfile?.cancerHealthSystemWeights ?? {}} card={card} assocSystems={assocSystems} sysGroups={sysGroups} />
                 )}
 
                 {aggTab === "export" && (
@@ -5653,43 +5662,43 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
     const DEFAULT_SYS_RED = 70, DEFAULT_SYS_YELLOW = 91;
     const DEFAULT_PROC_RED = 70, DEFAULT_PROC_YELLOW = 91;
 
-    const isCancerTier = CANCER_TIERS.some(t => t.id === histSysId);
-    const selTier = isCancerTier ? (CANCER_TIERS.find(t => t.id === histSysId) ?? CANCER_TIERS[0]) : null;
-    const selSys = !isCancerTier ? (assocSystems.find(s => s.id === histSysId) || sysGroups.find(g => g.groupId !== "cancer")?.systems[0] || assocSystems[0]) : null;
+    const isCancerHealthSystem = CANCER_HEALTH_SYSTEMS.some(t => t.id === histSysId);
+    const selHealthSystem = isCancerHealthSystem ? (CANCER_HEALTH_SYSTEMS.find(t => t.id === histSysId) ?? CANCER_HEALTH_SYSTEMS[0]) : null;
+    const selSys = !isCancerHealthSystem ? (assocSystems.find(s => s.id === histSysId) || sysGroups.find(g => g.groupId !== "cancer")?.systems[0] || assocSystems[0]) : null;
 
-    // For cancer tiers, pathways within the tier serve as "processes"
-    const cancerPathways = selTier ? CANCER_SYSTEMS.filter(s => selTier.systems.includes(s.id)) : [];
-    const procList = isCancerTier
+    // For cancer health systems, pathways within the health system serve as "processes"
+    const cancerPathways = selHealthSystem ? CANCER_SYSTEMS.filter(s => selHealthSystem.systems.includes(s.id)) : [];
+    const procList = isCancerHealthSystem
         ? cancerPathways.map(s => ({ id: s.id, name: s.name }))
         : Object.keys(selSys?.processes ?? {}).map(name => ({ id: name, name }));
     const validProc = procList.find(p => p.id === histProcName)?.id ?? procList[0]?.id ?? "";
 
     const domainScores = nonDemoClients.map(r => r.cancerDomainScore).filter(x => x != null);
     const sysScores = nonDemoClients
-        .map(r => isCancerTier
-            ? r.cancerTierScores?.find(t => t.id === histSysId)?.score
+        .map(r => isCancerHealthSystem
+            ? r.cancerHealthSystemScores?.find(t => t.id === histSysId)?.score
             : r.systems.find(s => s.id === histSysId)?.score)
         .filter(x => x != null);
     const procScores = !validProc ? [] : nonDemoClients
-        .map(r => isCancerTier
+        .map(r => isCancerHealthSystem
             ? r.systems.find(s => s.id === validProc)?.score
             : r.systems.find(s => s.id === histSysId)?.procs?.find(p => p.name === validProc)?.score)
         .filter(x => x != null);
 
-    const sysTitle = isCancerTier ? (selTier?.label ?? "") : (selSys?.name ?? "");
-    const procTitle = isCancerTier ? (CANCER_SYSTEMS.find(s => s.id === validProc)?.name ?? validProc) : validProc;
+    const sysTitle = isCancerHealthSystem ? (selHealthSystem?.label ?? "") : (selSys?.name ?? "");
+    const procTitle = isCancerHealthSystem ? (CANCER_SYSTEMS.find(s => s.id === validProc)?.name ?? validProc) : validProc;
 
     // Build group tabs — replace cancer group's systems with the 3 tiers
     const groupTabs = sysGroups.map(g =>
         g.groupId === "cancer"
-            ? { groupId: "cancer", label: g.label, items: CANCER_TIERS.map(t => ({ id: t.id, name: t.shortLabel })) }
+            ? { groupId: "cancer", label: g.label, items: CANCER_HEALTH_SYSTEMS.map(t => ({ id: t.id, name: t.shortLabel })) }
             : { groupId: g.groupId, label: g.label, items: g.systems.map(s => ({ id: s.id, name: s.name })) }
     );
     function selectSys(sId) {
         setHistSysId(sId);
-        if (CANCER_TIERS.some(t => t.id === sId)) {
-            const tier = CANCER_TIERS.find(t => t.id === sId);
-            setHistProcName(CANCER_SYSTEMS.filter(s => tier.systems.includes(s.id))[0]?.id ?? "");
+        if (CANCER_HEALTH_SYSTEMS.some(t => t.id === sId)) {
+            const healthSystem = CANCER_HEALTH_SYSTEMS.find(t => t.id === sId);
+            setHistProcName(CANCER_SYSTEMS.filter(s => healthSystem.systems.includes(s.id))[0]?.id ?? "");
         } else {
             setHistProcName(Object.keys(assocSystems.find(s => s.id === sId)?.processes ?? {})[0] ?? "");
         }
@@ -5733,8 +5742,8 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
                         ))}
                     </select>
                 </div>
-                <Histogram scores={sysScores} title={sysTitle} redCutoff={isCancerTier ? 70 : sysRedCutoff} yellowCutoff={isCancerTier ? 80 : sysYellowCutoff} />
-                {isCancerTier ? (
+                <Histogram scores={sysScores} title={sysTitle} redCutoff={isCancerHealthSystem ? 70 : sysRedCutoff} yellowCutoff={isCancerHealthSystem ? 80 : sysYellowCutoff} />
+                {isCancerHealthSystem ? (
                     <div style={{ fontSize: 10, color: C.textFaint, marginTop: 24 }}>
                         <span style={{ color: C.critical, fontWeight: 600 }}>Red: 0 – 69</span> · <span style={{ color: C.fair, fontWeight: 600 }}>Yellow: 70 – 79</span> · <span style={{ color: C.teal, fontWeight: 600 }}>Green: 80+</span>
                     </div>
@@ -5757,7 +5766,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 
             {/* Process / Pathway scores */}
             <div style={{ ...card, padding: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>{isCancerTier ? "Pathway Scores" : "Process Scores"}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>{isCancerHealthSystem ? "Pathway Scores" : "Process Scores"}</div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Showing scores from {procScores.length} client report{procScores.length !== 1 ? "s" : ""}.</div>
                 <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
                     {procList.map(p => (
@@ -5793,7 +5802,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 }
 
 // ─── FlowchartTab ─────────────────────────────────────────────────────────────
-function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancerTierId, isCancerFlow, setIsCancerFlow, bioWeights, procWeights, cancerSysWeights, cancerTierWeights, card, assocSystems, sysGroups }) {
+function FlowchartTab({ flowSysId, setFlowSysId, flowCancerHealthSystemId, setFlowCancerHealthSystemId, isCancerFlow, setIsCancerFlow, bioWeights, procWeights, cancerSysWeights, cancerHealthSystemWeights, card, assocSystems, sysGroups }) {
     const sys = assocSystems.find(s => s.id === flowSysId) || sysGroups[0]?.systems[0] || assocSystems[0];
     const procs = Object.entries(sys.processes);
     const DEFAULT_BIO = { weight: 1, color: "red", level: "both" };
@@ -5942,17 +5951,17 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
                         <div key={label}>
                             <div style={{ fontSize: 9, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 5 }}>{label}</div>
                             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {groupId === "cancer" ? CANCER_TIERS.map(tier => {
-                                    const active = isCancerFlow && flowCancerTierId === tier.id;
+                                {groupId === "cancer" ? CANCER_HEALTH_SYSTEMS.map(healthSystem => {
+                                    const active = isCancerFlow && flowCancerHealthSystemId === healthSystem.id;
                                     return (
-                                        <button key={tier.id} onClick={() => { setFlowCancerTierId(tier.id); setIsCancerFlow(true); }}
+                                        <button key={healthSystem.id} onClick={() => { setFlowCancerHealthSystemId(healthSystem.id); setIsCancerFlow(true); }}
                                             style={{
                                                 padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
                                                 border: `1px solid ${active ? C.steel : C.border}`,
                                                 background: active ? `${C.steel}18` : "transparent",
                                                 color: active ? C.steel : C.textMuted, fontWeight: active ? 700 : 400
                                             }}>
-                                            {tier.shortLabel}
+                                            {healthSystem.shortLabel}
                                         </button>
                                     );
                                 }) : systems.map(s => (
@@ -5989,15 +5998,15 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
                 </div>
             </div>
 
-            {/* ── Cancer tier flowchart ── */}
+            {/* ── Cancer health system flowchart ── */}
             {isCancerFlow ? (() => {
-                const tier = CANCER_TIERS.find(t => t.id === flowCancerTierId) ?? CANCER_TIERS[0];
-                const pathways = CANCER_SYSTEMS.filter(s => tier.systems.includes(s.id));
+                const healthSystem = CANCER_HEALTH_SYSTEMS.find(t => t.id === flowCancerHealthSystemId) ?? CANCER_HEALTH_SYSTEMS[0];
+                const pathways = CANCER_SYSTEMS.filter(s => healthSystem.systems.includes(s.id));
                 const PAD = 28, BIO_H = 26, BIO_H_MOD = 40, BIO_GAP = 6, PATH_BIO_GAP = 22;
-                const TIER_H = 90;
+                const HEALTH_SYSTEM_H = 90;
 
-                const effectiveTierW = cancerTierWeights[tier.id] ?? tier.weight;
-                const tierModified = cancerTierWeights[tier.id] != null && cancerTierWeights[tier.id] !== tier.weight;
+                const effectiveHealthSystemW = cancerHealthSystemWeights[healthSystem.id] ?? healthSystem.weight;
+                const healthSystemModified = cancerHealthSystemWeights[healthSystem.id] != null && cancerHealthSystemWeights[healthSystem.id] !== healthSystem.weight;
 
                 // Per-pathway: extract biomarkers, compute bio heights + centres
                 const pathData = pathways.map(pw => {
@@ -6035,7 +6044,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
                 // Hover highlighting — mirrors the non-cancer flowchart's getActiveSets/hoveredNode pattern
                 function getActiveCancerSets(hov) {
                     if (!hov) return { activeBios: null, activePathways: null };
-                    if (hov.type === "tier") return { activeBios: new Set(pathData.flatMap(d => d.bms)), activePathways: new Set(pathData.map(d => d.pw.id)) };
+                    if (hov.type === "healthSystem") return { activeBios: new Set(pathData.flatMap(d => d.bms)), activePathways: new Set(pathData.map(d => d.pw.id)) };
                     if (hov.type === "pathway") {
                         const d = pathData.find(d => d.pw.id === hov.id);
                         return { activeBios: new Set(d ? d.bms : []), activePathways: new Set([hov.id]) };
@@ -6090,19 +6099,19 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
                             <text x={D_X + D_W / 2} y={midY + 8} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>Score</text>
                             <text x={D_X + D_W / 2} y={midY + 23} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Domain</text>
                             {/* Tier node */}
-                            <g onMouseEnter={() => setHoveredNode({ type: "tier" })} onMouseLeave={() => setHoveredNode(null)}
+                            <g onMouseEnter={() => setHoveredNode({ type: "healthSystem" })} onMouseLeave={() => setHoveredNode(null)}
                                 style={{ cursor: "default", opacity: 1, transition: "opacity 0.15s" }}>
-                                <rect x={T_X} y={midY - TIER_H / 2} width={T_W} height={TIER_H} rx="8"
-                                    fill={isHoveringCancer ? `${C.navy}28` : tierModified ? `${C.teal}18` : `${C.navy}14`}
-                                    stroke={tierModified ? C.teal : C.navy} strokeWidth={isHoveringCancer ? 2.5 : tierModified ? 2 : 1.5}
+                                <rect x={T_X} y={midY - HEALTH_SYSTEM_H / 2} width={T_W} height={HEALTH_SYSTEM_H} rx="8"
+                                    fill={isHoveringCancer ? `${C.navy}28` : healthSystemModified ? `${C.teal}18` : `${C.navy}14`}
+                                    stroke={healthSystemModified ? C.teal : C.navy} strokeWidth={isHoveringCancer ? 2.5 : healthSystemModified ? 2 : 1.5}
                                     style={{ transition: "fill 0.15s, stroke-width 0.15s" }} />
-                                <text x={T_X + T_W / 2} y={midY - TIER_H / 2 + 18} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>{tier.shortLabel}</text>
-                                {wrapText(tier.label.replace(/^Tier \d — /, ""), 20).map((line, li, arr) => (
+                                <text x={T_X + T_W / 2} y={midY - HEALTH_SYSTEM_H / 2 + 18} textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>{healthSystem.shortLabel}</text>
+                                {wrapText(healthSystem.label.replace(/^Tier \d — /, ""), 20).map((line, li, arr) => (
                                     <text key={li} x={T_X + T_W / 2} y={midY - 6 + li * 13 - (arr.length - 1) * 6} textAnchor="middle" fontSize="10" fill={C.textSecond} fontFamily={T.body}>{line}</text>
                                 ))}
-                                <text x={T_X + T_W / 2} y={midY + TIER_H / 2 - 26} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Tier</text>
+                                <text x={T_X + T_W / 2} y={midY + HEALTH_SYSTEM_H / 2 - 26} textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Tier</text>
                                 {/* Tier weight badge — always teal */}
-                                {badge(`×${effectiveTierW}`, C.teal, T_X + 12, midY + TIER_H / 2 - 12)}
+                                {badge(`×${effectiveHealthSystemW}`, C.teal, T_X + 12, midY + HEALTH_SYSTEM_H / 2 - 12)}
                             </g>
                             {/* Pathway nodes */}
                             {pathData.map((d, i) => {
@@ -6173,7 +6182,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
                 <svg ref={svgRef} width={totalW} height={totalH} style={{ display: "block", fontFamily: T.body, overflow: "visible" }}
                     xmlns="http://www.w3.org/2000/svg">
 
-                    {/* Connectors: 2-tier = system→bio direct; 3-tier = system→process→bio */}
+                    {/* Connectors: 2-level = system→bio direct; 3-level = system→process→bio */}
                     {isTwoTier ? (
                         allBiomarkers.map((bmName, bi) => {
                             const x1 = COL1_X + COL1_W, y1 = sysY;
@@ -6247,7 +6256,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerTierId, setFlowCancer
                             textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>System</text>
                     </g>
 
-                    {/* Process nodes — 3-tier only */}
+                    {/* Process nodes — 3-level only */}
                     {!isTwoTier && procs.map(([procName], pi) => {
                         const pe = procWeights[procName] ?? DEFAULT_PROC;
                         const w = pe.weight ?? 1;
@@ -6399,10 +6408,10 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
         if (statusFilter !== "all" && rowStatus(r) !== statusFilter) return false;
         if (systemFilter !== "all") {
             if (systemFilter.startsWith("group:") && r.group !== systemFilter.slice(6)) return false;
-            if (systemFilter.startsWith("tier:")) {
-                const tierId = systemFilter.slice(5);
-                const tier = CANCER_TIERS.find(t => t.id === tierId);
-                if (!tier || !tier.systems.includes(r.systemId)) return false;
+            if (systemFilter.startsWith("healthSystem:")) {
+                const healthSystemId = systemFilter.slice("healthSystem:".length);
+                const healthSystem = CANCER_HEALTH_SYSTEMS.find(t => t.id === healthSystemId);
+                if (!healthSystem || !healthSystem.systems.includes(r.systemId)) return false;
             } else if (!systemFilter.startsWith("group:") && r.systemId !== systemFilter) return false;
         }
         if (!search.trim()) return true;
@@ -6593,7 +6602,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                         <optgroup key={groupId} label={label}>
                             <option value={`group:${groupId}`}>— All {label} —</option>
                             {groupId === "cancer"
-                                ? CANCER_TIERS.map(t => <option key={t.id} value={`tier:${t.id}`}>{t.shortLabel} — {t.label.replace(/^Tier \d — /, "")}</option>)
+                                ? CANCER_HEALTH_SYSTEMS.map(t => <option key={t.id} value={`healthSystem:${t.id}`}>{t.shortLabel} — {t.label.replace(/^Tier \d — /, "")}</option>)
                                 : systems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </optgroup>
                     ))}
@@ -6646,7 +6655,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                                 </td>
                                 <td style={{ padding: "7px 14px", color: C.textSecond, fontWeight: 500 }}>
                                     {row.group === "cancer"
-                                        ? (CANCER_TIERS.find(t => t.systems.includes(row.systemId))?.shortLabel ?? row.systemName)
+                                        ? (CANCER_HEALTH_SYSTEMS.find(t => t.systems.includes(row.systemId))?.shortLabel ?? row.systemName)
                                         : row.systemName}
                                 </td>
                                 <td style={{ padding: "7px 14px", color: row.group === "cancer" ? C.textMuted : isTwoLevelGroup(row.group) ? C.border : C.textMuted, fontStyle: row.group === "cancer" ? "normal" : isTwoLevelGroup(row.group) ? "italic" : "normal" }}>
