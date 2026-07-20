@@ -429,12 +429,11 @@ const CANCER_HEALTH_SYSTEMS = [
       systems: ["cancer_angiogenesis", "cancer_matrix_remodelling", "cancer_metastasis"] },
 ];
 
+// Same green/yellow/red cutoffs as every other score in the app (>=91 / 70-90 / <=69)
 const CANCER_CLASSIFICATIONS = [
-    { min: 80, max: 100, label: "Low Concern",               color: C.green },
-    { min: 60, max: 79,  label: "Low to Moderate Concern",   color: C.good },
-    { min: 45, max: 59,  label: "Moderate Concern",          color: C.fair },
-    { min: 25, max: 44,  label: "Moderate to High Concern",  color: C.atRisk },
-    { min: 0,  max: 24,  label: "High Concern",              color: C.critical },
+    { min: 91, max: 100, label: "Green",  color: C.teal },
+    { min: 70, max: 90,  label: "Yellow", color: C.fair },
+    { min: 0,  max: 69,  label: "Red",    color: C.critical },
 ];
 
 const ALL_SYSTEMS = [...SYSTEMS, ...DISEASE_SYSTEMS, ...CANCER_SYSTEMS];
@@ -1399,13 +1398,9 @@ function procColour(s) {
     return C.critical;
 }
 
-// Colour for cancer Tier 1/2/3 scores — green >=80, yellow 70-80, red <70
+// Cancer Tier 1/2/3 scores use the same green/yellow/red cutoffs as every other score
 function cancerHealthSystemColour(s) {
-    if (s == null) return C.textFaint;
-    const f = Math.floor(s);
-    if (f >= 80) return C.teal;
-    if (f >= 70) return C.fair;
-    return C.critical;
+    return procColour(s);
 }
 
 function wavg(pairs) {
@@ -3768,14 +3763,13 @@ T3 = mean(pathway scores in Tier 3)`}</pre>
 
 100 = all pathways healthy   |   0 = maximum cancer risk`}</pre>
                     <div style={h3}>Risk classification</div>
+                    <p style={p}>Same green/yellow/red cutoffs as every other score in the app.</p>
                     <table style={tbl}>
                         <thead><tr><th style={th}>Score range</th><th style={th}>Classification</th></tr></thead>
                         <tbody>
-                            <tr><td style={td}>80 – 100</td><td style={td}>Low Concern</td></tr>
-                            <tr><td style={td}>60 – 79</td><td style={td}>Low to Moderate Concern</td></tr>
-                            <tr><td style={td}>45 – 59</td><td style={td}>Moderate Concern</td></tr>
-                            <tr><td style={td}>25 – 44</td><td style={td}>Moderate to High Concern</td></tr>
-                            <tr><td style={td}>0 – 24</td><td style={td}>High Concern</td></tr>
+                            <tr><td style={td}>91 – 100</td><td style={td}>Green</td></tr>
+                            <tr><td style={td}>70 – 90</td><td style={td}>Yellow</td></tr>
+                            <tr><td style={td}>0 – 69</td><td style={td}>Red</td></tr>
                         </tbody>
                     </table>
 
@@ -3819,7 +3813,7 @@ T3 = (38 + 50 + 58) / 3   = 48.7
 
 Composite = (1×88.7 + 2×46.0 + 3×48.7) / 6
           = (88.7 + 92.0 + 146.1) / 6
-          = 54.5  →  Moderate Concern (45–59)`}</pre>
+          = 54.5  →  Red (0–69)`}</pre>
                 </div>
             </div>
         </div>
@@ -4993,9 +4987,9 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                                 const syScores = visibleSystems.map(s => row.systems.find(rs => rs.id === s.id)?.score).filter(x => x != null);
                                                                 const healthSystemScores = cancerColsVisible ? (row.cancerHealthSystemScores?.map(t => t.score).filter(x => x != null) ?? []) : [];
                                                                 const nY = syScores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length
-                                                                    + healthSystemScores.filter(s => Math.floor(s) >= 70 && Math.floor(s) < 80).length;
+                                                                    + healthSystemScores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
                                                                 const nR = syScores.filter(s => Math.floor(s) < overviewYellow).length
-                                                                    + healthSystemScores.filter(s => Math.floor(s) < 70).length;
+                                                                    + healthSystemScores.filter(s => Math.floor(s) < overviewYellow).length;
                                                                 return (
                                                                     <td style={{ ...stickyWarnCell, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap" }}>
                                                                         {nR > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: C.critical, marginRight: 2 }}>{nR}R</span>}
@@ -5106,7 +5100,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 const allStats = aggregateData.map(pd => {
                                                     const scores = pd.clients.map(r => r.cancerHealthSystemScores?.find(t => t.id === healthSystem.id)?.score).filter(x => x != null);
                                                     const st = stats(scores);
-                                                    return st ? { ...st, breakdown: rygBreakdown(scores, 70, 80) } : null;
+                                                    return st ? { ...st, breakdown: rygBreakdown(scores, overviewYellow, overviewGreen) } : null;
                                                 });
                                                 const baseStats = allStats[0];
                                                 const procC = cancerHealthSystemColour(baseStats?.mean);
@@ -5644,7 +5638,7 @@ function CancerHistogram({ scores }) {
                 {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(v => (
                     <text key={v} x={x(v)} y={H - 4} textAnchor="middle" fontSize="6" fill={C.textFaint}>{v}</text>
                 ))}
-                {[24, 44, 59, 79].map(v => (
+                {[69, 90].map(v => (
                     <line key={v} x1={x(v + 1)} y1={padT} x2={x(v + 1)} y2={padT + iH} stroke={getClass(v).color} strokeWidth="0.8" strokeDasharray="3,2" opacity="0.7" />
                 ))}
             </svg>
@@ -5748,26 +5742,21 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
                         ))}
                     </select>
                 </div>
-                <Histogram scores={sysScores} title={sysTitle} redCutoff={isCancerHealthSystem ? 70 : sysRedCutoff} yellowCutoff={isCancerHealthSystem ? 80 : sysYellowCutoff} />
-                {isCancerHealthSystem ? (
-                    <div style={{ fontSize: 10, color: C.textFaint, marginTop: 24 }}>
-                        <span style={{ color: C.critical, fontWeight: 600 }}>Red: 0 – 69</span> · <span style={{ color: C.fair, fontWeight: 600 }}>Yellow: 70 – 79</span> · <span style={{ color: C.teal, fontWeight: 600 }}>Green: 80+</span>
-                    </div>
-                ) : (
-                    <CutoffControl
-                        redCutoff={sysRedCutoff} setRedCutoff={setSysRedCutoff}
-                        yellowCutoff={sysYellowCutoff} setYellowCutoff={setSysYellowCutoff}
-                        defaultRed={DEFAULT_SYS_RED} defaultYellow={DEFAULT_SYS_YELLOW}
-                        onReset={() => { setSysRedCutoff(DEFAULT_SYS_RED); setSysYellowCutoff(DEFAULT_SYS_YELLOW); }}
-                        onSuggest={() => {
-                            const allSysScores = nonDemoClients.flatMap(r => r.systems.map(s => s.score).filter(x => x != null));
-                            if (!allSysScores.length) return;
-                            const sorted = [...allSysScores].sort((a, b) => a - b);
-                            const r = Math.floor(sorted[Math.floor(sorted.length / 3)]);
-                            const y = Math.floor(sorted[Math.floor(sorted.length * 2 / 3)]);
-                            if (r >= 1 && y > r && y <= 100) { setSysRedCutoff(r); setSysYellowCutoff(y); }
-                        }} />
-                )}
+                {/* Cancer Tiers use the same red/yellow cutoffs as every other system — no special-case needed */}
+                <Histogram scores={sysScores} title={sysTitle} redCutoff={sysRedCutoff} yellowCutoff={sysYellowCutoff} />
+                <CutoffControl
+                    redCutoff={sysRedCutoff} setRedCutoff={setSysRedCutoff}
+                    yellowCutoff={sysYellowCutoff} setYellowCutoff={setSysYellowCutoff}
+                    defaultRed={DEFAULT_SYS_RED} defaultYellow={DEFAULT_SYS_YELLOW}
+                    onReset={() => { setSysRedCutoff(DEFAULT_SYS_RED); setSysYellowCutoff(DEFAULT_SYS_YELLOW); }}
+                    onSuggest={() => {
+                        const allSysScores = nonDemoClients.flatMap(r => r.systems.map(s => s.score).filter(x => x != null));
+                        if (!allSysScores.length) return;
+                        const sorted = [...allSysScores].sort((a, b) => a - b);
+                        const r = Math.floor(sorted[Math.floor(sorted.length / 3)]);
+                        const y = Math.floor(sorted[Math.floor(sorted.length * 2 / 3)]);
+                        if (r >= 1 && y > r && y <= 100) { setSysRedCutoff(r); setSysYellowCutoff(y); }
+                    }} />
             </div>
 
             {/* Process / Pathway scores */}
