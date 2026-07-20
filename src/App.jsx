@@ -442,6 +442,27 @@ const CANCER_CLASSIFICATIONS = [
     { min: 0,  max: 69,  label: "Red",    color: C.critical },
 ];
 
+// Curated log of changes that move computed scores — biomarker/pathway associations or
+// scoring math/cutoffs. Not a commit log (too noisy); only add an entry when a change here
+// actually changes what a client's score would be. Append to the end; rendered newest-first.
+const CHANGELOG = [
+    {
+        date: "2026-07-20", type: "math", commit: "d89ffd8",
+        title: "Gated biomarkers no longer inflate their process weight",
+        summary: "A biomarker whose only out-of-range excursion is in a direction impact_dir doesn't cover (so it scores 100) was still being weighted by its raw yellow/red zone (×2/×4) instead of green (×1) — inflating any pathway that mixed a gated extreme with a real deficit elsewhere. Fixed in computeSystem/effectiveWeight.",
+    },
+    {
+        date: "2026-07-20", type: "math", commit: "719735b",
+        title: "Cancer cutoffs unified to the standard green/yellow/red scale",
+        summary: "Cancer composite classification collapsed from 5 concern-level bands (\"Low Concern\"…\"High Concern\") to the same green ≥91 / yellow 70–90 / red ≤69 cutoff used for every other score in the app. Individual tier scores previously used a separate 80/70 cutoff — now identical everywhere.",
+    },
+    {
+        date: "2026-07-20", type: "associations", commit: "0e15137",
+        title: "Cancer pathway biomarker associations updated",
+        summary: "Synced CANCER_SYSTEMS from the updated data/data-associations/cancer_map.csv: added 6 biomarkers (L-selectin, Phospholipid transfer protein, Adipocyte plasma membrane-associated protein, Gelsolin, Antithrombin-III, Ficolin-2) and changed directionality on ~22 biomarkers (mostly single-direction high/low → both, removing score-gating for those).",
+    },
+];
+
 const ALL_SYSTEMS = [...SYSTEMS, ...DISEASE_SYSTEMS, ...CANCER_SYSTEMS];
 
 const DEFAULT_ALL_SYSTEMS = [
@@ -1851,6 +1872,7 @@ export default function App() {
     const [editConc, setEditConc] = useState(false);   // unlock toggle
     const [concWarnModal, setConcWarnModal] = useState(false);   // warning popup
     const [formulasModal, setFormulasModal] = useState(false);
+    const [changelogModal, setChangelogModal] = useState(false);
     const fileRef = useRef();
     const weightFileRef = useRef();
     const [uploadModal, setUploadModal] = useState(false);
@@ -2397,6 +2419,8 @@ export default function App() {
                     <button onClick={resetWeights} style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>↺ Reset</button>
                     <button onClick={() => setFormulasModal(true)} title="Scoring formulas"
                         style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>ℹ</button>
+                    <button onClick={() => setChangelogModal(true)} title="What's changed — scoring math & biomarker associations"
+                        style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>🕘</button>
                     <button onClick={() => { setTutorialStep(0); setShowTutorial(true); }} title="Show tutorial"
                         style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>?</button>
                     {hasData && <select value={clientId} onChange={e => setClientId(e.target.value)}
@@ -3077,6 +3101,7 @@ export default function App() {
 
             {/* ── Formulas modal ── */}
             {formulasModal && <FormulasModal onClose={() => setFormulasModal(false)} />}
+            {changelogModal && <ChangelogModal onClose={() => setChangelogModal(false)} />}
 
             {/* ── Save modal ── */}
             {saveModal && (
@@ -3820,6 +3845,48 @@ T3 = (38 + 50 + 58) / 3   = 48.7
 Composite = (1×88.7 + 2×46.0 + 3×48.7) / 6
           = (88.7 + 92.0 + 146.1) / 6
           = 54.5  →  Red (0–69)`}</pre>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ChangelogModal({ onClose }) {
+    const typeTag = { math: { label: "Math", color: C.steel }, associations: { label: "Associations", color: C.teal } };
+    return (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(24,55,75,0.6)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center" }}
+            onClick={onClose}>
+            <div style={{ background: C.surface, borderRadius: 14, width: "90vw", maxWidth: 720, height: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 16px 60px rgba(24,55,75,0.35)", overflow: "hidden" }}
+                onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div style={{ padding: "16px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+                    <span style={{ fontFamily: T.display, fontSize: 18, color: C.navy }}>What's Changed</span>
+                    <button onClick={onClose} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
+                </div>
+
+                {/* Scrollable body */}
+                <div style={{ overflowY: "auto", padding: "8px 24px 28px", flex: 1 }}>
+                    <p style={{ fontSize: 12, color: C.textFaint, lineHeight: 1.6, margin: "16px 0 20px" }}>
+                        Changes that move computed scores — biomarker/pathway associations or scoring math/cutoffs.
+                        Not a full commit log; only entries that actually change what a client's score would be.
+                    </p>
+                    {[...CHANGELOG].reverse().map((entry, i) => {
+                        const tag = typeTag[entry.type] ?? { label: entry.type, color: C.textMuted };
+                        return (
+                            <div key={i} style={{ padding: "14px 0", borderTop: i > 0 ? `1px solid ${C.border}` : "none" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+                                    <span style={{ fontSize: 10, fontFamily: T.mono, color: C.textFaint }}>{entry.date}</span>
+                                    <span style={{ fontSize: 9, fontWeight: 700, color: tag.color, background: `${tag.color}18`, borderRadius: 4, padding: "2px 7px", textTransform: "uppercase", letterSpacing: "0.06em" }}>{tag.label}</span>
+                                    {entry.commit && (
+                                        <a href={`https://github.com/windyzn/scoring-workbench/commit/${entry.commit}`} target="_blank" rel="noopener noreferrer"
+                                            style={{ fontSize: 10, fontFamily: T.mono, color: C.textFaint, marginLeft: "auto" }}>{entry.commit} ↗</a>
+                                    )}
+                                </div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4 }}>{entry.title}</div>
+                                <p style={{ fontSize: 12.5, color: C.textSecond, lineHeight: 1.6, margin: 0 }}>{entry.summary}</p>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </div>
