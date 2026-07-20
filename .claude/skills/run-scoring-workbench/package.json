@@ -1,0 +1,9 @@
+{
+  "name": "run-scoring-workbench-driver",
+  "private": true,
+  "type": "module",
+  "description": "Isolated Playwright dependency for the run-scoring-workbench agent driver. Not part of the app's own dependency graph — installed separately here so the app itself never depends on a browser-automation library.",
+  "dependencies": {
+    "playwright": "^1.61.1"
+  }
+}
