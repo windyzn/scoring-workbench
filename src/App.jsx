@@ -2420,7 +2420,7 @@ export default function App() {
                     <button onClick={() => setFormulasModal(true)} title="Scoring formulas"
                         style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>ℹ</button>
                     <button onClick={() => setChangelogModal(true)} title="What's changed — scoring math & biomarker associations"
-                        style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>🕘</button>
+                        style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>c</button>
                     <button onClick={() => { setTutorialStep(0); setShowTutorial(true); }} title="Show tutorial"
                         style={{ background: "transparent", border: `1px solid #2d607e`, color: C.iceMid, padding: "4px 9px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>?</button>
                     {hasData && <select value={clientId} onChange={e => setClientId(e.target.value)}
@@ -3868,7 +3868,7 @@ function ChangelogModal({ onClose }) {
                 <div style={{ overflowY: "auto", padding: "8px 24px 28px", flex: 1 }}>
                     <p style={{ fontSize: 12, color: C.textFaint, lineHeight: 1.6, margin: "16px 0 20px" }}>
                         Changes that move computed scores — biomarker/pathway associations or scoring math/cutoffs.
-                        Not a full commit log; only entries that actually change what a client's score would be.
+                        Only entries that actually change what a client's score would be will be included here.
                     </p>
                     {[...CHANGELOG].reverse().map((entry, i) => {
                         const tag = typeTag[entry.type] ?? { label: entry.type, color: C.textMuted };
