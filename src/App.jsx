@@ -1455,7 +1455,13 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
             const rng = m.refHigh - m.refLow, gL = m.refLow + gp * rng, gH = m.refHigh - gp * rng;
             const manualW = typeof entry === "object" ? entry.weight : entry;
             const status = m.value > gH ? "HIGH" : m.value < gL ? "LOW" : "NORMAL";
-            const effW = effectiveWeight(entry, hasEntry, zone, status, yellowW, redW, level);
+            // A biomarker gated to score=100 (its excursion is in the direction this
+            // process doesn't care about) is functionally green for this process — it must
+            // not carry a yellow/red weight (or a manual override) into the average, or a
+            // real deficit elsewhere gets diluted by a phantom-100 with inflated weight.
+            const gated = (level === "high" && status === "LOW") || (level === "low" && status === "HIGH");
+            const weightZone = gated ? "green" : zone;
+            const effW = effectiveWeight(entry, hasEntry, weightZone, status, yellowW, redW, level);
             return {
                 name, value: m.value, refLow: m.refLow, refHigh: m.refHigh,
                 score: s, zone, weight: manualW, effWeight: effW, missing: false,
