@@ -1602,7 +1602,7 @@ function buildClients(rows) {
         if (!pts[pid]) pts[pid] = { id: pid, label, markers: {} };
 
         const name = col(row, "measure_name", "measurename");
-        const concRaw = col(row, "concentration", "lab_concentration", "labconcentration");
+        const concRaw = col(row, "concentration", "raw_concentration", "lab_concentration", "labconcentration");
 
         // Skip missing, BLQ, NR, ND
         if (!name || !concRaw) continue;
@@ -1644,7 +1644,7 @@ function buildClientFromAdminPortal(rows, clientName) {
 
     for (const row of rows) {
         const name = col(row, "measure_name");
-        const concRaw = col(row, "concentration", "lab_concentration");
+        const concRaw = col(row, "concentration", "raw_concentration", "lab_concentration");
         if (!name || !concRaw) continue;
         if (/^blq$|^nr$|^nd$/i.test(concRaw)) continue;
 
