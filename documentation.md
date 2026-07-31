@@ -571,7 +571,9 @@ This is intentionally unweighted — each system contributes equally. If differe
 
 ## 14. Cancer Pathway Risk Scoring
 
-The Cancer Pathway Risk Assessment product adds a domain-level aggregation layer on top of the standard three-tier hierarchy. Pathway health scores (computed using the standard biomarker → process → system logic from sections 3–8) are organised into three biological tiers of increasing cancer specificity, then combined into a single weighted composite that maps to a five-category risk classification.
+> **Sign-off:** This section reflects the model approved in *Executive Summary & Sign-Off: Cancer Scoring Model* (2026-07-27, Rob Fraser & Haiyan Yang). It supersedes the previous five-category "Low Concern … High Concern" classification.
+
+The Cancer Pathway Risk Assessment product adds a domain-level aggregation layer on top of the standard three-tier hierarchy. Pathway health scores (computed using the standard biomarker → process → system logic from sections 3–8) are organised into three biological tiers of increasing cancer specificity, then combined into a single weighted composite that maps to a three-category risk classification (Green / Yellow / Red).
 
 Full pipeline:
 
@@ -594,7 +596,7 @@ Non-cancer-specific foundational conditions that create a permissive biological 
 | Pathway | Biomarkers | Cancer Specificity |
 |---------|------------|-------------------|
 | Metabolic Dysfunction | 17 | Low |
-| Inflammation | 15 | Low |
+| Thromboinflammation | 17 | Low |
 | Oxidative Stress | 6 | Low |
 
 **Tier 2 — Transitional Biology**
@@ -603,8 +605,8 @@ Middle-ground pathways representing necessary steps in cancer progression that c
 
 | Pathway | Biomarkers | Cancer Specificity |
 |---------|------------|-------------------|
-| Cell Proliferation | 15 | Moderate |
-| Immune System Evasion | 15 | Moderate |
+| Cell Proliferation | 11 | Moderate |
+| Immune System Evasion | 16 | Moderate |
 
 **Tier 3 — Tumour-Associated Biology**
 
@@ -613,8 +615,8 @@ Pathways with the highest specificity for processes directly associated with est
 | Pathway | Biomarkers | Cancer Specificity |
 |---------|------------|-------------------|
 | Angiogenesis | 6 | High |
-| Matrix Remodelling | 7 | High |
-| Metastasis | 13 | High |
+| Matrix Remodelling | 8 | High |
+| Metastasis | 15 | High |
 
 ---
 
@@ -654,17 +656,18 @@ The composite is on a 0–100 scale. 100 represents perfect health across all pa
 
 ### 14.4 Risk Classification
 
-The composite score maps to five risk categories:
+The composite score maps to three risk categories — the same Green/Yellow/Red convention used for pathway and system scores elsewhere in the app, but with cancer-specific cut-offs rather than the standard 91/70/69 scale:
 
-| Score Range | Classification | Recommended Clinical Action |
-|-------------|---------------|----------------------------|
-| 80 – 100 | Low Concern | Routine cancer screening per age and sex guidelines. No additional follow-up required from this panel. |
-| 60 – 79 | Low to Moderate Concern | Routine screening continues. Consider lifestyle and metabolic optimisation. Retest in 6–12 months to assess trajectory. |
-| 45 – 59 | Moderate Concern | Discuss findings with primary care provider. Targeted follow-up investigations based on specific elevated pathways. Retest in 3–6 months. |
-| 25 – 44 | Moderate to High Concern | Physician consultation recommended. Consider cancer-specific screening (imaging, tumour markers) guided by elevated pathway profile. Retest in 3 months. |
-| 0 – 24 | High Concern | Urgent physician referral. Comprehensive cancer workup including appropriate imaging and specialist consultation. Priority retest to confirm or track trajectory. |
+| Score Range | Classification | Interpretation | Clinical Action Protocol |
+|-------------|---------------|-----------------|---------------------------|
+| 85 – 100 | **Green** — Low / No Alteration | Pathways within expected reference ranges | No immediate clinical recommendations; standard routine checkups. |
+| 80 – 84 | **Yellow** — Moderately Altered Pathways | Intermediate risk / low-level biological shift | Retest in 6 months to monitor trajectory. |
+| 70 – 79 | **Yellow** — Moderately Altered Pathways | Intermediate risk / low-level biological shift | Retest in 3 months to evaluate score velocity. |
+| 0 – 69 | **Red** — Significantly Altered Pathways | High risk; significant alignment with tumour-associated biology | Advise client to seek primary care physician/specialist follow-up for formal diagnostic investigation. |
 
-The upper range (Low Concern: 80–100) is intentionally wider because most healthy individuals cluster there with minor isolated Tier 1 deviations. The lower ranges compress because once the composite falls below 25, the clinical response is uniform: urgent specialist follow-up.
+> **Note:** The Yellow band (70–84) has a single colour and label but two retest cadences depending on where the score falls within it — 80–84 retests at 6 months, 70–79 retests at 3 months.
+
+> **Note for implementers:** These cut-offs are specific to the cancer composite score and are separate from the general 91/70/69 Green/Yellow/Red scale used for individual pathway and system scores (section 10). Do not conflate the two — a pathway tile showing "Yellow" at 80 and the overall cancer composite showing "Green" at 85 are both correct simultaneously, because each uses its own scale.
 
 ---
 
@@ -690,7 +693,7 @@ Adjustments of **more than one category** require secondary review and sign-off 
 | Tier | Pathway | Health Score |
 |------|---------|-------------|
 | 1 | Metabolic Dysfunction | 66 |
-| 1 | Inflammation | 100 |
+| 1 | Thromboinflammation | 100 |
 | 1 | Oxidative Stress | 100 |
 | 2 | Cell Proliferation | 38 |
 | 2 | Immune System Evasion | 54 |
@@ -715,7 +718,7 @@ Composite = (1 × 88.7  +  2 × 46.0  +  3 × 48.7) / 6
           = 54.5
 ```
 
-**Classification:** Score 54.5 → **Moderate Concern** (45–59)
+**Classification:** Score 54.5 → **Red** (0–69) — Advise client to seek primary care physician/specialist follow-up for formal diagnostic investigation.
 
 ---
 

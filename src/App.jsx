@@ -435,10 +435,12 @@ const CANCER_HEALTH_SYSTEMS = [
       systems: ["cancer_angiogenesis", "cancer_matrix_remodelling", "cancer_metastasis"] },
 ];
 
-// Same green/yellow/red cutoffs as every other score in the app (>=91 / 70-90 / <=69)
+// Cancer-specific composite cut-offs, approved 2026-07-27 (Executive Summary & Sign-Off:
+// Cancer Scoring Model) — diverges from the general 91/70/69 scale used for tier/system
+// display elsewhere in the app.
 const CANCER_CLASSIFICATIONS = [
-    { min: 91, max: 100, label: "Green",  color: C.teal },
-    { min: 70, max: 90,  label: "Yellow", color: C.fair },
+    { min: 85, max: 100, label: "Green",  color: C.teal },
+    { min: 70, max: 84,  label: "Yellow", color: C.fair },
     { min: 0,  max: 69,  label: "Red",    color: C.critical },
 ];
 
@@ -460,6 +462,11 @@ const CHANGELOG = [
         date: "2026-07-20", type: "associations", commit: "0e15137",
         title: "Cancer pathway biomarker associations updated",
         summary: "Synced CANCER_SYSTEMS from the updated data/data-associations/cancer_map.csv: added 6 biomarkers (L-selectin, Phospholipid transfer protein, Adipocyte plasma membrane-associated protein, Gelsolin, Antithrombin-III, Ficolin-2) and changed directionality on ~22 biomarkers (mostly single-direction high/low → both, removing score-gating for those).",
+    },
+    {
+        date: "2026-07-30", type: "math", commit: "pending",
+        title: "Cancer composite cut-offs set to a dedicated 85/70/69 scale",
+        summary: "Per the Executive Summary & Sign-Off: Cancer Scoring Model (2026-07-27), the cancer composite classification no longer shares the app-wide 91/70/69 scale — it now uses its own Green ≥85 / Yellow 70–84 / Red <70 cut-offs. Individual tier/pathway scores are unaffected and continue to use the standard 91/70/69 scale.",
     },
 ];
 
@@ -1691,8 +1698,8 @@ function RygCell({ breakdown }) {
 }
 
 // ─── Atoms ────────────────────────────────────────────────────────────────────
-function ArcGauge({ score, size = 64, label }) {
-    const col = procColour(score), r = size * 0.37, cx = size / 2, cy = size / 2, circ = 2 * Math.PI * r;
+function ArcGauge({ score, size = 64, label, colour }) {
+    const col = colour ?? procColour(score), r = size * 0.37, cx = size / 2, cy = size / 2, circ = 2 * Math.PI * r;
     const dash = ((score ?? 0) / 100) * circ;
     return (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
@@ -3160,7 +3167,7 @@ export default function App() {
                                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
                                                         <span style={{ fontSize: 12, color: domainActive && !selectedCancerHealthSystemId ? C.navy : C.textSecond, fontWeight: 600, lineHeight: 1.3, flex: 1 }}>Cancer Score</span>
                                                         {domainScore != null
-                                                            ? <span style={{ fontSize: 12, color: procColour(Math.floor(domainScore)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(domainScore)}</span>
+                                                            ? <span style={{ fontSize: 12, color: cancerDomain?.classification?.color ?? procColour(Math.floor(domainScore)), fontWeight: 700, fontFamily: T.mono, flexShrink: 0 }}>{Math.floor(domainScore)}</span>
                                                             : <span style={{ fontSize: 10, color: C.textFaint, fontStyle: "italic", flexShrink: 0 }}>No data</span>}
                                                     </div>
                                                     {domainScore != null && <>
@@ -3390,7 +3397,7 @@ function CancerDomainView({ cancerDomain, allSysScores, card, cancerHealthSystem
                 </div>
                 {hasScores ? (
                     <div style={{ display: "flex", gap: 22, alignItems: "center", flexShrink: 0 }}>
-                        <ArcGauge score={domainScore} size={72} label="Domain" />
+                        <ArcGauge score={domainScore} size={72} label="Domain" colour={classification?.color} />
                         <div>
                             <div style={{ fontSize: 10, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Classification</div>
                             <div style={{ fontSize: 15, fontWeight: 700, color: classification?.color ?? C.textFaint, lineHeight: 1.2 }}>{classification?.label ?? "—"}</div>
@@ -3794,13 +3801,14 @@ T3 = mean(pathway scores in Tier 3)`}</pre>
 
 100 = all pathways healthy   |   0 = maximum cancer risk`}</pre>
                     <div style={h3}>Risk classification</div>
-                    <p style={p}>Same green/yellow/red cutoffs as every other score in the app.</p>
+                    <p style={p}>Cancer-specific cut-offs, approved 2026-07-27 (Executive Summary & Sign-Off: Cancer Scoring Model) — the composite uses its own scale, distinct from the 91/70/69 cutoffs used for pathway/tier display above.</p>
                     <table style={tbl}>
-                        <thead><tr><th style={th}>Score range</th><th style={th}>Classification</th></tr></thead>
+                        <thead><tr><th style={th}>Score range</th><th style={th}>Classification</th><th style={th}>Clinical action</th></tr></thead>
                         <tbody>
-                            <tr><td style={td}>91 – 100</td><td style={td}>Green</td></tr>
-                            <tr><td style={td}>70 – 90</td><td style={td}>Yellow</td></tr>
-                            <tr><td style={td}>0 – 69</td><td style={td}>Red</td></tr>
+                            <tr><td style={td}>85 – 100</td><td style={td}>Green</td><td style={td}>No immediate clinical recommendations; standard routine checkups.</td></tr>
+                            <tr><td style={td}>80 – 84</td><td style={td}>Yellow</td><td style={td}>Retest in 6 months to monitor trajectory.</td></tr>
+                            <tr><td style={td}>70 – 79</td><td style={td}>Yellow</td><td style={td}>Retest in 3 months to evaluate score velocity.</td></tr>
+                            <tr><td style={td}>0 – 69</td><td style={td}>Red</td><td style={td}>Advise client to seek primary care physician/specialist follow-up for formal diagnostic investigation.</td></tr>
                         </tbody>
                     </table>
 
@@ -5711,7 +5719,7 @@ function CancerHistogram({ scores }) {
                 {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(v => (
                     <text key={v} x={x(v)} y={H - 4} textAnchor="middle" fontSize="6" fill={C.textFaint}>{v}</text>
                 ))}
-                {[69, 90].map(v => (
+                {[69, 84].map(v => (
                     <line key={v} x1={x(v + 1)} y1={padT} x2={x(v + 1)} y2={padT + iH} stroke={getClass(v).color} strokeWidth="0.8" strokeDasharray="3,2" opacity="0.7" />
                 ))}
             </svg>
