@@ -571,8 +571,6 @@ This is intentionally unweighted — each system contributes equally. If differe
 
 ## 14. Cancer Pathway Risk Scoring
 
-> **Sign-off:** This section reflects the model approved in *Executive Summary & Sign-Off: Cancer Scoring Model* (2026-07-27, Rob Fraser & Haiyan Yang). It supersedes the previous five-category "Low Concern … High Concern" classification.
-
 The Cancer Pathway Risk Assessment product adds a domain-level aggregation layer on top of the standard three-tier hierarchy. Pathway health scores (computed using the standard biomarker → process → system logic from sections 3–8) are organised into three biological tiers of increasing cancer specificity, then combined into a single weighted composite that maps to a three-category risk classification (Green / Yellow / Red).
 
 Full pipeline:
@@ -581,19 +579,19 @@ Full pipeline:
 Biomarker score  →  Health area score  → Health systems score (tier 1, 2, 3)  → Domain score (overall cancer classification)
 ```
 
-The scoring scale is not inverted — 100 still represents all biomarkers within normal reference ranges, and 0 represents maximum deviation. Lower composite scores indicate higher cancer risk.
+A score of 100 represents all biomarkers within normal reference ranges, and 0 represents maximum deviation. Lower scores indicate higher cancer risk.
 
 ---
 
-### 14.1 Pathway Tier Architecture
+### 14.1 System Tier Architecture
 
-Pathways are organised into three tiers of increasing cancer specificity.
+Systems for cancer are organised into three tiers of increasing cancer specificity.
 
 **Tier 1 — Systemic Risk Environment**
 
 Non-cancer-specific foundational conditions that create a permissive biological environment for tumour initiation. Abnormalities here are upstream risk amplifiers, not direct indicators of malignancy.
 
-| Pathway | Biomarkers | Cancer Specificity |
+| Health Area | Biomarkers | Cancer Specificity |
 |---------|------------|-------------------|
 | Metabolic Dysfunction | 17 | Low |
 | Thromboinflammation | 17 | Low |
@@ -601,18 +599,18 @@ Non-cancer-specific foundational conditions that create a permissive biological 
 
 **Tier 2 — Transitional Biology**
 
-Middle-ground pathways representing necessary steps in cancer progression that can also occur in non-malignant contexts (e.g. tissue repair, chronic infection). Their cancer relevance increases substantially when Tier 1 signals are also present.
+A collection of middle-ground health areas representing necessary steps in cancer progression that can also occur in non-malignant contexts (e.g. tissue repair, chronic infection). Their cancer relevance increases substantially when Tier 1 signals are also present.
 
-| Pathway | Biomarkers | Cancer Specificity |
+| Health Area | Biomarkers | Cancer Specificity |
 |---------|------------|-------------------|
 | Cell Proliferation | 11 | Moderate |
 | Immune System Evasion | 16 | Moderate |
 
 **Tier 3 — Tumour-Associated Biology**
 
-Pathways with the highest specificity for processes directly associated with established tumour biology. Elevations here, particularly when accompanied by Tier 1 and Tier 2 abnormalities, warrant careful clinical correlation.
+The highest specificity for processes directly associated with established tumour biology. Elevations here, particularly when accompanied by Tier 1 and Tier 2 abnormalities, warrant careful clinical correlation.
 
-| Pathway | Biomarkers | Cancer Specificity |
+| Health Area | Biomarkers | Cancer Specificity |
 |---------|------------|-------------------|
 | Angiogenesis | 6 | High |
 | Matrix Remodelling | 8 | High |
@@ -625,21 +623,25 @@ Pathways with the highest specificity for processes directly associated with est
 Within each tier, compute the arithmetic mean of all pathway health scores:
 
 ```
-T1 = mean(pathway scores in Tier 1)
-T2 = mean(pathway scores in Tier 2)
-T3 = mean(pathway scores in Tier 3)
+T1 = mean(health area scores in Tier 1)
+T2 = mean(health area scores in Tier 2)
+T3 = mean(health area scores in Tier 3)
 ```
 
-A pathway with a NULL score (no data) is excluded from the tier mean. If all pathways in a tier are NULL, the tier average is NULL and that tier is excluded from the composite calculation.
+A health area with a NULL score (no data) is excluded from the tier mean. If all health areas in a tier are NULL, the tier average is NULL and that tier is excluded from the composite calculation.
 
 ---
 
-### 14.3 Step 2 — Weighted Composite Score
+### 14.3 Step 2 — Weighted Domain Score
 
 The three tier averages are combined using differential weights that reflect each tier's cancer specificity. Tier 3 receives three times the weight of Tier 1; Tier 2 receives twice the weight of Tier 1:
 
 ```
-Composite = ( 1 × T1  +  2 × T2  +  3 × T3 ) / 6
+Domain score = ( weight_t1 × T1  +  weight_t2 × T2  +  weight_t3 × T3 ) / sum of weights
+```
+
+```
+Domain score = ( 1 × T1  +  2 × T2  +  3 × T3 ) / 6
 ```
 
 | Tier | Weight | Rationale |
@@ -648,9 +650,7 @@ Composite = ( 1 × T1  +  2 × T2  +  3 × T3 ) / 6
 | Tier 2 | 2 | Transitional cancer biology |
 | Tier 3 | 3 | Direct tumour-associated biology |
 
-The composite is on a 0–100 scale. 100 represents perfect health across all pathways; 0 represents maximum deviation with full Tier 3 weighting.
-
-> **Note:** The denominator is always 6 (= 1 + 2 + 3), regardless of how many pathways exist within each tier. If a tier average is NULL, exclude that tier's weight from both the numerator and the denominator and recompute accordingly.
+The domain score is on a 0–100 scale. 100 represents perfect health across all health areas; 0 represents maximum deviation with full Tier 3 weighting.
 
 ---
 
