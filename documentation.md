@@ -538,15 +538,15 @@ The model should be collapsable or expandable. Each level uses the same logic: c
 
 ## 13. Domain Score
 
-An domain score can be derived by taking the simple average of all system scores. (Some products use fewer levels — see Section 12 — in which case this average is taken over whatever the final level's scores are.).
+A domain score is the weighted average of the scores that feed into it, usually a collection of system scores:
 
 ```
-domain_score = mean(score_1, score_2, ..., score_n)
+domain_score = ( weight_1 × score_1  +  weight_2 × score_2  +  ...  +  weight_n × score_n ) / sum of weights
 ```
 
-Where `score_i` are all non-NULL scores at the final level. NULL scores are excluded from the average.
+Where `score_i` are all non-NULL scores at the final level, and `weight_i` is that score's configured weight. NULL scores (and their weights) are excluded from both the sum and the total.
 
-This is intentionally unweighted — each system contributes equally. If differential weighting across systems is needed in the future, the same `effective_process_weight` logic from section 7 can be applied at the system level.
+Each weight defaults to `1` unless the science team configures a different value — with every weight at its default, this reduces to a simple average, with each system contributing equally. Cancer scoring (Section 14) is a concrete example of a product that configures non-default weights: instead of `1` for every tier, it uses `1`/`2`/`3` for Tier 1/2/3 respectively (Section 14.3).
 
 ---
 
@@ -720,11 +720,11 @@ Cancer Score = (1 × 88.7  +  2 × 46.0  +  3 × 48.7) / 6
 
 This document defines a small set of abstract "umbrella" terms for the scoring hierarchy in the general case (Section 1). Each product then uses its own concrete vocabulary for the same layers — the table below maps umbrella terms to their concrete, product-specific names.
 
-| Umbrella term | Definition | General/Legacy products | Cancer product |
+| Umbrella term | Definition | General products | Cancer product |
 |---|---|---|---|
 | Biomarker | An individual lab measurement (e.g. Homocysteine concentration). | Biomarker | Biomarker |
 | Health Area | A categorical grouping of biomarkers representing a body mechanism; the layer between Biomarker and Health System. | Process (Sections 4-13) | Cancer Process (Section 14) |
 | Health System | A grouping of Health Areas; the top-level score for most products. | System (body system / disease / fitness) | Tier (Tier 1 / 2 / 3, Section 14) |
-| Domain | The final weighted aggregate score, mapped to a Green/Yellow/Red classification. | Overall Score (Section 13) | Cancer Score (Section 14) |
+| Domain | The final weighted aggregate score, mapped to a Green/Yellow/Red classification. | - | Cancer Score (Section 14) |
 
 **Legacy products:** the pre-system reports shown in the architecture diagram (old biofunction / disease / fitness reports) are a part of the Health Area umbrella. They predate the current scoring model and aren't otherwise described in this document.
