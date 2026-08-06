@@ -28,11 +28,11 @@ Biomarker score  →  Health area score  →  Health system score -> Domain scor
 ```
 
 - **Biomarkers** are individual lab measurements (e.g. Homocysteine concentration).
-- **Health Areas** are categorical groupings of biomarkers to highlight body mechanisms. Each health area contains one or more biomarkers, may be the final score, or feed into one or more health systems. "Health Area" is an umbrella term — each product uses its own concrete name for this layer: general body-system and disease scoring calls it a **Pathway** (Sections 4-13), cancer scoring calls it a **Cancer Process** (Section 14).
-- **Health Systems** are the grouping of different health areas. "Health System" is likewise an umbrella term: general body-system, disease, and fitness scoring calls it a **System**, while cancer scoring calls the equivalent grouping a **Tier** (Section 14).
+- **Health Areas** are categorical groupings of biomarkers to highlight body mechanisms. Each health area contains one or more biomarkers, may be the final score, or feed into one or more health systems. General body-system and disease scoring (Sections 4-13) uses "Health Area" directly; cancer scoring uses its own distinct term, **Cancer Process** (Section 14).
+- **Health Systems** are the grouping of different health areas. General body-system, disease, and fitness scoring (Sections 4-13) uses "Health System" directly; cancer scoring uses its own distinct term, **Tier** (Section 14).
 - **Domain** is one step above Health Systems. Some health systems aggregate one layer further, into a single Domain Score.
 
-Weights at the biomarker and process levels can be customised. The sections below explain exactly how each step works. See Section 16 for a full glossary mapping these umbrella terms to each product's concrete vocabulary.
+Weights at the biomarker and health area levels can be customised. The sections below explain exactly how each step works. See Section 16 for a full glossary mapping these umbrella terms to each product's concrete vocabulary.
 
 The relationship between each step can be found here: https://docs.google.com/spreadsheets/d/1_Cev13sOQZ7J_Hs5pzbmMJCtkgyOtz-6rQzBzf3Fhak/edit?usp=sharing
 
@@ -122,7 +122,7 @@ If `colour = GREEN`, the biomarker scores `100`. No further calculation needed.
 
 ### 4.2 Impact Direction
 
-Each biomarker–process association has an `impact_dir` field that specifies which direction of deviation from the green zone actually impacts the score.
+Each biomarker–health area association has an `impact_dir` field that specifies which direction of deviation from the green zone actually impacts the score.
 
 | `impact_dir` | Behaviour |
 |--------------|-----------|
@@ -130,9 +130,9 @@ Each biomarker–process association has an `impact_dir` field that specifies wh
 | `"high"` | Only being above `green_high` reference range value reduces the score. Being below `green_low` has no association — scores 100 |
 | `"low"` | Only being below `green_low` reference range value reduces the score. Being above `green_high` has no association — scores 100 |
 
-> **Example — Glucose:** High glucose is associated with the sugar metabolism process; low glucose has no clinical concern in this context. Setting `impact_dir = "high"` means a participant with glucose below the green reference range scores 100, assuming all other biomarkers are in-range (no impact), while high glucose is penalised normally.
+> **Example — Glucose:** High glucose is associated with the sugar metabolism pathway; low glucose has no clinical concern in this context. Setting `impact_dir = "high"` means a participant with glucose below the green reference range scores 100, assuming all other biomarkers are in-range (no impact), while high glucose is penalised normally.
 
-This setting is per biomarker–process association and is controlled by the science team. It defaults to `"both"` if not specified.
+This setting is per biomarker–health area association and is controlled by the science team. It defaults to `"both"` if not specified.
 
 ### 4.3 Out-of-Range — Distance-Based Decay
 
@@ -215,7 +215,7 @@ function biomarker_score(concentration, ref_low, ref_high, green_pct, cutoff, cu
 
 ## 5. Effective Biomarker Weight
 
-Each biomarker has an effective weight used when averaging into its process score. This weight comes from one of two sources:
+Each biomarker has an effective weight used when averaging into its health area score. This weight comes from one of two sources:
 
 - a manual biomarker weight set by the science team, if the biomarker is clinically important, or
 - a global colour multiplier otherwise
@@ -243,7 +243,7 @@ The science team can assign a manual weight override to any biomarker that is mo
 | `bio_level` | `"high"`, `"low"`, `"both"` | `"high"` | Which direction must be active for this weight to apply |
 | `impact_dir` | `"both"`, `"high"`, `"low"` | `"both"` | Which direction of deviation from the green zone impacts the score — deviations in the non-impacting direction score 100 with no decay (see Section 4.2) |
 
-> **Note:** `impact_dir` is a property of the biomarker–process association, not of the weight override condition. It applies regardless of whether a manual weight is set.
+> **Note:** `impact_dir` is a property of the biomarker–health area association, not of the weight override condition. It applies regardless of whether a manual weight is set.
 
 The manual weight only replaces the global multiplier when both conditions are met:
 
@@ -268,12 +268,12 @@ else:
 
 ---
 
-## 6. Process Score
+## 6. Health Area Score
 
-A process score is the weighted average of its biomarker scores, using each biomarker's effective weight. Only biomarkers with data are included — missing biomarkers are skipped entirely (not treated as 0).
+A health area score is the weighted average of its biomarker scores, using each biomarker's effective weight. Only biomarkers with data are included — missing biomarkers are skipped entirely (not treated as 0).
 
 ```
-function process_score(biomarkers):
+function health_area_score(biomarkers):
 
     total_weight = 0
     weighted_sum = 0
@@ -289,31 +289,31 @@ function process_score(biomarkers):
         total_weight += eff_w
 
     if total_weight = 0:
-        return NULL    # no data for this process
+        return NULL    # no data for this health area
 
     return weighted_sum / total_weight
 ```
 
-A process with no data returns NULL and is excluded from the health system score.
+A health area with no data returns NULL and is excluded from the health system score.
 
 ---
 
-## 7. Effective Process Weight
+## 7. Effective Health Area Weight
 
-Each process has a weight that controls its influence on the overall system score. Like biomarker weights, the manual weight only applies when an explicit entry exists and the process score falls in the matching colour zone — otherwise the weight falls back to 1.
+Each health area has a weight that controls its influence on the overall system score. Like biomarker weights, the manual weight only applies when an explicit entry exists and the health area score falls in the matching colour zone — otherwise the weight falls back to 1.
 
-Unlike biomarker weights, process weights do not have a `level` condition.
+Unlike biomarker weights, health area weights do not have a `level` condition.
 
 | Field | Allowed values | Meaning |
 |-------|---------------|---------|
-| `proc_weight` | Integer 1–10 | The weight value itself |
-| `proc_color` | `"red"`, `"yellow"`, `"both"` | Which zone the process score must be in for this weight to apply |
+| `area_weight` | Integer 1–10 | The weight value itself |
+| `area_color` | `"red"`, `"yellow"`, `"both"` | Which zone the health area score must be in for this weight to apply |
 
-### 7.1 Process Zone Classification
+### 7.1 Health Area Zone Classification
 
-Process scores are mapped to colour zones using thresholds set by the science team:
+Health area scores are mapped to colour zones using thresholds set by the science team:
 
-| Process score | Zone |
+| Health area score | Zone |
 |---------------|------|
 | ≥ 91 | GREEN |
 | 70 – 90 | YELLOW |
@@ -322,42 +322,42 @@ Process scores are mapped to colour zones using thresholds set by the science te
 ### 7.2 Applying the Condition
 
 ```
-proc_zone = process_zone(process_score)
+area_zone = health_area_zone(health_area_score)
 
-color_match = (proc_color = "both")
-           OR (proc_color = "red"    AND proc_zone = RED)
-           OR (proc_color = "yellow" AND proc_zone = YELLOW)
-           OR (proc_color = "green"  AND proc_zone = GREEN)
+color_match = (area_color = "both")
+           OR (area_color = "red"    AND area_zone = RED)
+           OR (area_color = "yellow" AND area_zone = YELLOW)
+           OR (area_color = "green"  AND area_zone = GREEN)
 
-if no explicit entry for this process:
-    effective_process_weight = 1
+if no explicit entry for this health area:
+    effective_health_area_weight = 1
 else if color_match:
-    effective_process_weight = proc_weight
+    effective_health_area_weight = area_weight
 else:
-    effective_process_weight = 1    # colour condition not met
+    effective_health_area_weight = 1    # colour condition not met
 ```
 
 Same logic as biomarkers: the override only applies when an entry has been explicitly set. Absence of an entry always falls back to a weight of 1.
 
 ---
 
-## 8. System Score
+## 8. Health System Score
 
-A system score is the weighted average of its process scores, using each process's weight. Only processes with a non-null score are included.
+A health system score is the weighted average of its health area scores, using each health area's weight. Only health areas with a non-null score are included.
 
 ```
-function system_score(processes):
+function health_system_score(health_areas):
 
     total_weight = 0
     weighted_sum = 0
 
-    for each process in processes:
-        if process score is NULL:
+    for each health_area in health_areas:
+        if health_area score is NULL:
             skip
 
-        eff_pw = effective_process_weight(process_score, proc_weight, proc_color)
+        eff_pw = effective_health_area_weight(health_area_score, area_weight, area_color)
 
-        weighted_sum += process_score × eff_pw
+        weighted_sum += health_area_score × eff_pw
         total_weight += eff_pw
 
     if total_weight = 0:
@@ -379,12 +379,12 @@ These are the defaults used in the current implementation. They are all adjustab
 | `curve` | `"linear"` | Decay curve shape: `"linear"` or `"log2"` | |
 | `yellow_weight` | `2.0` | Multiplier applied to yellow biomarkers by default | |
 | `red_weight` | `4.0` | Multiplier applied to red biomarkers by default | |
-| `bio_weight` | `1` | The weight (importance) applied to a biomarker-process relationship. Can be any value 1–10. | |
+| `bio_weight` | `1` | The weight (importance) applied to a biomarker-health area relationship. Can be any value 1–10. | |
 | `bio_color` | `"red"` | The colour of the biomarker needed for the manual weight to apply | If `bio_color = "red"`, the `bio_weight` override only activates when biomarker colour is red |
 | `bio_level` | `"high"` | The direction of the biomarker needed for the manual weight to apply | If `bio_level = "high"`, the `bio_weight` override only activates when biomarker direction is high |
 | `impact_dir` | `"both"` | Which direction of deviation impacts the score — deviations in the non-impacting direction score 100 | If `impact_dir = "high"`, only being high reduces the score; being low scores 100 |
-| `proc_weight` | `1` | The weight (importance) applied to a process-system relationship. Can be any value 1–10. | |
-| `proc_color` | `"red"` | The colour of the process needed for the manual weight to apply | If `proc_color = "red"`, the `proc_weight` override only activates when process colour is red |
+| `area_weight` | `1` | The weight (importance) applied to a health area-health system relationship. Can be any value 1–10. | |
+| `area_color` | `"red"` | The colour of the health area needed for the manual weight to apply | If `area_color = "red"`, the `area_weight` override only activates when health area colour is red |
 
 ---
 
@@ -392,17 +392,17 @@ These are the defaults used in the current implementation. They are all adjustab
 
 After a health area and/or health system score is computed, it is assigned a colour zone — green, yellow, or red — based on where it falls relative to two thresholds. This colour is used to communicate health status at a glance.
 
-All health areas share a single set of cut-offs — the same boundaries apply uniformly across every process in every health system. Similarly, all health systems share a single set of cut-offs. Cancer scoring uses a separate set of cut-offs (Section 14.4).
+All health areas share a single set of cut-offs — the same boundaries apply uniformly across every health area in every health system. Similarly, all health systems share a single set of cut-offs. Cancer scoring uses a separate set of cut-offs (Section 14.4).
 
-Health areas and health system cut-offs are independent of each other. A score of 75 may be yellow at the process level and green at the system level if the two sets of thresholds differ.
+Health areas and health system cut-offs are independent of each other. A score of 75 may be yellow at the health area level and green at the health system level if the two sets of thresholds differ.
 
 ### 10.1 What the Cut-offs Mean
 
 | Colour | Meaning |
 |--------|---------|
-| Green | Score is at or above the healthy threshold — the process or system is performing well |
+| Green | Score is at or above the healthy threshold — the health area or health system is performing well |
 | Yellow | Score is below the green threshold but above the concern threshold — borderline, warrants attention |
-| Red | Score is below the concern threshold — the process or system should be prioritised for review |
+| Red | Score is below the concern threshold — the health area or health system should be prioritised for review |
 
 ### 10.2 Current Default Values
 
@@ -478,9 +478,9 @@ level_match = (bio_level = "high" AND direction = HIGH) → TRUE
 
 If the conditions had not matched, or if no explicit entry existed, the effective weight would have been `red_weight = 4.0`.
 
-### Step 4 — Process Score
+### Step 4 — Health Area Score
 
-Assume this process has two biomarkers:
+Assume this health area has two biomarkers:
 
 | Biomarker | Score | Effective weight | Notes |
 |-----------|-------|-----------------|-------|
@@ -496,23 +496,23 @@ health_area_score = 281.0 / 7 ≈ 40.1
 
 Health area score: **40.1** — RED zone (< 70).
 
-### Step 5 — Effective Process Weight
+### Step 5 — Effective Health Area Weight
 
-Assume this process has a manual `proc_weight` of 3, with `proc_color = "red"`:
+Assume this health area has a manual `area_weight` of 3, with `area_color = "red"`:
 
 ```
-proc_zone = RED   # process_score = 40.1 < 70
+area_zone = RED   # health_area_score = 40.1 < 70
 
-color_match = (proc_color = "red" AND proc_zone = RED)  → TRUE
+color_match = (area_color = "red" AND area_zone = RED)  → TRUE
 
-→ effective_process_weight = 3   (manual override applies)
+→ effective_health_area_weight = 3   (manual override applies)
 ```
 
-### Step 6 — System Score
+### Step 6 — Health System Score
 
-Assume the system has two processes:
+Assume the health system has two health areas:
 
-| Process | Score | Effective process weight | Notes |
+| Health Area | Score | Effective health area weight | Notes |
 |---------|-------|------------------------|-------|
 | Methylation | 40.1 | 3 | manual override, RED zone |
 | Oxidative Stress | 72.0 | 1 | no explicit entry, falls back to 1 |
@@ -521,7 +521,7 @@ Assume the system has two processes:
 weighted_sum  = (40.1 × 3) + (72.0 × 1) = 120.3 + 72.0 = 192.3
 total_weight  = 3 + 1 = 4
 
-system_score  = 192.3 / 4 = 48.1
+health_system_score  = 192.3 / 4 = 48.1
 ```
 
 Health system score: **48.1** — RED zone (< 70).
@@ -530,7 +530,7 @@ Health system score: **48.1** — RED zone (< 70).
 
 ## 12. Variable Hierarchy Depth
 
-The scoring model is designed around a four-level hierarchy (biomarker → process → system → domain), but this is not fixed. Different products may use different depths.
+The scoring model is designed around a four-level hierarchy (Biomarker → Health Area → Health System → Domain), but this is not fixed. Different products may use different depths.
 
 The model should be collapsable or expandable. Each level uses the same logic: collect scores from the level below, apply weights and zone multipliers, return a weighted average. Only the labels change.
 
@@ -538,7 +538,7 @@ The model should be collapsable or expandable. Each level uses the same logic: c
 
 ## 13. Domain Score
 
-A domain score is the weighted average of the scores that feed into it, usually a collection of system scores:
+A domain score is the weighted average of the scores that feed into it, usually a collection of health system scores:
 
 ```
 domain_score = ( weight_1 × score_1  +  weight_2 × score_2  +  ...  +  weight_n × score_n ) / sum of weights
@@ -546,7 +546,7 @@ domain_score = ( weight_1 × score_1  +  weight_2 × score_2  +  ...  +  weight_
 
 Where `score_i` are all non-NULL scores at the final level, and `weight_i` is that score's configured weight. NULL scores (and their weights) are excluded from both the sum and the total.
 
-Each weight defaults to `1` unless the science team configures a different value — with every weight at its default, this reduces to a simple average, with each system contributing equally. Cancer scoring (Section 14) is a concrete example of a product that configures non-default weights: instead of `1` for every tier, it uses `1`/`2`/`3` for Tier 1/2/3 respectively (Section 14.3).
+Each weight defaults to `1` unless the science team configures a different value — with every weight at its default, this reduces to a simple average, with each health system contributing equally. Cancer scoring (Section 14) is a concrete example of a product that configures non-default weights: instead of `1` for every tier, it uses `1`/`2`/`3` for Tier 1/2/3 respectively (Section 14.3).
 
 ---
 
@@ -710,8 +710,8 @@ Cancer Score = (1 × 88.7  +  2 × 46.0  +  3 × 48.7) / 6
 | `ref_high = ref_low` (zero-width range) | Return score of NULL — cannot compute a meaningful distance; treated the same as a missing biomarker |
 | Biomarker not present in data | Exclude from all scores — do not treat as 0 |
 | Concentration value is BLQ, NR, or ND | Exclude from all scores — do not treat as 0 |
-| All biomarkers in a process are missing | Process score is NULL |
-| All processes in a system are NULL | System score is NULL |
+| All biomarkers in a health area are missing | Health area score is NULL |
+| All health areas in a health system are NULL | Health system score is NULL |
 | Manual `bio_weight = 1` with conditions matching | Effective weight = 1 — the explicit 1× overrides the colour multiplier |
 
 ---
@@ -723,8 +723,8 @@ This document defines a small set of abstract "umbrella" terms for the scoring h
 | Umbrella term | Definition | General products | Cancer product |
 |---|---|---|---|
 | Biomarker | An individual lab measurement (e.g. Homocysteine concentration). | Biomarker | Biomarker |
-| Health Area | A categorical grouping of biomarkers representing a body mechanism; the layer between Biomarker and Health System. | Process (Sections 4-13) | Cancer Process (Section 14) |
-| Health System | A grouping of Health Areas; the top-level score for most products. | System (body system / disease / fitness) | Tier (Tier 1 / 2 / 3, Section 14) |
+| Health Area | A categorical grouping of biomarkers representing a body mechanism; the layer between Biomarker and Health System. | Health Area (Sections 4-13) | Cancer Process (Section 14) |
+| Health System | A grouping of Health Areas; the top-level score for most products. | Health System (body system / disease / fitness) | Tier (Tier 1 / 2 / 3, Section 14) |
 | Domain | The final weighted aggregate score, mapped to a Green/Yellow/Red classification. | - | Cancer Score (Section 14) |
 
 **Legacy products:** the pre-system reports shown in the architecture diagram (old biofunction / disease / fitness reports) are a part of the Health Area umbrella. They predate the current scoring model and aren't otherwise described in this document.
