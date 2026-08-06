@@ -24,14 +24,15 @@ This document describes how a raw biomarker measurement is turned into a score b
 The product uses a three-layer naming convention:
 
 ```
-Biomarker score  →  Health area score  →  Health system score
+Biomarker score  →  Health area score  →  Health system score -> Domain score
 ```
 
 - **Biomarkers** are individual lab measurements (e.g. Homocysteine concentration).
-- **Health Areas** are categorical groupings of biomarkers to highlight body mechanisms. Each health area contains one or more biomarkers, may be the final score, or feed into one or more health systems.
-- **Health Systems** are the grouping of different health areas. A health system can be a body system, a disease, a fitness domain, or a cancer hallmark.
+- **Health Areas** are categorical groupings of biomarkers to highlight body mechanisms. Each health area contains one or more biomarkers, may be the final score, or feed into one or more health systems. "Health Area" is an umbrella term — each product uses its own concrete name for this layer: general body-system and disease scoring calls it a **Pathway** (Sections 4-13), cancer scoring calls it a **Cancer Process** (Section 14).
+- **Health Systems** are the grouping of different health areas. "Health System" is likewise an umbrella term: general body-system, disease, and fitness scoring calls it a **System**, while cancer scoring calls the equivalent grouping a **Tier** (Section 14).
+- **Domain** is one step above Health Systems. Some health systems aggregate one layer further, into a single Domain Score.
 
-Weights at the biomarker and process levels can be customised. The sections below explain exactly how each step works.
+Weights at the biomarker and process levels can be customised. The sections below explain exactly how each step works. See Section 16 for a full glossary mapping these umbrella terms to each product's concrete vocabulary.
 
 The relationship between each step can be found here: https://docs.google.com/spreadsheets/d/1_Cev13sOQZ7J_Hs5pzbmMJCtkgyOtz-6rQzBzf3Fhak/edit?usp=sharing
 
@@ -389,11 +390,11 @@ These are the defaults used in the current implementation. They are all adjustab
 
 ## 10. Score Colour Cut-offs
 
-After a process and/or system score is computed, it is assigned a colour zone — green, yellow, or red — based on where it falls relative to two thresholds. This colour is used to communicate health status at a glance.
+After a health area and/or health system score is computed, it is assigned a colour zone — green, yellow, or red — based on where it falls relative to two thresholds. This colour is used to communicate health status at a glance.
 
-All processes share a single set of cut-offs — the same boundaries apply uniformly across every process in every health system. Similarly, all systems share a single set of cut-offs.
+All health areas share a single set of cut-offs — the same boundaries apply uniformly across every process in every health system. Similarly, all health systems share a single set of cut-offs. Cancer scoring uses a separate set of cut-offs (Section 14.4).
 
-Process and system cut-offs are independent of each other. A score of 75 may be yellow at the process level and green at the system level if the two sets of thresholds differ.
+Health areas and health system cut-offs are independent of each other. A score of 75 may be yellow at the process level and green at the system level if the two sets of thresholds differ.
 
 ### 10.1 What the Cut-offs Mean
 
@@ -407,8 +408,8 @@ Process and system cut-offs are independent of each other. A score of 75 may be 
 
 | Level | Green | Yellow | Red |
 |-------|-------|--------|-----|
-| Process | ≥ 91 | 70 – 90 | 0 – 69 |
-| System | ≥ 91 | 70 – 90 | 0 – 69 |
+| Health Area | ≥ 91 | 70 – 90 | 0 – 69 |
+| Health System | ≥ 91 | 70 – 90 | 0 – 69 |
 
 > **Note for implementers:** These thresholds are based on the previous percentage scoring system and are expected to be refined as more client data is collected and reviewed by the science team. Do not hardcode these values — they should be configurable parameters in any downstream implementation.
 
@@ -416,7 +417,7 @@ Process and system cut-offs are independent of each other. A score of 75 may be 
 
 ## 11. Worked Example
 
-This example walks through the full calculation for a single biomarker, up to its contribution to a system score.
+This example walks through the full calculation for a single biomarker, up to its contribution to a health system score.
 
 ### Setup
 
@@ -490,10 +491,10 @@ Assume this process has two biomarkers:
 weighted_sum  = (22.2 × 5) + (85.0 × 2) = 111.0 + 170.0 = 281.0
 total_weight  = 5 + 2 = 7
 
-process_score = 281.0 / 7 ≈ 40.1
+health_area_score = 281.0 / 7 ≈ 40.1
 ```
 
-Process score: **40.1** — RED zone (< 70).
+Health area score: **40.1** — RED zone (< 70).
 
 ### Step 5 — Effective Process Weight
 
@@ -523,75 +524,55 @@ total_weight  = 3 + 1 = 4
 system_score  = 192.3 / 4 = 48.1
 ```
 
-System score: **48.1** — RED zone (< 70).
+Health system score: **48.1** — RED zone (< 70).
 
 ---
 
 ## 12. Variable Hierarchy Depth
 
-The scoring model is designed around a three-level hierarchy (biomarker → process → system), but this is not fixed. Different products may use different depths.
+The scoring model is designed around a four-level hierarchy (biomarker → process → system → domain), but this is not fixed. Different products may use different depths.
 
-### 12.1 Two-Tier Products
-
-Some products may bypass the process level entirely and map biomarkers directly to a final score:
-
-```
-Biomarker score  →  Final score
-```
-
-In this case, the same weighted-average logic from section 6 (process score) applies at the final level, using biomarker scores directly.
-
-### 12.2 Extending to More Tiers
-
-The model should be expandable. Each additional tier is computed the same way as the previous one: a weighted average of the scores from the tier below. For example, a four-level hierarchy:
-
-```
-Biomarker score  →  Health area score  →  Health system score  →  Domain score
-```
-
-Each tier uses the same logic: collect scores from the tier below, apply weights and zone multipliers, return a weighted average. Only the labels change.
+The model should be collapsable or expandable. Each level uses the same logic: collect scores from the level below, apply weights and zone multipliers, return a weighted average. Only the labels change.
 
 ---
 
-## 13. Overall Score
+## 13. Domain Score
 
-An overall score can be derived by taking the simple average of all final-tier scores (system scores in a three-tier product, or direct scores in a two-tier product):
+An domain score can be derived by taking the simple average of all system scores. (Some products use fewer levels — see Section 12 — in which case this average is taken over whatever the final level's scores are.).
 
 ```
-overall_score = mean(score_1, score_2, ..., score_n)
+domain_score = mean(score_1, score_2, ..., score_n)
 ```
 
-Where `score_i` are all non-NULL scores at the final tier. NULL scores are excluded from the average.
+Where `score_i` are all non-NULL scores at the final level. NULL scores are excluded from the average.
 
 This is intentionally unweighted — each system contributes equally. If differential weighting across systems is needed in the future, the same `effective_process_weight` logic from section 7 can be applied at the system level.
 
-> **Note for implementers:** The overall score is a summary statistic for reporting purposes and a potential future feature request. To keep implementation simple, it can hold the same structure as proposed in section 12, but keep all weights at 1 to calculate a simple average.
-
 ---
 
-## 14. Cancer Pathway Risk Scoring
+## 14. Cancer Scoring
 
-The Cancer Pathway Risk Assessment product adds a domain-level aggregation layer on top of the standard three-tier hierarchy. Pathway health scores (computed using the standard biomarker → process → system logic from sections 3–8) are organised into three biological tiers of increasing cancer specificity, then combined into a single weighted composite that maps to a three-category risk classification (Green / Yellow / Red).
+The cancer product uses a 4-tier approach computed using the standard biomarker → health area → health systems → domain logic. The final domain score for cancer is called **Cancer Score**. Each score maps to a three-category risk classification (Green / Yellow / Red).
 
 Full pipeline:
 
 ```
-Biomarker score  →  Health area score  → Health systems score (tier 1, 2, 3)  → Domain score (overall cancer classification)
+Biomarker score  →  Cancer process score  →  Cancer tier score  → Cancer score (overall cancer classification)
 ```
 
 A score of 100 represents all biomarkers within normal reference ranges, and 0 represents maximum deviation. Lower scores indicate higher cancer risk.
 
 ---
 
-### 14.1 System Tier Architecture
+### 14.1 Cancer Tiers
 
-Systems for cancer are organised into three tiers of increasing cancer specificity.
+Cancer Processes are organised into three tiers of increasing cancer specificity.
 
 **Tier 1 — Systemic Risk Environment**
 
 Non-cancer-specific foundational conditions that create a permissive biological environment for tumour initiation. Abnormalities here are upstream risk amplifiers, not direct indicators of malignancy.
 
-| Health Area | Biomarkers | Cancer Specificity |
+| Cancer Process | Biomarkers | Cancer Specificity |
 |---------|------------|-------------------|
 | Metabolic Dysfunction | 17 | Low |
 | Thromboinflammation | 17 | Low |
@@ -599,9 +580,9 @@ Non-cancer-specific foundational conditions that create a permissive biological 
 
 **Tier 2 — Transitional Biology**
 
-A collection of middle-ground health areas representing necessary steps in cancer progression that can also occur in non-malignant contexts (e.g. tissue repair, chronic infection). Their cancer relevance increases substantially when Tier 1 signals are also present.
+A collection of middle-ground cancer processes representing necessary steps in cancer progression that can also occur in non-malignant contexts (e.g. tissue repair, chronic infection). Their cancer relevance increases substantially when Tier 1 signals are also present.
 
-| Health Area | Biomarkers | Cancer Specificity |
+| Cancer Process | Biomarkers | Cancer Specificity |
 |---------|------------|-------------------|
 | Cell Proliferation | 11 | Moderate |
 | Immune System Evasion | 16 | Moderate |
@@ -610,7 +591,7 @@ A collection of middle-ground health areas representing necessary steps in cance
 
 The highest specificity for processes directly associated with established tumour biology. Elevations here, particularly when accompanied by Tier 1 and Tier 2 abnormalities, warrant careful clinical correlation.
 
-| Health Area | Biomarkers | Cancer Specificity |
+| Cancer Process | Biomarkers | Cancer Specificity |
 |---------|------------|-------------------|
 | Angiogenesis | 6 | High |
 | Matrix Remodelling | 8 | High |
@@ -618,30 +599,30 @@ The highest specificity for processes directly associated with established tumou
 
 ---
 
-### 14.2 Step 1 — Tier Aggregation
+### 14.2 Step 1 — Cancer Tier Score
 
-Within each tier, compute the arithmetic mean of all pathway health scores:
+Within each Tier, compute the arithmetic mean of all Cancer Process scores:
 
 ```
-T1 = mean(health area scores in Tier 1)
-T2 = mean(health area scores in Tier 2)
-T3 = mean(health area scores in Tier 3)
+T1 = mean(cancer process scores in Tier 1)
+T2 = mean(cancer process scores in Tier 2)
+T3 = mean(cancer process scores in Tier 3)
 ```
 
-A health area with a NULL score (no data) is excluded from the tier mean. If all health areas in a tier are NULL, the tier average is NULL and that tier is excluded from the composite calculation.
+A Cancer Process with a NULL score (no data) is excluded from the Tier mean. If all Cancer Processes in a Tier are NULL, the Tier average is NULL and that Tier is excluded from the Cancer Score calculation.
 
 ---
 
-### 14.3 Step 2 — Weighted Domain Score
+### 14.3 Step 2 — Weighted Cancer Score
 
-The three tier averages are combined using differential weights that reflect each tier's cancer specificity. Tier 3 receives three times the weight of Tier 1; Tier 2 receives twice the weight of Tier 1:
-
-```
-Domain score = ( weight_t1 × T1  +  weight_t2 × T2  +  weight_t3 × T3 ) / sum of weights
-```
+The three tier averages are combined using weights that reflect each tier's cancer specificity. Tier 3 receives three times the weight of Tier 1; Tier 2 receives twice the weight of Tier 1:
 
 ```
-Domain score = ( 1 × T1  +  2 × T2  +  3 × T3 ) / 6
+Cancer Score = ( weight_t1 × T1  +  weight_t2 × T2  +  weight_t3 × T3 ) / sum of weights
+```
+
+```
+Cancer Score = ( 1 × T1  +  2 × T2  +  3 × T3 ) / 6
 ```
 
 | Tier | Weight | Rationale |
@@ -650,24 +631,24 @@ Domain score = ( 1 × T1  +  2 × T2  +  3 × T3 ) / 6
 | Tier 2 | 2 | Transitional cancer biology |
 | Tier 3 | 3 | Direct tumour-associated biology |
 
-The domain score is on a 0–100 scale. 100 represents perfect health across all health areas; 0 represents maximum deviation with full Tier 3 weighting.
+The Cancer Score is on a 0–100 scale. 100 represents perfect health across all Cancer Processes; 0 represents maximum deviation with full Tier 3 weighting.
 
 ---
 
 ### 14.4 Risk Classification
 
-The composite score maps to three risk categories — the same Green/Yellow/Red convention used for pathway and system scores elsewhere in the app, but with cancer-specific cut-offs rather than the standard 91/70/69 scale:
+The Cancer Score maps to three risk categories — the same Green/Yellow/Red convention used for Cancer Process and system scores elsewhere in the app, but with cancer-specific cut-offs rather than the standard 91/70/69 scale:
 
 | Score Range | Classification | Interpretation | Clinical Action Protocol |
 |-------------|---------------|-----------------|---------------------------|
-| 85 – 100 | **Green** — Low / No Alteration | Pathways within expected reference ranges | No immediate clinical recommendations; standard routine checkups. |
-| 80 – 84 | **Yellow** — Moderately Altered Pathways | Intermediate risk / low-level biological shift | Retest in 6 months to monitor trajectory. |
-| 70 – 79 | **Yellow** — Moderately Altered Pathways | Intermediate risk / low-level biological shift | Retest in 3 months to evaluate score velocity. |
-| 0 – 69 | **Red** — Significantly Altered Pathways | High risk; significant alignment with tumour-associated biology | Advise client to seek primary care physician/specialist follow-up for formal diagnostic investigation. |
+| 85 – 100 | **Green** — Low / No Alteration | Cancer Processes within expected reference ranges | No immediate clinical recommendations; standard routine checkups. |
+| 80 – 84 | **Yellow** — Moderately Altered Cancer Processes | Intermediate risk / low-level biological shift | Retest in 6 months to monitor trajectory. |
+| 70 – 79 | **Yellow** — Moderately Altered Cancer Processes | Intermediate risk / low-level biological shift | Retest in 3 months to evaluate score velocity. |
+| 0 – 69 | **Red** — Significantly Altered Cancer Processes | High risk; significant alignment with tumour-associated biology | Advise client to seek primary care physician/specialist follow-up for formal diagnostic investigation. |
 
 > **Note:** The Yellow band (70–84) has a single colour and label but two retest cadences depending on where the score falls within it — 80–84 retests at 6 months, 70–79 retests at 3 months.
 
-> **Note for implementers:** These cut-offs are specific to the cancer composite score and are separate from the general 91/70/69 Green/Yellow/Red scale used for individual pathway and system scores (section 10). Do not conflate the two — a pathway tile showing "Yellow" at 80 and the overall cancer composite showing "Green" at 85 are both correct simultaneously, because each uses its own scale.
+> **Note for implementers:** These cut-offs are specific to the Cancer Score and are separate from the general 91/70/69 Green/Yellow/Red scale used for individual Cancer Process and system scores (section 10). Do not conflate the two — a Cancer Process tile showing "Yellow" at 80 and the overall Cancer Score showing "Green" at 85 are both correct simultaneously, because each uses its own scale.
 
 ---
 
@@ -677,7 +658,7 @@ The algorithmic classification is a reproducible first-pass result. A reviewing 
 
 Overrides must be documented with:
 
-- The algorithmic classification and composite score
+- The algorithmic classification and Cancer Score
 - The adjusted classification
 - The biological rationale for adjustment (e.g., "complement activation pattern consistent with autoimmune rather than malignant aetiology")
 - Reviewer name and date
@@ -686,11 +667,11 @@ Adjustments of **more than one category** require secondary review and sign-off 
 
 ---
 
-### 14.6 Worked Example
+### 14.6 Worked Example for Cancer Scoring
 
-**Raw pathway health scores:**
+**Raw Cancer Process scores:**
 
-| Tier | Pathway | Health Score |
+| Tier | Cancer Process | Score |
 |------|---------|-------------|
 | 1 | Metabolic Dysfunction | 66 |
 | 1 | Thromboinflammation | 100 |
@@ -709,13 +690,13 @@ T2 = (38 + 54) / 2        = 46.0
 T3 = (38 + 50 + 58) / 3   = 48.7
 ```
 
-**Weighted composite:**
+**Weighted Cancer Score:**
 
 ```
-Composite = (1 × 88.7  +  2 × 46.0  +  3 × 48.7) / 6
-          = (88.7 + 92.0 + 146.1) / 6
-          = 326.8 / 6
-          = 54.5
+Cancer Score = (1 × 88.7  +  2 × 46.0  +  3 × 48.7) / 6
+             = (88.7 + 92.0 + 146.1) / 6
+             = 326.8 / 6
+             = 54.5
 ```
 
 **Classification:** Score 54.5 → **Red** (0–69) — Advise client to seek primary care physician/specialist follow-up for formal diagnostic investigation.
@@ -732,3 +713,18 @@ Composite = (1 × 88.7  +  2 × 46.0  +  3 × 48.7) / 6
 | All biomarkers in a process are missing | Process score is NULL |
 | All processes in a system are NULL | System score is NULL |
 | Manual `bio_weight = 1` with conditions matching | Effective weight = 1 — the explicit 1× overrides the colour multiplier |
+
+---
+
+## 16. Terminology / Glossary
+
+This document defines a small set of abstract "umbrella" terms for the scoring hierarchy in the general case (Section 1). Each product then uses its own concrete vocabulary for the same layers — the table below maps umbrella terms to their concrete, product-specific names.
+
+| Umbrella term | Definition | General/Legacy products | Cancer product |
+|---|---|---|---|
+| Biomarker | An individual lab measurement (e.g. Homocysteine concentration). | Biomarker | Biomarker |
+| Health Area | A categorical grouping of biomarkers representing a body mechanism; the layer between Biomarker and Health System. | Process (Sections 4-13) | Cancer Process (Section 14) |
+| Health System | A grouping of Health Areas; the top-level score for most products. | System (body system / disease / fitness) | Tier (Tier 1 / 2 / 3, Section 14) |
+| Domain | The final weighted aggregate score, mapped to a Green/Yellow/Red classification. | Overall Score (Section 13) | Cancer Score (Section 14) |
+
+**Legacy products:** the pre-system reports shown in the architecture diagram (old biofunction / disease / fitness reports) are a part of the Health Area umbrella. They predate the current scoring model and aren't otherwise described in this document.
