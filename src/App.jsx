@@ -435,7 +435,7 @@ const CANCER_HEALTH_SYSTEMS = [
       systems: ["cancer_angiogenesis", "cancer_matrix_remodelling", "cancer_metastasis"] },
 ];
 
-// Cancer-specific composite cut-offs, approved 2026-07-27 (Executive Summary & Sign-Off:
+// Cancer-specific Cancer Score cut-offs, approved 2026-07-27 (Executive Summary & Sign-Off:
 // Cancer Scoring Model) — diverges from the general 91/70/69 scale used for tier/system
 // display elsewhere in the app.
 const CANCER_CLASSIFICATIONS = [
@@ -450,23 +450,23 @@ const CANCER_CLASSIFICATIONS = [
 const CHANGELOG = [
     {
         date: "2026-07-20", type: "math", commit: "d89ffd8",
-        title: "Gated biomarkers no longer inflate their process weight",
-        summary: "A biomarker whose only out-of-range excursion is in a direction impact_dir doesn't cover (so it scores 100) was still being weighted by its raw yellow/red zone (×2/×4) instead of green (×1) — inflating any pathway that mixed a gated extreme with a real deficit elsewhere. Fixed in computeSystem/effectiveWeight.",
+        title: "Gated biomarkers no longer inflate their health area weight",
+        summary: "A biomarker whose only out-of-range excursion is in a direction impact_dir doesn't cover (so it scores 100) was still being weighted by its raw yellow/red zone (×2/×4) instead of green (×1) — inflating any health area that mixed a gated extreme with a real deficit elsewhere. Fixed in computeSystem/effectiveWeight.",
     },
     {
         date: "2026-07-20", type: "math", commit: "719735b",
         title: "Cancer cutoffs unified to the standard green/yellow/red scale",
-        summary: "Cancer composite classification collapsed from 5 concern-level bands (\"Low Concern\"…\"High Concern\") to the same green ≥91 / yellow 70–90 / red ≤69 cutoff used for every other score in the app. Individual tier scores previously used a separate 80/70 cutoff — now identical everywhere.",
+        summary: "Cancer Score classification collapsed from 5 concern-level bands (\"Low Concern\"…\"High Concern\") to the same green ≥91 / yellow 70–90 / red ≤69 cutoff used for every other score in the app. Individual tier scores previously used a separate 80/70 cutoff — now identical everywhere.",
     },
     {
         date: "2026-07-20", type: "associations", commit: "0e15137",
-        title: "Cancer pathway biomarker associations updated",
+        title: "Cancer Process biomarker associations updated",
         summary: "Synced CANCER_SYSTEMS from the updated data/data-associations/cancer_map.csv: added 6 biomarkers (L-selectin, Phospholipid transfer protein, Adipocyte plasma membrane-associated protein, Gelsolin, Antithrombin-III, Ficolin-2) and changed directionality on ~22 biomarkers (mostly single-direction high/low → both, removing score-gating for those).",
     },
     {
         date: "2026-07-30", type: "math", commit: "pending",
-        title: "Cancer composite cut-offs set to a dedicated 85/70/69 scale",
-        summary: "Per the Executive Summary & Sign-Off: Cancer Scoring Model (2026-07-27), the cancer composite classification no longer shares the app-wide 91/70/69 scale — it now uses its own Green ≥85 / Yellow 70–84 / Red <70 cut-offs. Individual tier/pathway scores are unaffected and continue to use the standard 91/70/69 scale.",
+        title: "Cancer Score cut-offs set to a dedicated 85/70/69 scale",
+        summary: "Per the Executive Summary & Sign-Off: Cancer Scoring Model (2026-07-27), the Cancer Score classification no longer shares the app-wide 91/70/69 scale — it now uses its own Green ≥85 / Yellow 70–84 / Red <70 cut-offs. Individual tier/Cancer Process scores are unaffected and continue to use the standard 91/70/69 scale.",
     },
 ];
 
@@ -486,7 +486,7 @@ const DEFAULT_ASSOC_GROUPS = [
     { id: "cancer",  label: "Cancer",             twoLevel: true  },
 ];
 
-// All biomarker and process weights default to 1.0 — zone-based auto-weighting
+// All biomarker and health area weights default to 1.0 — zone-based auto-weighting
 // is handled dynamically at score time using yellowWeight / redWeight globals.
 // Bio weight entry: { weight, color, level, ref }
 // color: "red"|"yellow"|"both"  level: stored in assocSystems.levels
@@ -1498,7 +1498,7 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
             };
         });
         const valid = scored.filter(b => !b.missing);
-        // Process score: weighted average of all biomarkers (green=100, yellow/red pull down proportionally)
+        // Health area score: weighted average of all biomarkers (green=100, yellow/red pull down proportionally)
         const score = valid.length === 0 ? null : wavg(valid.map(b => [b.score, b.effWeight]));
         return { process: proc, score, biomarkers: scored };
     });
@@ -1510,7 +1510,7 @@ function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, re
         const pcolor = typeof pe === "object" ? (pe.color ?? "red") : "red";
         const pzone = procZone(p.score);
         // "both" means red-or-yellow, never green — mirrors effectiveWeight's biomarker-level
-        // guard so a manual process weight can never apply to an already-healthy process.
+        // guard so a manual health area weight can never apply to an already-healthy health area.
         const colorMatch = pzone !== "green" && (
             pcolor === "both"
             || (pcolor === "red" && pzone === "red")
@@ -2117,7 +2117,7 @@ export default function App() {
 
     const exportProfile = useCallback((p) => {
         const rows = [];
-        const header = ["MYCO_ID", "CATEGORY", "HEALTH_AREA_TYPE", "HEALTH_AREA_ID", "HEALTH_AREA_NAME", "MEASURE_ID", "ITEM_NAME", "COLOR", "LEVEL", "VALUE", "REFERENCES"];
+        const header = ["MYCO_ID", "CATEGORY", "HEALTH_SYSTEM_TYPE", "HEALTH_SYSTEM_ID", "HEALTH_SYSTEM_NAME", "MEASURE_ID", "ITEM_NAME", "COLOR", "LEVEL", "VALUE", "REFERENCES"];
         // Biomarker weights — all explicitly set entries
         assocSystems.forEach(sys => {
             Object.entries(sys.processes).forEach(([proc, bms]) => {
@@ -2128,9 +2128,9 @@ export default function App() {
                     rows.push([
                         "",                    // MYCO_ID — leave blank
                         "biomarker_weight",
-                        "",                    // HEALTH_AREA_TYPE
-                        sys.id,                // HEALTH_AREA_ID — used on re-import to reconstruct ns key
-                        sys.name,              // HEALTH_AREA_NAME
+                        "",                    // HEALTH_SYSTEM_TYPE
+                        sys.id,                // HEALTH_SYSTEM_ID — used on re-import to reconstruct ns key
+                        sys.name,              // HEALTH_SYSTEM_NAME
                         "",                    // MEASURE_ID — leave blank
                         bmName,                // ITEM_NAME
                         e.color ?? "red",
@@ -2141,20 +2141,20 @@ export default function App() {
                 });
             });
         });
-        // Process weights — all explicitly set entries
+        // Health area weights — all explicitly set entries
         healthSystems.forEach(sys => {
             Object.keys(sys.processes).forEach(proc => {
                 const e = p.procWeights[proc];
                 if (!e) return;
                 rows.push([
                     "",
-                    "process_weight",
+                    "health_area_weight",
                     "", "",
                     sys.name,
                     "",
                     proc,
                     e.color ?? "red",
-                    "",                      // LEVEL — blank for processes
+                    "",                      // LEVEL — blank for health areas
                     e.weight,
                     e.ref ?? "",
                 ]);
@@ -2245,10 +2245,11 @@ export default function App() {
                     const ref = (row["references"] ?? "").trim();
                     if (!name || isNaN(val)) return;
                     if (cat === "biomarker_weight") {
-                        const sysId = (row["system_id"] ?? row["health_area_id"] ?? "").trim();
+                        const sysId = (row["health_system_id"] ?? row["system_id"] ?? row["health_area_id"] ?? "").trim();
                         const nsKey = sysId ? `${sysId}::${name}` : name;
                         newBioWeights[nsKey] = { weight: val, color, level, ref };
-                    } else if (cat === "process_weight") {
+                    } else if (cat === "health_area_weight" || cat === "process_weight") {
+                        // "process_weight" accepted for backward compatibility with exports from before the terminology update
                         newProcWeights[name] = { weight: val, color: color || "red", ref };
                     }
                 });
@@ -2302,14 +2303,14 @@ export default function App() {
 
     const cancerDomain = useMemo(() => computeCancerDomain(allSysScores, cancerSysWeights, cancerHealthSystemWeights), [allSysScores, cancerSysWeights, cancerHealthSystemWeights]);
 
-    // For a cancer pathway, the header "system" gauge shows its Tier score instead of
-    // the pathway's own wavg — the pathway now has several real processes (see
-    // CANCER_SYSTEMS), so its own score is shown by the "Process" gauge / Process
-    // Weights tab, and the layer above it worth surfacing here is the Tier.
+    // For a Cancer Process, the header "system" gauge shows its Tier score instead of
+    // the Cancer Process's own wavg — a Cancer Process now has several real health areas
+    // (see CANCER_SYSTEMS), so its own score is shown by the "Health Area" gauge / Health
+    // Area Weights tab, and the layer above it worth surfacing here is the Tier.
     const headerGaugeScore = isCancerSystem
         ? cancerDomain.healthSystemResults.find(t => t.id === activeCancerHealthSystemId)?.score ?? null
         : sysScore;
-    const headerGaugeLabel = isCancerSystem ? "Tier" : "System";
+    const headerGaugeLabel = isCancerSystem ? "Tier" : "Health System";
 
     const aggregateData = useMemo(() => {
         const pids = Object.keys(clients); if (!pids.length) return null;
@@ -2361,17 +2362,18 @@ export default function App() {
         return bioAdj + procAdj;
     }, [bioWeights, procWeights]);
 
-    // Cancer health_areas have no process layer to weight (a single-process wavg is a no-op),
-    // so — like any other flat/single-process system — they skip the Process Weights tab.
+    // Cancer Processes with only a single health area have no health area layer worth
+    // weighting (a single-health-area wavg is a no-op), so — like any other flat/single-
+    // health-area system — they skip the Health Area Weights tab.
     const TABS = [
-        ...(!isTwoTier ? [{ key: "weights-proc", label: "Process Weights" }] : []),
+        ...(!isTwoTier ? [{ key: "weights-proc", label: "Health Area Weights" }] : []),
         { key: "weights-bio", label: "Biomarker Weights" },
         { key: "curves", label: "Biomarker Curves" },
         { key: "flags", label: `Biomarker Flags${oorFlags.length ? ` (${oorFlags.length})` : ""}` },
         { key: "adjustments", label: `Active Adjustments${adjustmentCount ? ` (${adjustmentCount})` : ""}` },
     ];
     // Guard against the current tab not existing for this system (e.g. default "weights-proc"
-    // landing on a system with no Process Weights tab) by falling back to Biomarker Weights.
+    // landing on a system with no Health Area Weights tab) by falling back to Biomarker Weights.
     const effectiveTab = TABS.some(t => t.key === tab) ? tab : "weights-bio";
 
     const hasData = demoLoaded || Object.keys(clients).some(k => !DEMO_IDS.includes(k));
@@ -2695,7 +2697,7 @@ export default function App() {
                             <button onClick={() => setProfileModal(false)} style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
                         </div>
                         <div style={{ padding: "6px 24px 10px", background: `${C.navy}10`, borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textMuted }}>
-                            Each profile stores its own biomarker weights, process weights, and scoring parameters. Duplicate a profile to create a variant, then adjust its parameters to compare in the Aggregate view.
+                            Each profile stores its own biomarker weights, health area weights, and scoring parameters. Duplicate a profile to create a variant, then adjust its parameters to compare in the Aggregate view.
                         </div>
                         {/* profile list */}
                         <div style={{ overflowY: "auto", flex: 1, padding: "14px 24px" }}>
@@ -2763,7 +2765,7 @@ export default function App() {
                                                         </span>
                                                         <span style={{ fontSize: 11, color: C.textMuted }}>
                                                             <span style={{ fontWeight: 600, color: nonDefaultProc > 0 ? C.steel : C.textFaint }}>{nonDefaultProc}</span>
-                                                            <span style={{ color: C.textFaint }}> process weight{nonDefaultProc !== 1 ? "s" : ""} adjusted</span>
+                                                            <span style={{ color: C.textFaint }}> health area weight{nonDefaultProc !== 1 ? "s" : ""} adjusted</span>
                                                         </span>
                                                     </>
                                                 );
@@ -2804,9 +2806,9 @@ export default function App() {
                     },
                     // 2
                     {
-                        title: "Step 3 of 15 · Process Weights",
-                        body: "Drag the slider to adjust this process's weight.",
-                        cta: "🎚 Move the weight slider on the first process card",
+                        title: "Step 3 of 15 · Health Area Weights",
+                        body: "Drag the slider to adjust this health area's weight.",
+                        cta: "🎚 Move the weight slider on the first health area card",
                         spotlight: "first-proc-card", advance: "auto"
                     },
                     // 3
@@ -3139,7 +3141,7 @@ export default function App() {
                             background: "transparent", cursor: "pointer", flexShrink: 0, color: C.textFaint,
                             fontSize: 10, letterSpacing: "0.1em"
                         }}>
-                        {col1Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600 }}>Systems</span>}
+                        {col1Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600 }}>Health Systems</span>}
                         <span style={{ fontSize: 14, lineHeight: 1 }}>{col1Open ? "‹" : "›"}</span>
                     </button>
 
@@ -3175,7 +3177,7 @@ export default function App() {
                                                         <div style={{ fontSize: 9, color: cancerDomain?.classification?.color ?? C.textFaint, marginTop: 2, fontWeight: 600 }}>{cancerDomain?.classification?.label}</div>
                                                     </>}
                                                 </button>
-                                                {/* Tier selection buttons — pathways live in col2 */}
+                                                {/* Tier selection buttons — Cancer Processes live in col2 */}
                                                 {CANCER_HEALTH_SYSTEMS.map(healthSystem => {
                                                     const healthSystemResult = cancerDomain?.healthSystemResults?.find(t => t.id === healthSystem.id);
                                                     const healthSystemActive = (activeCancerView && selectedCancerHealthSystemId === healthSystem.id && activeView === "client")
@@ -3241,7 +3243,7 @@ export default function App() {
                     </>}
                 </div>
 
-                {/* ── Column 2: Processes / Cancer Pathways ── */}
+                {/* ── Column 2: Health Areas / Cancer Processes ── */}
                 {showCol2 && <div style={{ width: col2Open ? 196 : 28, flexShrink: 0, background: `${C.iceLight}30`, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", transition: "width 0.2s ease", overflow: "hidden" }}>
                     {/* collapse tab */}
                     <button onClick={() => setCol2Open(o => !o)}
@@ -3251,7 +3253,7 @@ export default function App() {
                             gap: 6, padding: "8px 10px", border: "none", borderBottom: `1px solid ${C.border}`,
                             background: "transparent", cursor: "pointer", flexShrink: 0, color: C.textFaint, fontSize: 10
                         }}>
-                        {col2Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600 }}>{(activeCancerView || isCancerSystem) ? "Pathways" : "Processes"}</span>}
+                        {col2Open && <span style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontSize: 9, color: C.textFaint, fontWeight: 600 }}>{(activeCancerView || isCancerSystem) ? "Cancer Processes" : "Health Areas"}</span>}
                         <span style={{ fontSize: 14, lineHeight: 1 }}>{col2Open ? "‹" : "›"}</span>
                     </button>
 
@@ -3261,7 +3263,7 @@ export default function App() {
                             const healthSystemResult = cancerDomain?.healthSystemResults?.find(t => t.id === activeCancerHealthSystemId);
                             if (!healthSystem) return (
                                 <div style={{ padding: "14px", fontSize: 11, color: C.textFaint, fontStyle: "italic", lineHeight: 1.5 }}>
-                                    Select a health system from the left panel to view its pathways.
+                                    Select a Tier from the left panel to view its Cancer Processes.
                                 </div>
                             );
                             return <>
@@ -3338,7 +3340,7 @@ export default function App() {
                                     {activeProcResult?.score != null && (
                                         <>
                                             <div style={{ width: 1, height: 50, background: C.border }} />
-                                            <ArcGauge score={activeProcResult.score} size={60} label="Process" />
+                                            <ArcGauge score={activeProcResult.score} size={60} label="Health Area" />
                                         </>
                                     )}
                                 </div>
@@ -3392,12 +3394,12 @@ function CancerDomainView({ cancerDomain, allSysScores, card, cancerHealthSystem
             {/* Header */}
             <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "14px 24px", display: "flex", alignItems: "center", gap: 24, flexShrink: 0 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 2 }}>Cancer Pathway · Domain Score</div>
+                    <div style={{ fontSize: 11, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 2 }}>Cancer Process · Cancer Score</div>
                     <div style={{ fontSize: 18, fontFamily: T.display, color: C.navy }}>Cancer Assessment</div>
                 </div>
                 {hasScores ? (
                     <div style={{ display: "flex", gap: 22, alignItems: "center", flexShrink: 0 }}>
-                        <ArcGauge score={domainScore} size={72} label="Domain" colour={classification?.color} />
+                        <ArcGauge score={domainScore} size={72} label="Cancer Score" colour={classification?.color} />
                         <div>
                             <div style={{ fontSize: 10, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Classification</div>
                             <div style={{ fontSize: 15, fontWeight: 700, color: classification?.color ?? C.textFaint, lineHeight: 1.2 }}>{classification?.label ?? "—"}</div>
@@ -3435,8 +3437,8 @@ function CancerDomainView({ cancerDomain, allSysScores, card, cancerHealthSystem
                     })}
                 </div>
 
-                {/* Tier pathway rows */}
-                <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12 }}>Pathways</div>
+                {/* Tier Cancer Process rows */}
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12 }}>Cancer Processes</div>
                 {CANCER_HEALTH_SYSTEMS.map(healthSystem => {
                     const healthSystemResult = healthSystemResults?.find(t => t.id === healthSystem.id);
                     const healthSystemPathways = CANCER_SYSTEMS.filter(s => healthSystem.systems.includes(s.id));
@@ -3565,7 +3567,7 @@ function UploadPrompt({ fileRef, dragOver, setDragOver, handleFile, uploadErr, i
     );
 }
 
-// ─── Process Weights ──────────────────────────────────────────────────────────
+// ─── Health Area Weights ──────────────────────────────────────────────────────
 function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysScore, selProc, setActiveProc, setTab, card }) {
     const procCount = Object.keys(system.processes).length;
     return (
@@ -3578,7 +3580,7 @@ function ProcWeightsTab({ system, procResults, procWeights, setProcWeights, sysS
                 <div>
                     <div style={{ fontSize: 15, fontFamily: T.display, color: C.navy }}>{system.name}</div>
                     <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>
-                        {procCount} process{procCount !== 1 ? "es" : ""} · {procResults.filter(p => p.score != null).length} with data
+                        {procCount} health area{procCount !== 1 ? "s" : ""} · {procResults.filter(p => p.score != null).length} with data
                     </div>
                 </div>
                 {sysScore != null && (
@@ -3724,7 +3726,7 @@ Log2 (faster drop): score = max(0, 100 × (1 − log₂(1 + t)))`}</pre>
 
                     {/* ── 3. Effective Biomarker Weight ── */}
                     <div style={h2}>3. Effective Biomarker Weight</div>
-                    <p style={p}>Each biomarker's contribution to its process score is scaled by an effective weight. The science team may set a manual override; otherwise a global colour multiplier applies.</p>
+                    <p style={p}>Each biomarker's contribution to its health area score is scaled by an effective weight. The science team may set a manual override; otherwise a global colour multiplier applies.</p>
                     <div style={h3}>Global colour multipliers (defaults)</div>
                     <table style={tbl}>
                         <thead><tr><th style={th}>Colour</th><th style={th}>Default multiplier</th></tr></thead>
@@ -3747,45 +3749,45 @@ if color_match AND level_match:  effective_weight = bio_weight
 else:                            effective_weight = colour multiplier`}</pre>
                     <p style={p}>The manual weight fully replaces the colour multiplier — they do not stack.</p>
 
-                    {/* ── 4. Process Score ── */}
-                    <div style={h2}>4. Process Score</div>
-                    <p style={p}>Weighted average of all biomarker scores within the process. Missing/excluded biomarkers are skipped (not treated as 0).</p>
-                    <pre style={mono}>{`process_score = Σ(biomarker_score × effective_weight) / Σ(effective_weight)`}</pre>
+                    {/* ── 4. Health Area Score ── */}
+                    <div style={h2}>4. Health Area Score</div>
+                    <p style={p}>Weighted average of all biomarker scores within the health area. Missing/excluded biomarkers are skipped (not treated as 0).</p>
+                    <pre style={mono}>{`health_area_score = Σ(biomarker_score × effective_weight) / Σ(effective_weight)`}</pre>
                     <p style={p}>Returns NULL if no biomarkers have data.</p>
 
-                    {/* ── 5. Effective Process Weight ── */}
-                    <div style={h2}>5. Effective Process Weight</div>
-                    <p style={p}>Each process has a weight that controls its influence on the system score. Process scores are first mapped to a colour zone:</p>
+                    {/* ── 5. Effective Health Area Weight ── */}
+                    <div style={h2}>5. Effective Health Area Weight</div>
+                    <p style={p}>Each health area has a weight that controls its influence on the system score. Health area scores are first mapped to a colour zone:</p>
                     <table style={tbl}>
-                        <thead><tr><th style={th}>Process score</th><th style={th}>Zone</th></tr></thead>
+                        <thead><tr><th style={th}>Health area score</th><th style={th}>Zone</th></tr></thead>
                         <tbody>
                             <tr><td style={td}>≥ 91</td><td style={td}>Green</td></tr>
                             <tr><td style={td}>70 – 90</td><td style={td}>Yellow</td></tr>
                             <tr><td style={td}>0 – 69</td><td style={td}>Red</td></tr>
                         </tbody>
                     </table>
-                    <pre style={mono}>{`color_match = proc_zone ≠ GREEN AND (
-    (proc_color = "both")
-    OR (proc_color = "red"    AND proc_zone = RED)
-    OR (proc_color = "yellow" AND proc_zone = YELLOW)
+                    <pre style={mono}>{`color_match = area_zone ≠ GREEN AND (
+    (area_color = "both")
+    OR (area_color = "red"    AND area_zone = RED)
+    OR (area_color = "yellow" AND area_zone = YELLOW)
 )
 
-if color_match:  effective_process_weight = proc_weight
-else:            effective_process_weight = 1`}</pre>
-                    <p style={p}>Same rule as biomarker weights: "both" means red-or-yellow, never green — a manual override must never apply to an already-healthy process.</p>
+if color_match:  effective_health_area_weight = area_weight
+else:            effective_health_area_weight = 1`}</pre>
+                    <p style={p}>Same rule as biomarker weights: "both" means red-or-yellow, never green — a manual override must never apply to an already-healthy health area.</p>
 
-                    {/* ── 6. System Score ── */}
-                    <div style={h2}>6. System Score</div>
-                    <p style={p}>Weighted average of all process scores. NULL processes are excluded.</p>
-                    <pre style={mono}>{`system_score = Σ(process_score × effective_process_weight) / Σ(effective_process_weight)`}</pre>
+                    {/* ── 6. Health System Score ── */}
+                    <div style={h2}>6. Health System Score</div>
+                    <p style={p}>Weighted average of all health area scores. NULL health areas are excluded.</p>
+                    <pre style={mono}>{`health_system_score = Σ(health_area_score × effective_health_area_weight) / Σ(effective_health_area_weight)`}</pre>
 
-                    {/* ── 7. Cancer Pathway Risk Score ── */}
-                    <div style={h2}>7. Cancer Pathway Risk Score</div>
-                    <p style={p}>The cancer domain adds a fourth aggregation layer on top of the standard pipeline. Pathway scores (system-level scores) are grouped into three tiers of increasing cancer specificity, then combined into a weighted composite.</p>
-                    <pre style={mono}>{`Biomarker → Process → Pathway (system) → Tier average → Composite → Classification`}</pre>
+                    {/* ── 7. Cancer Scoring ── */}
+                    <div style={h2}>7. Cancer Scoring</div>
+                    <p style={p}>The Cancer Score adds a fourth aggregation layer on top of the standard pipeline. Cancer Process scores (system-level scores) are grouped into three tiers of increasing cancer specificity, then combined into a weighted Cancer Score.</p>
+                    <pre style={mono}>{`Biomarker → Health Area → Cancer Process (system) → Tier average → Cancer Score → Classification`}</pre>
                     <div style={h3}>Tier architecture</div>
                     <table style={tbl}>
-                        <thead><tr><th style={th}>Tier</th><th style={th}>Pathways</th><th style={th}>Weight</th></tr></thead>
+                        <thead><tr><th style={th}>Tier</th><th style={th}>Cancer Processes</th><th style={th}>Weight</th></tr></thead>
                         <tbody>
                             <tr><td style={td}>Tier 1 — Systemic Risk</td><td style={td}>Metabolic Dysfunction, Thromboinflammation, Oxidative Stress</td><td style={td}>1</td></tr>
                             <tr><td style={td}>Tier 2 — Transitional Biology</td><td style={td}>Cell Proliferation, Immune System Evasion</td><td style={td}>2</td></tr>
@@ -3793,15 +3795,15 @@ else:            effective_process_weight = 1`}</pre>
                         </tbody>
                     </table>
                     <div style={h3}>Tier aggregation</div>
-                    <pre style={mono}>{`T1 = mean(pathway scores in Tier 1)
-T2 = mean(pathway scores in Tier 2)
-T3 = mean(pathway scores in Tier 3)`}</pre>
-                    <div style={h3}>Weighted composite</div>
-                    <pre style={mono}>{`Composite = (1 × T1  +  2 × T2  +  3 × T3) / 6
+                    <pre style={mono}>{`T1 = mean(cancer process scores in Tier 1)
+T2 = mean(cancer process scores in Tier 2)
+T3 = mean(cancer process scores in Tier 3)`}</pre>
+                    <div style={h3}>Weighted Cancer Score</div>
+                    <pre style={mono}>{`Cancer Score = (1 × T1  +  2 × T2  +  3 × T3) / 6
 
-100 = all pathways healthy   |   0 = maximum cancer risk`}</pre>
+100 = all Cancer Processes healthy   |   0 = maximum cancer risk`}</pre>
                     <div style={h3}>Risk classification</div>
-                    <p style={p}>Cancer-specific cut-offs, approved 2026-07-27 (Executive Summary & Sign-Off: Cancer Scoring Model) — the composite uses its own scale, distinct from the 91/70/69 cutoffs used for pathway/tier display above.</p>
+                    <p style={p}>Cancer-specific cut-offs, approved 2026-07-27 (Executive Summary & Sign-Off: Cancer Scoring Model) — the Cancer Score uses its own scale, distinct from the 91/70/69 cutoffs used for Cancer Process/Tier display above.</p>
                     <table style={tbl}>
                         <thead><tr><th style={th}>Score range</th><th style={th}>Classification</th><th style={th}>Clinical action</th></tr></thead>
                         <tbody>
@@ -3815,7 +3817,7 @@ T3 = mean(pathway scores in Tier 3)`}</pre>
                     {/* ── Worked Example ── */}
                     <div style={h2}>Worked Examples</div>
 
-                    <div style={h3}>Example A — Single biomarker through to system score</div>
+                    <div style={h3}>Example A — Single biomarker through to health system score</div>
                     <p style={p}>Homocysteine: concentration 18.0, ref_low 5.0, ref_high 15.0 (green_pct 0.05, cutoff 0.5, linear curve)</p>
                     <pre style={mono}>{`range      = 15.0 − 5.0 = 10.0
 green_low  = 5.0 + 0.05 × 10.0 = 5.5
@@ -3828,20 +3830,20 @@ score       = 100 × (1 − 0.778) = 22.2
 
 bio_color="red", bio_level="high", bio_weight=5 → effective_weight = 5 (override)
 
-Process (2 biomarkers):
+Health area (2 biomarkers):
   Homocysteine         score=22.2   weight=5
   Methylmalonic acid   score=85.0   weight=2.0 (yellow, no override)
-  process_score = (22.2×5 + 85.0×2) / (5+2) = 281.0 / 7 ≈ 40.1   → RED zone
+  health_area_score = (22.2×5 + 85.0×2) / (5+2) = 281.0 / 7 ≈ 40.1   → RED zone
 
-Process weight: proc_weight=3, proc_color="red" → proc_zone=RED → effective_weight=3
+Health area weight: area_weight=3, area_color="red" → area_zone=RED → effective_weight=3
 
-System (2 processes):
+Health system (2 health areas):
   Methylation       score=40.1   eff_weight=3
   Oxidative Stress  score=72.0   eff_weight=1
-  system_score = (40.1×3 + 72.0×1) / 4 = 192.3 / 4 = 48.1`}</pre>
+  health_system_score = (40.1×3 + 72.0×1) / 4 = 192.3 / 4 = 48.1`}</pre>
 
-                    <div style={h3}>Example B — Cancer composite score</div>
-                    <p style={p}>Seven pathway scores across all three tiers:</p>
+                    <div style={h3}>Example B — Cancer Score</div>
+                    <p style={p}>Seven Cancer Process scores across all three tiers:</p>
                     <pre style={mono}>{`Tier 1: Metabolic Dysfunction=66, Thromboinflammation=100, Oxidative Stress=100
 Tier 2: Cell Proliferation=38, Immune System Evasion=54
 Tier 3: Angiogenesis=38, Matrix Remodelling=50, Metastasis=58
@@ -3850,7 +3852,7 @@ T1 = (66 + 100 + 100) / 3 = 88.7
 T2 = (38 + 54) / 2        = 46.0
 T3 = (38 + 50 + 58) / 3   = 48.7
 
-Composite = (1×88.7 + 2×46.0 + 3×48.7) / 6
+Cancer Score = (1×88.7 + 2×46.0 + 3×48.7) / 6
           = (88.7 + 92.0 + 146.1) / 6
           = 54.5  →  Red (0–69)`}</pre>
                 </div>
@@ -3905,7 +3907,7 @@ function ChangelogModal({ onClose }) {
 function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, greenPct, yellowWeight, setYellowWeight, redWeight, setRedWeight, card, editConc, setEditConc, setConcWarnModal, concOverrides, setConcOverrides, clientMarkers, systemId }) {
     const frozenOrderRef = useRef({ proc: null, order: null });
 
-    if (!activeProcResult) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>Select a process from the left panel.</div>;
+    if (!activeProcResult) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>Select a health area from the left panel.</div>;
 
     // Compute sorted biomarkers, but freeze the order once a proc is loaded.
     // Re-sort only when the selected process changes, not on every weight change.
@@ -3987,7 +3989,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                                 )}
                             </div>
                         ))}
-                        <Tooltip text={"Global multiplier applied to red-zone biomarkers when no manual weight override is active.\n\nOnly red-zone biomarkers contribute to the process score — green and yellow biomarkers are treated as optimal and do not pull the score down.\n\nRed (default 4×): scales how heavily a red-zone biomarker influences the process score relative to others.\n\nHigher values give out-of-range markers stronger influence on the process score."}>
+                        <Tooltip text={"Global multiplier applied to red-zone biomarkers when no manual weight override is active.\n\nOnly red-zone biomarkers contribute to the health area score — green and yellow biomarkers are treated as optimal and do not pull the score down.\n\nRed (default 4×): scales how heavily a red-zone biomarker influences the health area score relative to others.\n\nHigher values give out-of-range markers stronger influence on the health area score."}>
                             <span style={{
                                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                                 width: 14, height: 14, borderRadius: "50%", background: C.iceMid,
@@ -4164,7 +4166,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
 
 // ─── Biomarker Curves ─────────────────────────────────────────────────────────
 function CurvesTab({ activeProcResult, selProc, cutoff, setCutoff, greenPct, setGreenPct, curve, setCurve, card }) {
-    if (!activeProcResult) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>Select a process from the left panel.</div>;
+    if (!activeProcResult) return <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>Select a health area from the left panel.</div>;
     const valid = activeProcResult.biomarkers.filter(b => !b.missing);
     return (
         <div>
@@ -4316,7 +4318,7 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
                 <div style={{ fontSize: 28 }}>✓</div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>No adjustments applied</div>
                 <div style={{ fontSize: 11, color: C.textFaint, textAlign: "center", maxWidth: 280, lineHeight: 1.6 }}>
-                    All biomarker and process weights are at their defaults. Adjust weights in the Process Weights or Biomarker Weights tabs to see them listed here.
+                    All biomarker and health area weights are at their defaults. Adjust weights in the Health Area Weights or Biomarker Weights tabs to see them listed here.
                 </div>
             </div>
         );
@@ -4330,7 +4332,7 @@ function AdjustmentsTab({ bioWeights, procWeights, setBioWeights, setProcWeights
                         fontSize: 12, fontWeight: 700, color: C.textMuted, letterSpacing: "0.06em",
                         textTransform: "uppercase", marginBottom: 12
                     }}>
-                        Process Weights ({procAdj.length})
+                        Health Area Weights ({procAdj.length})
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {procAdj.map(({ sys, proc, entry }) => (
@@ -4675,7 +4677,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
         const csv = [header, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
         const a = document.createElement("a");
         a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-        a.download = "system_client_scores.csv"; a.click();
+        a.download = "health_system_client_scores.csv"; a.click();
     };
 
     const downloadDomainCSV = () => {
@@ -4696,7 +4698,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
         const csv = [header, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
         const a = document.createElement("a");
         a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-        a.download = "domain_client_scores.csv"; a.click();
+        a.download = "cancer_score_client_scores.csv"; a.click();
     };
 
     const downloadProcCSV = () => {
@@ -4713,13 +4715,13 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
         const csv = [header, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
         const a = document.createElement("a");
         a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-        a.download = "process_client_scores.csv"; a.click();
+        a.download = "health_area_client_scores.csv"; a.click();
     };
 
     const AGG_TABS = [
-        { key: "domain-summary", label: "Domain Summary" },
-        { key: "overview", label: "System Summary" },
-        { key: "process-summary", label: "Process Summary" },
+        { key: "domain-summary", label: "Cancer Score Summary" },
+        { key: "overview", label: "Health System Summary" },
+        { key: "process-summary", label: "Health Area Summary" },
         { key: "histograms", label: "Histograms" },
         { key: "flowchart", label: "Flowchart" },
         { key: "export", label: "Export" },
@@ -4753,7 +4755,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px" }}>
 
-                {/* Profile selector — shown on Domain Summary and System Summary tabs */}
+                {/* Profile selector — shown on Cancer Score Summary and Health System Summary tabs */}
                 {(aggTab === "domain-summary" || aggTab === "overview") && <div style={{ marginBottom: 24 }}>
                     <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>
                         {isComparing
@@ -4786,10 +4788,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                     </div>
                 </div>}
 
-                {/* ── Domain Summary tab — Cancer only ── */}
+                {/* ── Cancer Score Summary tab — Cancer only ── */}
                 {aggTab === "domain-summary" && (() => {
                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                    // Cancer domain score stats across profiles
+                    // Cancer Score stats across profiles
                     function cancerDomainStats(profData) {
                         const scores = profData.clients.map(r => r.cancerDomainScore).filter(x => x != null);
                         const st = stats(scores);
@@ -4807,7 +4809,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Cancer Scores</div>
                                     <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>{nonDemoClients.length} reports</span>
                                 </div>
-                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Cancer domain score per client.</div>
+                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Cancer Score per client.</div>
                                 {isComparing && (
                                     <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, marginBottom: 12 }}>
                                         {aggregateData.map(({ profile }, pi) => {
@@ -4971,11 +4973,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                 </div>
                                 <button onClick={() => document.getElementById("sys-pop-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
                                     style={{ fontSize: 10, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>
-                                    Jump to Population Summary ↓
+                                    Jump to Health System Population Summary ↓
                                 </button>
                             </div>
                             <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
-                                Each cell shows the system score for that client.
+                                Each cell shows the health system score for that client.
                                 {isComparing && clientTab === 0 && <span> Viewing <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> (baseline).</span>}
                                 {isComparing && clientTab > 0 && <span> Viewing <strong style={{ color: PROF_COLORS[clientTab] }}>{aggregateData[clientTab].profile.name}</strong>. ▲▼ deltas vs. baseline.</span>}
                             </div>
@@ -5032,7 +5034,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             })()}
                             {(() => {
                                 const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
-                                // Cancer pathway systems excluded — show health system columns instead
+                                // Cancer Process systems excluded — show health system columns instead
                                 const visibleSystems = assocSystems.filter(s => {
                                     const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Diseases" : "Cancer";
                                     return visibleSysGroups.has(grp) && s.group !== "cancer";
@@ -5145,9 +5147,9 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
 
                         </div>
                         <div style={{ marginTop: 24 }}>
-                            <div id="sys-pop-summary" style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Population Summary</div>
+                            <div id="sys-pop-summary" style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Health System Population Summary</div>
                             <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
-                                {isComparing ? <>Systems as rows, profiles as column groups. Δ Mean vs. baseline <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong>.</> : "Summary statistics per system across all clients."}
+                                {isComparing ? <>Health Systems as rows, profiles as column groups. Δ Mean vs. baseline <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong>.</> : "Summary statistics per health system across all clients."}
                             </div>
                             <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -5162,7 +5164,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                             </tr>
                                         )}
                                         <tr style={{ background: C.navy }}>
-                                            <th style={{ padding: "9px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>System</th>
+                                            <th style={{ padding: "9px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Health System</th>
                                             {aggregateData.map(({ profile }, pi) => {
                                                 const col = PROF_COLORS[pi % PROF_COLORS.length];
                                                 return [
@@ -5308,16 +5310,16 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             <div data-tutorial="client-scores-table" style={{ marginBottom: 32 }}>
                                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Process Scores</div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Health Area Scores</div>
                                         <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>{nonDemoClients.length} reports</span>
                                     </div>
                                     <button onClick={() => document.getElementById("proc-pop-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
                                         style={{ fontSize: 10, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>
-                                        Jump to Population Summary ↓
+                                        Jump to Health Area Population Summary ↓
                                     </button>
                                 </div>
                                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
-                                    Each cell shows the process score for that client.
+                                    Each cell shows the health area score for that client.
                                     {isComparing && clientTab === 0 && <span> Viewing <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong> (baseline).</span>}
                                     {isComparing && clientTab > 0 && <span> Viewing <strong style={{ color: PROF_COLORS[clientTab] }}>{aggregateData[clientTab].profile.name}</strong>. ▲▼ deltas vs. baseline.</span>}
                                 </div>
@@ -5351,7 +5353,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         }}>
                                             {/* Header */}
                                             <div style={{ padding: "10px 14px 8px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-                                                <span style={{ fontSize: 11, fontWeight: 700, color: C.textSecond }}>Filter process columns</span>
+                                                <span style={{ fontSize: 11, fontWeight: 700, color: C.textSecond }}>Filter health area columns</span>
                                                 <div style={{ display: "flex", gap: 6 }}>
                                                     <button onClick={() => setVisibleProcs(new Set(ALL_PROCS_FLAT))} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint, cursor: "pointer" }}>All</button>
                                                     <button onClick={() => setVisibleProcs(new Set())} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: C.textFaint, cursor: "pointer" }}>None</button>
@@ -5364,7 +5366,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                     autoFocus
                                                     value={procFilterSearch}
                                                     onChange={e => setProcFilterSearch(e.target.value)}
-                                                    placeholder="Search processes…"
+                                                    placeholder="Search health areas…"
                                                     style={{ width: "100%", fontSize: 11, padding: "5px 10px", border: `1px solid ${C.border}`, borderRadius: 6, color: C.textPrimary, background: C.white, outline: "none", boxSizing: "border-box" }}
                                                 />
                                             </div>
@@ -5469,9 +5471,9 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                 })()}
                             </div>
                             <div>
-                                <div id="proc-pop-summary" style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Process Population Summary</div>
+                                <div id="proc-pop-summary" style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Health Area Population Summary</div>
                                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>
-                                    {isComparing ? <>Processes as rows, profiles as column groups. Δ Mean vs. baseline <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong>.</> : "Summary statistics per process across all clients."}
+                                    {isComparing ? <>Health Areas as rows, profiles as column groups. Δ Mean vs. baseline <strong style={{ color: PROF_COLORS[0] }}>{aggregateData[0].profile.name}</strong>.</> : "Summary statistics per health area across all clients."}
                                 </div>
                                 <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -5486,7 +5488,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 </tr>
                                             )}
                                             <tr style={{ background: C.navy }}>
-                                                <th style={{ padding: "9px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Process</th>
+                                                <th style={{ padding: "9px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>Health Area</th>
                                                 {aggregateData.map(({ profile }, pi) => {
                                                     const col = PROF_COLORS[pi % PROF_COLORS.length];
                                                     return [
@@ -5747,7 +5749,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
     const selHealthSystem = isCancerHealthSystem ? (CANCER_HEALTH_SYSTEMS.find(t => t.id === histSysId) ?? CANCER_HEALTH_SYSTEMS[0]) : null;
     const selSys = !isCancerHealthSystem ? (assocSystems.find(s => s.id === histSysId) || sysGroups.find(g => g.groupId !== "cancer")?.systems[0] || assocSystems[0]) : null;
 
-    // For cancer health systems, pathways within the health system serve as "processes"
+    // For cancer health systems (Tiers), Cancer Processes within the Tier serve as "health areas"
     const cancerPathways = selHealthSystem ? CANCER_SYSTEMS.filter(s => selHealthSystem.systems.includes(s.id)) : [];
     const procList = isCancerHealthSystem
         ? cancerPathways.map(s => ({ id: s.id, name: s.name }))
@@ -5796,7 +5798,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-            {/* Cancer domain histogram */}
+            {/* Cancer Score histogram */}
             <div style={{ ...card, padding: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Cancer Score</div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>Showing scores from {domainScores.length} client report{domainScores.length !== 1 ? "s" : ""}. Bands reflect classification thresholds.</div>
@@ -5805,10 +5807,10 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
 
             {/* System scores */}
             <div data-tutorial="first-sys-histogram" style={{ ...card, padding: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>System Scores</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Health System Scores</div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Showing scores from {sysScores.length} client report{sysScores.length !== 1 ? "s" : ""}.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 20, maxWidth: 320 }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: C.teal, textTransform: "uppercase", letterSpacing: "0.1em" }}>System / Tier</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: C.teal, textTransform: "uppercase", letterSpacing: "0.1em" }}>Health System / Tier</div>
                     <select value={histSysId} onChange={e => selectSys(e.target.value)}
                         style={{
                             padding: "6px 10px", fontSize: 11, borderRadius: 6, cursor: "pointer",
@@ -5823,7 +5825,7 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
                         ))}
                     </select>
                 </div>
-                {/* Cancer Tiers use the same red/yellow cutoffs as every other system — no special-case needed */}
+                {/* Cancer Tiers use the same red/yellow cutoffs as every other health system — no special-case needed */}
                 <Histogram scores={sysScores} title={sysTitle} redCutoff={sysRedCutoff} yellowCutoff={sysYellowCutoff} />
                 <CutoffControl
                     redCutoff={sysRedCutoff} setRedCutoff={setSysRedCutoff}
@@ -5840,9 +5842,9 @@ function HistogramsTab({ nonDemoClients, sysYellowCutoff, setSysYellowCutoff, sy
                     }} />
             </div>
 
-            {/* Process / Pathway scores */}
+            {/* Health Area / Cancer Process scores */}
             <div style={{ ...card, padding: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>{isCancerHealthSystem ? "Pathway Scores" : "Process Scores"}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>{isCancerHealthSystem ? "Cancer Process Scores" : "Health Area Scores"}</div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Showing scores from {procScores.length} client report{procScores.length !== 1 ? "s" : ""}.</div>
                 <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
                     {procList.map(p => (
@@ -5907,7 +5909,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerHealthSystemId, setFl
     const nodeDim = (active) => isHovering && !active ? 0.15 : 1;
     const edgeDim = (active) => isHovering ? (active ? 1 : 0.08) : 1;
 
-    // Domain label for the selected system
+    // Group label for the selected system
     const sysGroup = sysGroups.find(g => g.systems.some(s => s.id === flowSysId));
 
     // Layout — wider columns and gaps for readability
@@ -6146,7 +6148,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerHealthSystemId, setFl
                         <svg width={totalSvgW} height={svgH} style={{ display: "block", fontFamily: T.body }} xmlns="http://www.w3.org/2000/svg">
                             {/* Domain → Tier */}
                             {(() => { const mx = (D_X + D_W + T_X) / 2; return <path d={`M${D_X + D_W},${midY} C${mx},${midY} ${mx},${midY} ${T_X},${midY}`} fill="none" stroke={C.navy} strokeWidth="1.2" opacity="0.4" />; })()}
-                            {/* Tier → Pathway */}
+                            {/* Tier → Cancer Process */}
                             {pathData.map((d, i) => {
                                 const y2 = pathCentres[i]; const mx = (T_X + T_W + P_X) / 2;
                                 const active = !isHoveringCancer || activePathways?.has(d.pw.id);
@@ -6156,7 +6158,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerHealthSystemId, setFl
                                     opacity={isHoveringCancer ? cEdgeDim(active) : (d.pwModified ? 0.6 : 0.35)}
                                     style={{ transition: "opacity 0.15s, stroke 0.15s" }} />;
                             })}
-                            {/* Pathway → Biomarker */}
+                            {/* Cancer Process → Biomarker */}
                             {pathData.map((d, pi) => d.bms.map((bmName, bi) => {
                                 const bioY = groupStartY[pi] + d.bioCentres[bi];
                                 const mx = (P_X + P_W + B_X) / 2;
@@ -6189,7 +6191,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerHealthSystemId, setFl
                                 {/* Tier weight badge — always teal */}
                                 {badge(`×${effectiveHealthSystemW}`, C.teal, T_X + 12, midY + HEALTH_SYSTEM_H / 2 - 12)}
                             </g>
-                            {/* Pathway nodes */}
+                            {/* Cancer Process nodes */}
                             {pathData.map((d, i) => {
                                 const cy = pathCentres[i];
                                 const h = d.nodeH;
@@ -6209,7 +6211,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerHealthSystemId, setFl
                                             <text key={li} x={P_X + 12} y={cy - (nameLines.length - 1) * 6 + li * 13 - (d.pwModified ? 8 : 0)}
                                                 fontSize="10" fontWeight="600" fill={C.navy} fontFamily={T.body}>{line}</text>
                                         ))}
-                                        <text x={P_X + 12} y={cy + (d.pwModified ? h / 2 - 22 : h / 2 - 8)} fontSize="9" fill={C.textMuted} fontFamily={T.body}>Pathway</text>
+                                        <text x={P_X + 12} y={cy + (d.pwModified ? h / 2 - 22 : h / 2 - 8)} fontSize="9" fill={C.textMuted} fontFamily={T.body}>Cancer Process</text>
                                         {d.pwModified && badge(`×${d.pwW}`, C.teal, P_X + 12, cy + h / 2 - 10)}
                                     </g>
                                 );
@@ -6258,7 +6260,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerHealthSystemId, setFl
                 <svg ref={svgRef} width={totalW} height={totalH} style={{ display: "block", fontFamily: T.body, overflow: "visible" }}
                     xmlns="http://www.w3.org/2000/svg">
 
-                    {/* Connectors: 2-level = system→bio direct; 3-level = system→process→bio */}
+                    {/* Connectors: 2-level = system→bio direct; 3-level = system→health area→bio */}
                     {isTwoTier ? (
                         allBiomarkers.map((bmName, bi) => {
                             const x1 = COL1_X + COL1_W, y1 = sysY;
@@ -6296,7 +6298,7 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerHealthSystemId, setFl
                         }))}
                     </>)}
 
-                    {/* Domain → System connector */}
+                    {/* Group → Health System connector */}
                     {(() => {
                         const x1 = COL0_X + COL0_W, y1 = sysY;
                         const x2 = COL1_X, y2 = sysY;
@@ -6305,19 +6307,19 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerHealthSystemId, setFl
                             fill="none" stroke={C.navy} strokeWidth="1.2" opacity="0.4" />;
                     })()}
 
-                    {/* Domain node */}
+                    {/* Group node — a category label (Health Systems / Diseases / Fitness), not a scored Domain layer; only Cancer has a real Domain (Cancer Score) */}
                     <g style={{ cursor: "default" }}>
                         <rect x={COL0_X} y={sysY - 36} width={COL0_W} height={72} rx="8"
                             fill={`${C.navy}08`} stroke={C.navy} strokeWidth="1.2" strokeDasharray="5,3" />
-                        {wrapText(sysGroup?.label ?? "Domain", 14).map((line, li, arr) => (
+                        {wrapText(sysGroup?.label ?? "Group", 14).map((line, li, arr) => (
                             <text key={li} x={COL0_X + COL0_W / 2} y={sysY - (arr.length - 1) * 7 + li * 14 - 4}
                                 textAnchor="middle" fontSize="11" fontWeight="700" fill={C.navy} fontFamily={T.body}>{line}</text>
                         ))}
                         <text x={COL0_X + COL0_W / 2} y={sysY + 24}
-                            textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Domain</text>
+                            textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Group</text>
                     </g>
 
-                    {/* System node */}
+                    {/* Health System node */}
                     <g onMouseEnter={() => setHoveredNode({ type: "sys" })} onMouseLeave={() => setHoveredNode(null)}
                         style={{ cursor: "default", opacity: nodeDim(activeSys || !isHovering), transition: "opacity 0.15s" }}>
                         <rect x={COL1_X} y={sysY - SYS_H / 2} width={COL1_W} height={SYS_H} rx="8"
@@ -6329,10 +6331,10 @@ function FlowchartTab({ flowSysId, setFlowSysId, flowCancerHealthSystemId, setFl
                                 textAnchor="middle" fontSize="12" fontWeight="700" fill={C.navy} fontFamily={T.body}>{line}</text>
                         ))}
                         <text x={COL1_X + COL1_W / 2} y={sysY + SYS_H / 2 - 10}
-                            textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>System</text>
+                            textAnchor="middle" fontSize="9" fill={C.textMuted} fontFamily={T.body}>Health System</text>
                     </g>
 
-                    {/* Process nodes — 3-level only */}
+                    {/* Health Area nodes — 3-level only */}
                     {!isTwoTier && procs.map(([procName], pi) => {
                         const pe = procWeights[procName] ?? DEFAULT_PROC;
                         const w = pe.weight ?? 1;
@@ -6428,7 +6430,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
     const [resetConfirm, setResetConfirm] = useState(false);
     const assocImportRef = useRef();
 
-    // Flatten all systems into table rows, sorted by group order → system → process → biomarker
+    // Flatten all systems into table rows, sorted by group order → system → health area → biomarker
     const groupOrder = g => assocGroups.findIndex(ag => ag.id === g);
     const allRows = assocSystems.flatMap(sys =>
         Object.entries(sys.processes).flatMap(([proc, bms]) =>
@@ -6583,12 +6585,12 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
         });
     }
 
-    const BUILTIN_GROUP_EXPORT = { health: "health_system", disease: "diseases", cancer: "cancer_hallmark" };
+    const BUILTIN_GROUP_EXPORT = { health: "health_system", disease: "diseases", cancer: "cancer" };
     const exportGroupLabel = g => BUILTIN_GROUP_EXPORT[g] ?? g;
 
     // ── CSV Export ──
     function exportAssocCSV() {
-        const header = ["GROUP", "SYSTEM_NAME", "PROCESS", "BIOMARKER", "LEVEL", "PMID"];
+        const header = ["GROUP", "SYSTEM_NAME", "HEALTH_AREA", "BIOMARKER", "LEVEL", "PMID"];
         const rows = allRows.map(r => [exportGroupLabel(r.group), r.systemName, r.process, r.biomarker, r.level, r.pmid]);
         const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
         const a = document.createElement("a");
@@ -6611,7 +6613,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                     const rawGroup = (row["group"] ?? "health").trim().toLowerCase();
                     const sysId  = (row["system_id"] ?? "").trim();
                     const sysName = (row["system_name"] ?? "").trim();
-                    const proc   = (row["process"] ?? "").trim();
+                    const proc   = (row["health_area"] ?? row["process"] ?? "").trim();
                     const bm     = (row["biomarker"] ?? "").trim();
                     const lvl    = (row["level"] ?? "both").trim().toLowerCase();
                     const pmid   = (row["pmid"] ?? "").trim();
@@ -6665,7 +6667,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
                 <input
                     value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Search system, process, biomarker…"
+                    placeholder="Search system, health area, biomarker…"
                     style={{ fontSize: 12, padding: "6px 12px", borderRadius: 7, border: `1px solid ${C.border}`, outline: "none", minWidth: 240, color: C.textPrimary, background: C.surface }}
                 />
                 {/* Dropdown filter with optgroups */}
@@ -6712,7 +6714,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                     <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
                         <tr style={{ background: C.navy }}>
-                            {["Group", "System", "Process", "Biomarker", "Level", "PMID", "", ""].map((h, i) => (
+                            {["Group", "System", "Health Area", "Biomarker", "Level", "PMID", "", ""].map((h, i) => (
                                 <th key={i} style={{ padding: "9px 14px", textAlign: "left", color: C.iceLight, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap", width: i >= 6 ? 32 : "auto" }}>{h}</th>
                             ))}
                         </tr>
@@ -6850,7 +6852,7 @@ function AssocModal({ mode, initialRow, assocSystems, sysGroups, assocGroups, on
     function handleSave() {
         if (!sysName.trim()) { setErr("System name is required."); return; }
         const finalProcess = isTwoLevel ? sysName.trim() : process.trim();
-        if (!finalProcess) { setErr("Process is required."); return; }
+        if (!finalProcess) { setErr("Health area is required."); return; }
         if (!biomarker.trim()) { setErr("Biomarker is required."); return; }
         const normalizedPmid = pmid.replace(/,/g, ";").replace(/;\s*/g, "; ").trim().replace(/;\s*$/, "");
         onSave(group, sysName.trim(), finalProcess, biomarker.trim(), level, normalizedPmid);
@@ -6889,10 +6891,10 @@ function AssocModal({ mode, initialRow, assocSystems, sysGroups, assocGroups, on
                             />
                             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: C.textMuted }}>
                                 <input type="checkbox" checked={newGroupTwoLevel} onChange={e => setNewGroupTwoLevel(e.target.checked)} />
-                                2-level group — System → Biomarker only (no Process)
+                                2-level group — System → Biomarker only (no Health Area)
                             </label>
                             <div style={{ fontSize: 10, color: C.textFaint }}>
-                                Use 2-level for hallmark-style groups where biomarkers link directly to the system with no intermediate process.
+                                Use 2-level for groups where biomarkers link directly to the system with no intermediate health area.
                             </div>
                             <div style={{ display: "flex", gap: 8 }}>
                                 <button onClick={handleCreateGroup} style={{ fontSize: 11, padding: "5px 14px", borderRadius: 6, border: "none", background: C.teal, color: C.navy, cursor: "pointer", fontWeight: 700 }}>Create Group</button>
@@ -6910,15 +6912,15 @@ function AssocModal({ mode, initialRow, assocSystems, sysGroups, assocGroups, on
                         </datalist>
                     </div>
 
-                    {/* Process — hidden for 2-level groups */}
+                    {/* Health Area — hidden for 2-level groups */}
                     {isTwoLevel ? (
                         <div style={{ fontSize: 11, color: C.textFaint, background: `${C.teal}08`, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 12px", lineHeight: 1.5 }}>
-                            This is a 2-level group — biomarkers link directly to the system with no intermediate process.
+                            This is a 2-level group — biomarkers link directly to the system with no intermediate health area.
                         </div>
                     ) : (
                         <div>
-                            <label style={labelStyle}>Process</label>
-                            <input list="assoc-proc-list" value={process} onChange={e => setProcess(e.target.value)} placeholder="Type or select a process…" style={inputStyle} />
+                            <label style={labelStyle}>Health Area</label>
+                            <input list="assoc-proc-list" value={process} onChange={e => setProcess(e.target.value)} placeholder="Type or select a health area…" style={inputStyle} />
                             <datalist id="assoc-proc-list">
                                 {procsInSys.map(p => <option key={p} value={p} />)}
                             </datalist>
@@ -6970,7 +6972,7 @@ function ExportTab({ profiles, activeProfile, exportProfile, card, assocSystems 
     const selProfile = profiles.find(p => p.id === selProfileId) ?? profiles[0];
 
     function exportHumanFriendly(profile) {
-        const rows = [["System", "Process", "Biomarker", "Bio Weight", "Bio Color", "Bio Level", "Bio PubMed", "Proc Weight", "Proc Color", "Proc PubMed"]];
+        const rows = [["System", "Health Area", "Biomarker", "Bio Weight", "Bio Color", "Bio Level", "Bio PubMed", "Area Weight", "Area Color", "Area PubMed"]];
         const DEFAULT_BIO = { weight: 1, color: "red", ref: "" };
         const DEFAULT_PROC = { weight: 1, color: "red", ref: "" };
         assocSystems.forEach(sys => {
@@ -6998,7 +7000,7 @@ function ExportTab({ profiles, activeProfile, exportProfile, card, assocSystems 
     return (
         <div>
             <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 20 }}>
-                Choose a profile to export. The human-friendly format includes all system–process–biomarker relationships with their current weight settings, even unchanged defaults. The database format is the compact CSV used for re-importing.
+                Choose a profile to export. The human-friendly format includes all system–health area–biomarker relationships with their current weight settings, even unchanged defaults. The database format is the compact CSV used for re-importing.
             </div>
             {/* Profile picker */}
             <div style={{ marginBottom: 24 }}>
@@ -7028,7 +7030,7 @@ function ExportTab({ profiles, activeProfile, exportProfile, card, assocSystems 
                     <span style={{ fontSize: 24, lineHeight: 1 }}>📄</span>
                     <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>Human-friendly</div>
-                        <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>All system → process → biomarker relationships with weight columns. Includes unchanged defaults.</div>
+                        <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>All system → health area → biomarker relationships with weight columns. Includes unchanged defaults.</div>
                     </div>
                 </button>
                 <button onClick={() => exportProfile(selProfile)}
