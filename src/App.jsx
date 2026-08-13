@@ -4665,14 +4665,17 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
 
     const downloadSysCSV = () => {
         const rows = aggregateData[isComparing ? clientTab : 0].clients;
+        // Cancer Process systems excluded — tier columns below stand in for them (matches Health System Summary table)
         const visSystems = assocSystems.filter(s => {
             const grp = s.group === "health" ? "Health Systems" : s.group === "disease" ? "Diseases" : "Cancer";
-            return visibleSysGroups.has(grp);
+            return visibleSysGroups.has(grp) && s.group !== "cancer";
         });
-        const header = ["Client", ...visSystems.map(s => s.name)];
+        const cancerColsVisible = visibleSysGroups.has("Cancer");
+        const header = ["Client", ...visSystems.map(s => s.name), ...(cancerColsVisible ? CANCER_HEALTH_SYSTEMS.map(t => t.shortLabel) : [])];
         const csvRows = rows.map(row => [
             row.label ?? row.pid,
-            ...visSystems.map(s => { const d = row.systems.find(rs => rs.id === s.id); return d?.score != null ? Math.floor(d.score) : ""; })
+            ...visSystems.map(s => { const d = row.systems.find(rs => rs.id === s.id); return d?.score != null ? Math.floor(d.score) : ""; }),
+            ...(cancerColsVisible ? CANCER_HEALTH_SYSTEMS.map(t => { const score = row.cancerHealthSystemScores?.find(x => x.id === t.id)?.score; return score != null ? Math.floor(score) : ""; }) : [])
         ]);
         const csv = [header, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
         const a = document.createElement("a");
