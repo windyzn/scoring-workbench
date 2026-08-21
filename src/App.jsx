@@ -2299,7 +2299,7 @@ export default function App() {
         score: Object.keys(markers).length
             ? computeSystem(s, markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight).sysScore
             : null
-    })), [markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight]);
+    })), [assocSystems, markers, bioWeights, procWeights, cutoff, greenPct, curve, yellowWeight, redWeight]);
 
     const cancerDomain = useMemo(() => computeCancerDomain(allSysScores, cancerSysWeights, cancerHealthSystemWeights), [allSysScores, cancerSysWeights, cancerHealthSystemWeights]);
 
