@@ -1733,7 +1733,7 @@ function demographicGroupStats(pidScores, pidRow, matchesGroup, classify, tierMe
     const counts = {}; tierMeta.forEach(t => { counts[t.label] = 0; });
     scores.forEach(s => { counts[classify(s)]++; });
     const pct = {}; tierMeta.forEach(t => { pct[t.label] = (counts[t.label] / scores.length) * 100; });
-    return { n: scores.length, mean: st.mean, median: st.median, pct };
+    return { n: scores.length, mean: st.mean, median: st.median, sd: st.sd, min: st.min, max: st.max, pct };
 }
 
 function TierBreakdown({ pct, tierMeta }) {
@@ -1756,10 +1756,12 @@ function DemographicSection({ heading, groups, pidScores, pidRow, classify, tier
     return (
         <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>{heading}</div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 16, fontSize: 9, color: C.textFaint, padding: "0 0 3px" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 18, fontSize: 9, color: C.textFaint, padding: "0 0 3px" }}>
                 <span style={{ minWidth: 56, textAlign: "right" }}>n</span>
-                <span style={{ minWidth: 78, textAlign: "right" }}>Score mean/med</span>
-                <span style={{ minWidth: 90, textAlign: "right" }}>{tierMeta.map(t => t.label).join(" / ")}</span>
+                <span style={{ minWidth: 82, textAlign: "right" }}>Score mean/med</span>
+                <span style={{ minWidth: 46, textAlign: "right" }}>SD</span>
+                <span style={{ minWidth: 66, textAlign: "right" }}>Range</span>
+                <span style={{ minWidth: 100, textAlign: "right" }}>{tierMeta.map(t => t.label).join(" / ")}</span>
             </div>
             {groups.map(g => {
                 const stat = demographicGroupStats(pidScores, pidRow, r => g.test(r), classify, tierMeta);
@@ -1769,10 +1771,12 @@ function DemographicSection({ heading, groups, pidScores, pidRow, classify, tier
                         {stat.n === 0 ? (
                             <span style={{ fontSize: 11, color: C.textFaint }}>No clients</span>
                         ) : (
-                            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                            <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
                                 <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 56, textAlign: "right" }}>{stat.n} client{stat.n === 1 ? "" : "s"}</span>
-                                <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textSecond, minWidth: 78, textAlign: "right" }}>{stat.mean.toFixed(1)} / {stat.median.toFixed(1)}</span>
-                                <span style={{ minWidth: 90, textAlign: "right" }}><TierBreakdown pct={stat.pct} tierMeta={tierMeta} /></span>
+                                <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textSecond, minWidth: 82, textAlign: "right" }}>{stat.mean.toFixed(1)} / {stat.median.toFixed(1)}</span>
+                                <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 46, textAlign: "right" }}>{stat.sd.toFixed(1)}</span>
+                                <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 66, textAlign: "right" }}>{Math.floor(stat.min)}–{Math.floor(stat.max)}</span>
+                                <span style={{ minWidth: 100, textAlign: "right" }}><TierBreakdown pct={stat.pct} tierMeta={tierMeta} /></span>
                             </div>
                         )}
                     </div>
@@ -1787,7 +1791,7 @@ function DemographicModal({ title, pidScores, rows, classify, tierMeta, onClose 
     return (
         <div style={{ position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 700, display: "flex", alignItems: "center", justifyContent: "center" }}
             onClick={onClose}>
-            <div style={{ background: C.surface, borderRadius: 14, width: 560, maxHeight: "80vh", overflow: "auto", boxShadow: "0 12px 48px rgba(24,55,75,0.3)" }}
+            <div style={{ background: C.surface, borderRadius: 14, width: 720, maxHeight: "80vh", overflow: "auto", boxShadow: "0 12px 48px rgba(24,55,75,0.3)" }}
                 onClick={e => e.stopPropagation()}>
                 <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0 }}>
                     <span style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>{title}</span>
