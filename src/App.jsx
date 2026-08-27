@@ -1768,22 +1768,6 @@ function TierBar({ pct, tierMeta, width = 100, height = 7 }) {
     );
 }
 
-// Single-value meter for the group's mean score, colored by whichever tier the mean
-// falls in (same classify() as the rest of the modal) so it reads consistently with
-// the tier bar above. The median rides along as a light notch, giving a sense of
-// skew (notch left of center = a long tail of high scorers, and vice versa) without
-// a second number to read.
-function ScoreMeter({ mean, median, classify, tierMeta, width = 78, height = 6 }) {
-    const color = tierMeta.find(t => t.label === classify(mean))?.color ?? C.textMuted;
-    return (
-        <div style={{ position: "relative", width, height, borderRadius: height / 2, background: C.border, overflow: "hidden" }}
-            title={`Mean ${mean.toFixed(1)} · Median ${median.toFixed(1)}`}>
-            <div style={{ position: "absolute", inset: 0, width: `${mean}%`, background: color }} />
-            <div style={{ position: "absolute", left: `${median}%`, top: -1, bottom: -1, width: 2, background: C.surface }} />
-        </div>
-    );
-}
-
 // Renders one demographic dimension (sex, age, ...) as a labeled group of rows —
 // pulled out so a new insight is just another call to this with a new grouping.
 function DemographicSection({ heading, groups, pidScores, pidRow, classify, tierMeta }) {
@@ -1807,10 +1791,7 @@ function DemographicSection({ heading, groups, pidScores, pidRow, classify, tier
                         ) : (
                             <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
                                 <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 56, textAlign: "right" }}>{stat.n} client{stat.n === 1 ? "" : "s"}</span>
-                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, minWidth: 82 }}>
-                                    <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textSecond, textAlign: "right" }}>{stat.mean.toFixed(1)} / {stat.median.toFixed(1)}</span>
-                                    <ScoreMeter mean={stat.mean} median={stat.median} classify={classify} tierMeta={tierMeta} />
-                                </div>
+                                <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textSecond, minWidth: 82, textAlign: "right" }}>{stat.mean.toFixed(1)} / {stat.median.toFixed(1)}</span>
                                 <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 46, textAlign: "right" }}>{stat.sd.toFixed(1)}</span>
                                 <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 66, textAlign: "right" }}>{Math.floor(stat.min)}–{Math.floor(stat.max)}</span>
                                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, minWidth: 100 }}>
