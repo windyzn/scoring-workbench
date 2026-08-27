@@ -1376,12 +1376,14 @@ const DEMO_MARKERS = DEMO_MARKERS_HEALTHY;
 const DEMO_IDS = ["DEMO-healthy", "DEMO-typical", "DEMO-unhealthy"];
 const DEMO_CLIENT_ID = "DEMO-healthy"; // default selection
 
-function makePersona(id, markers) {
-    return { id, markers: Object.fromEntries(Object.entries(markers).map(([n, v]) => [n, { value: v.value, refLow: v.refLow, refHigh: v.refHigh }])) };
+function makePersona(id, markers, age, sex) {
+    return { id, age, sex, markers: Object.fromEntries(Object.entries(markers).map(([n, v]) => [n, { value: v.value, refLow: v.refLow, refHigh: v.refHigh }])) };
 }
-const DEMO_HEALTHY = makePersona("DEMO-healthy", DEMO_MARKERS_HEALTHY);
-const DEMO_TYPICAL = makePersona("DEMO-typical", DEMO_MARKERS_TYPICAL);
-const DEMO_UNHEALTHY = makePersona("DEMO-unhealthy", DEMO_MARKERS_UNHEALTHY);
+// Fake but plausible demographics so the age/sex columns and Population Summary
+// demographic modal have something to show before any real data is uploaded.
+const DEMO_HEALTHY = makePersona("DEMO-healthy", DEMO_MARKERS_HEALTHY, 34, "F");
+const DEMO_TYPICAL = makePersona("DEMO-typical", DEMO_MARKERS_TYPICAL, 45, "M");
+const DEMO_UNHEALTHY = makePersona("DEMO-unhealthy", DEMO_MARKERS_UNHEALTHY, 61, "F");
 const DEMO_CLIENT = DEMO_HEALTHY; // legacy alias
 
 const DEMO_PERSONAS = [
