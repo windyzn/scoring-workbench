@@ -1786,7 +1786,7 @@ function DemographicModal({ title, tiers, rows, onClose }) {
 
 function SexBadge({ sex }) {
     if (sex !== "M" && sex !== "F") return <span style={{ color: C.textFaint }}>—</span>;
-    return <span style={{ fontFamily: T.mono, fontWeight: 600, color: C.textSecond }}>{sex}</span>;
+    return <span style={{ fontFamily: T.mono, color: C.textSecond }}>{sex}</span>;
 }
 function RygCell({ breakdown }) {
     if (!breakdown) return <span style={{ color: C.textFaint }}>—</span>;
