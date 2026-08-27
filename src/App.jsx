@@ -1580,6 +1580,22 @@ function parseCSV(text) {
         return Object.fromEntries(headers.map((h, i) => [h, (vals[i] ?? "").replace(/^"|"$/g, "").trim()]));
     });
 }
+// Demographics are optional on import: age/sex may be blank, "NaN", or absent
+// entirely on older exports. Sex is normalized to a small M/F/Unknown set for
+// summary stats — anything not recognized (blank, "NaN", "other", ...) becomes
+// Unknown, with the original value kept around for display.
+function parseAge(raw) {
+    if (!raw || /^nan$/i.test(raw)) return null;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+function normalizeSex(raw) {
+    const s = (raw || "").trim().toLowerCase();
+    if (s === "male" || s === "m") return "M";
+    if (s === "female" || s === "f") return "F";
+    return "Unknown";
+}
+
 function buildClients(rows) {
     if (!rows.length) return {};
     // Case/punctuation-insensitive column lookup
@@ -1606,7 +1622,10 @@ function buildClients(rows) {
         if (!pid) continue;
 
         const label = myId && pid !== myId ? `${myId} — ${pid}` : pid;
-        if (!pts[pid]) pts[pid] = { id: pid, label, markers: {} };
+        if (!pts[pid]) {
+            const sexRaw = col(row, "sex", "gender");
+            pts[pid] = { id: pid, label, age: parseAge(col(row, "age")), sex: normalizeSex(sexRaw), sexRaw, markers: {} };
+        }
 
         const name = col(row, "measure_name", "measurename");
         const concRaw = col(row, "concentration", "raw_concentration", "lab_concentration", "labconcentration");
@@ -1637,7 +1656,6 @@ function isAdminPortalFormat(cols) {
 function buildClientFromAdminPortal(rows, clientName) {
     if (!rows.length) return {};
     const pid = clientName.trim() || "Client";
-    const client = { id: pid, label: pid, markers: {} };
 
     const keys = Object.keys(rows[0]);
     function col(row, ...names) {
@@ -1648,6 +1666,8 @@ function buildClientFromAdminPortal(rows, clientName) {
         }
         return "";
     }
+    const sexRaw = col(rows[0], "sex", "gender");
+    const client = { id: pid, label: pid, age: parseAge(col(rows[0], "age")), sex: normalizeSex(sexRaw), sexRaw, markers: {} };
 
     for (const row of rows) {
         const name = col(row, "measure_name");
@@ -1684,6 +1704,88 @@ function rygBreakdown(scores, redCutoff, greenCutoff) {
     return { red: (nRed / scores.length) * 100, yellow: (nYellow / scores.length) * 100, green: (nGreen / scores.length) * 100 };
 }
 
+// Same tiering as rygBreakdown, but keeps the pid for each score instead of just
+// a percentage — needed to join back to age/sex for the demographic drill-down modal.
+function rygPidBuckets(pidScores, redCutoff, greenCutoff) {
+    const buckets = { Red: [], Yellow: [], Green: [] };
+    for (const { pid, score } of pidScores) {
+        if (score == null) continue;
+        const tier = Math.floor(score) < redCutoff ? "Red" : Math.floor(score) < greenCutoff ? "Yellow" : "Green";
+        buckets[tier].push(pid);
+    }
+    return buckets;
+}
+// Same idea as rygPidBuckets, but tiers by an arbitrary classification list (e.g.
+// CANCER_CLASSIFICATIONS) instead of a fixed red/yellow/green cutoff pair.
+function classPidBuckets(pidScores, classifications) {
+    const buckets = {};
+    classifications.forEach(c => { buckets[c.label] = []; });
+    for (const { pid, score } of pidScores) {
+        if (score == null) continue;
+        const cls = classifications.find(c => score >= c.min) ?? classifications[classifications.length - 1];
+        buckets[cls.label].push(pid);
+    }
+    return buckets;
+}
+// Age/sex summary for a set of pids, looked up against aggregateData client rows
+// (which already carry age/sex — see buildClients/buildClientFromAdminPortal).
+function demographicStats(pids, rows) {
+    const set = new Set(pids);
+    const matched = rows.filter(r => set.has(r.pid));
+    const ageStats = stats(matched.map(r => r.age).filter(a => a != null));
+    const nM = matched.filter(r => r.sex === "M").length;
+    const nF = matched.filter(r => r.sex === "F").length;
+    return { n: matched.length, ageStats, sex: { M: nM, F: nF, Unknown: matched.length - nM - nF } };
+}
+
+function DemographicModal({ title, tiers, rows, onClose }) {
+    return (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 700, display: "flex", alignItems: "center", justifyContent: "center" }}
+            onClick={onClose}>
+            <div style={{ background: C.surface, borderRadius: 14, width: 480, maxHeight: "80vh", overflow: "auto", boxShadow: "0 12px 48px rgba(24,55,75,0.3)" }}
+                onClick={e => e.stopPropagation()}>
+                <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0 }}>
+                    <span style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>{title}</span>
+                    <button onClick={onClose} style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+                    <div style={{ fontSize: 11, color: C.textMuted }}>Age/sex breakdown per risk tier, across all clients currently loaded.</div>
+                    {tiers.map(({ label, color, pids }) => {
+                        const d = demographicStats(pids, rows);
+                        const pct = n => d.n ? Math.round((n / d.n) * 100) : 0;
+                        return (
+                            <div key={label} style={{ border: `1px solid ${C.border}`, borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "10px 14px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color }}>{label}</span>
+                                    <span style={{ fontSize: 11, color: C.textMuted }}>{d.n} client{d.n === 1 ? "" : "s"}</span>
+                                </div>
+                                {d.n === 0 ? (
+                                    <div style={{ fontSize: 11, color: C.textFaint }}>No clients in this tier.</div>
+                                ) : (
+                                    <div style={{ display: "flex", gap: 20, fontSize: 11, color: C.textSecond }}>
+                                        <div>
+                                            <div style={{ color: C.textFaint, fontSize: 10, marginBottom: 2 }}>Age (mean / median)</div>
+                                            <div style={{ fontFamily: T.mono }}>{d.ageStats ? `${d.ageStats.mean.toFixed(1)} / ${d.ageStats.median.toFixed(1)}` : "—"}</div>
+                                        </div>
+                                        <div>
+                                            <div style={{ color: C.textFaint, fontSize: 10, marginBottom: 2 }}>Sex (M / F / Unknown)</div>
+                                            <div style={{ fontFamily: T.mono }}>{d.sex.M} ({pct(d.sex.M)}%) / {d.sex.F} ({pct(d.sex.F)}%) / {d.sex.Unknown} ({pct(d.sex.Unknown)}%)</div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SexBadge({ sex }) {
+    if (sex !== "M" && sex !== "F") return <span style={{ color: C.textFaint }}>—</span>;
+    return <span style={{ fontFamily: T.mono, fontWeight: 600, color: C.textSecond }}>{sex}</span>;
+}
 function RygCell({ breakdown }) {
     if (!breakdown) return <span style={{ color: C.textFaint }}>—</span>;
     return (
@@ -2335,7 +2437,7 @@ export default function App() {
                 const cancerResult = computeCancerDomain(syss, prof.cancerSysWeights ?? {}, prof.cancerHealthSystemWeights ?? {});
                 const cancerHealthSystemScores = cancerResult.healthSystemResults.map(t => ({ id: t.id, label: t.label, shortLabel: t.shortLabel, score: t.score }));
                 const cancerDomainScore = cancerResult.domainScore;
-                return { pid, label: clients[pid]?.label ?? pid, systems: syss, cancerHealthSystemScores, cancerDomainScore };
+                return { pid, label: clients[pid]?.label ?? pid, age: clients[pid]?.age ?? null, sex: clients[pid]?.sex ?? "Unknown", systems: syss, cancerHealthSystemScores, cancerDomainScore };
             })
         }));
     }, [clients, profiles, compareIds, activeProfile, assocSystems]);
@@ -4617,6 +4719,11 @@ function gradeBg(score) {
 
 // Profile colour palette for multi-profile comparison
 const PROF_COLORS = [C.steel, C.teal, C.fair, C.atRisk, "#8B6FAB"];
+// Sticky "Client" column is 160px wide; Age/Sex sit right after it, before whatever
+// sticky column (usually the ⚠ flag) comes next — tables that add them shift that
+// column's `left` by AGE_COL_W + SEX_COL_W.
+const AGE_COL_W = 46;
+const SEX_COL_W = 44;
 
 function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, card, tutorialStep, setTutorialStep, tutorialDone, setTutorialDone, showTutorial, setShowTutorial, bioWeights, procWeights, sysYellowCutoff, setSysYellowCutoff, sysRedCutoff, setSysRedCutoff, procYellowCutoff, setProcYellowCutoff, procRedCutoff, setProcRedCutoff, exportProfile, activeProfile, aggTab, setAggTab, onNavigate, assocSystems, sysGroups, assocGroups }) {
     const [clientTab, setClientTab] = useState(0);
@@ -4640,6 +4747,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const [flowSysId, setFlowSysId] = useState(healthSystems[0]?.id ?? "");
     const [flowCancerHealthSystemId, setFlowCancerHealthSystemId] = useState(CANCER_HEALTH_SYSTEMS[0].id);
     const [isCancerFlow, setIsCancerFlow] = useState(false);
+    const [demoModal, setDemoModal] = useState(null); // { title, tiers: [{ label, color, pids }] } — demographic drill-down modal
 
     if (!aggregateData || !aggregateData.length) return (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
@@ -4662,6 +4770,13 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
         return st ? { ...st, breakdown: rygBreakdown(scores, overviewYellow, overviewGreen) } : null;
     }
     const nonDemoClients = aggregateData[0]?.clients.filter(r => !DEMO_IDS.includes(r.pid)) ?? [];
+    // Population Summary rows open a Red/Yellow/Green demographic drill-down using whatever
+    // cutoffs already color that row (baseline profile — aggregateData[0]).
+    const RYG_TIER_COLORS = { Red: C.critical, Yellow: C.fair, Green: C.teal };
+    function openRygDemoModal(title, pidScores, redCutoff, greenCutoff) {
+        const buckets = rygPidBuckets(pidScores, redCutoff, greenCutoff);
+        setDemoModal({ title, tiers: ["Red", "Yellow", "Green"].map(label => ({ label, color: RYG_TIER_COLORS[label], pids: buckets[label] })) });
+    }
 
     const downloadSysCSV = () => {
         const rows = aggregateData[isComparing ? clientTab : 0].clients;
@@ -4671,9 +4786,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
             return visibleSysGroups.has(grp) && s.group !== "cancer";
         });
         const cancerColsVisible = visibleSysGroups.has("Cancer");
-        const header = ["Client", ...visSystems.map(s => s.name), ...(cancerColsVisible ? CANCER_HEALTH_SYSTEMS.map(t => t.shortLabel) : [])];
+        const header = ["Client", "Age", "Sex", ...visSystems.map(s => s.name), ...(cancerColsVisible ? CANCER_HEALTH_SYSTEMS.map(t => t.shortLabel) : [])];
         const csvRows = rows.map(row => [
             row.label ?? row.pid,
+            row.age ?? "",
+            row.sex ?? "Unknown",
             ...visSystems.map(s => { const d = row.systems.find(rs => rs.id === s.id); return d?.score != null ? Math.floor(d.score) : ""; }),
             ...(cancerColsVisible ? CANCER_HEALTH_SYSTEMS.map(t => { const score = row.cancerHealthSystemScores?.find(x => x.id === t.id)?.score; return score != null ? Math.floor(score) : ""; }) : [])
         ]);
@@ -4692,9 +4809,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
             const cls = classifyCancer(row.cancerDomainScore);
             return cls ? visibleClassifications.has(cls.label) : visibleClassifications.size === CANCER_CLASS_LABELS.length;
         });
-        const header = ["Client", "Cancer Score", "Classification"];
+        const header = ["Client", "Age", "Sex", "Cancer Score", "Classification"];
         const csvRows = rows.map(row => [
             row.label ?? row.pid,
+            row.age ?? "",
+            row.sex ?? "Unknown",
             row.cancerDomainScore != null ? Math.floor(row.cancerDomainScore) : "",
             classifyCancer(row.cancerDomainScore)?.label ?? "",
         ]);
@@ -4707,9 +4826,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     const downloadProcCSV = () => {
         const rows = aggregateData[isComparing ? clientTab : 0].clients;
         const allProcs = ALL_PROCS_FLAT.filter(p => visibleProcs.has(p));
-        const header = ["Client", ...allProcs];
+        const header = ["Client", "Age", "Sex", ...allProcs];
         const csvRows = rows.map(row => [
             row.label ?? row.pid,
+            row.age ?? "",
+            row.sex ?? "Unknown",
             ...allProcs.map(procName => {
                 const score = row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null;
                 return score != null ? Math.floor(score) : "";
@@ -4867,6 +4988,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     <table style={{ borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
                                         <colgroup>
                                             <col style={{ width: 160 }} />
+                                            <col style={{ width: AGE_COL_W }} />
+                                            <col style={{ width: SEX_COL_W }} />
                                             <col style={{ width: 44 }} />
                                             <col style={{ width: 130 }} />
                                             <col style={{ width: 180 }} />
@@ -4874,7 +4997,9 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         <thead>
                                             <tr style={{ background: C.navy }}>
                                                 <th style={{ position: "sticky", left: 0, zIndex: 2, padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Client</th>
-                                                <th style={{ position: "sticky", left: 160, zIndex: 2, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, background: C.navy }}>⚠</th>
+                                                <th style={{ position: "sticky", left: 160, zIndex: 2, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, background: C.navy }}>Age</th>
+                                                <th style={{ position: "sticky", left: 160 + AGE_COL_W, zIndex: 2, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, background: C.navy }}>Sex</th>
+                                                <th style={{ position: "sticky", left: 160 + AGE_COL_W + SEX_COL_W, zIndex: 2, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, background: C.navy }}>⚠</th>
                                                 <th style={{ padding: "10px 10px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, borderLeft: `2px solid ${C.teal}55` }}>Cancer Score</th>
                                                 <th style={{ padding: "10px 14px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600 }}>Classification</th>
                                             </tr>
@@ -4890,7 +5015,9 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 return (
                                                     <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
                                                         <td onClick={() => onNavigate(row.pid)} style={{ position: "sticky", left: 0, zIndex: 2, padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: rowBg, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }}>{row.label ?? row.pid}</td>
-                                                        <td style={{ position: "sticky", left: 160, zIndex: 2, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap" }}>
+                                                        <td style={{ position: "sticky", left: 160, zIndex: 2, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap", fontFamily: T.mono, fontSize: 11, color: C.textSecond }}>{row.age ?? <span style={{ color: C.textFaint }}>—</span>}</td>
+                                                        <td style={{ position: "sticky", left: 160 + AGE_COL_W, zIndex: 2, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap", fontSize: 11 }}><SexBadge sex={row.sex} /></td>
+                                                        <td style={{ position: "sticky", left: 160 + AGE_COL_W + SEX_COL_W, zIndex: 2, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap" }}>
                                                             {hasFlag
                                                                 ? <span style={{ fontSize: 9, fontWeight: 700, color: cls?.color ?? C.critical }}>!</span>
                                                                 : <span style={{ fontSize: 9, color: C.teal }}>✓</span>}
@@ -4943,7 +5070,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 const col = overviewColour(baseStats?.mean);
                                                 return (
                                                     <tr style={{ borderTop: `1px solid ${C.border}` }}>
-                                                        <td style={{ padding: "9px 16px", fontSize: 12, fontWeight: 700, color: C.textPrimary, borderLeft: `3px solid ${baseStats ? col : C.border}` }}>Cancer Score</td>
+                                                        <td onClick={() => {
+                                                            const pidScores = aggregateData[0].clients.map(r => ({ pid: r.pid, score: r.cancerDomainScore }));
+                                                            const buckets = classPidBuckets(pidScores, CANCER_CLASSIFICATIONS);
+                                                            setDemoModal({ title: "Cancer Score — Demographics", tiers: CANCER_CLASSIFICATIONS.map(c => ({ label: c.label, color: c.color, pids: buckets[c.label] })) });
+                                                        }} style={{ padding: "9px 16px", fontSize: 12, fontWeight: 700, color: C.textPrimary, borderLeft: `3px solid ${baseStats ? col : C.border}`, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="View age/sex breakdown">Cancer Score</td>
                                                         {aggregateData.map(({ profile }, pi) => {
                                                             const st = allStats[pi];
                                                             const pcol = PROF_COLORS[pi % PROF_COLORS.length];
@@ -5044,12 +5175,16 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                 });
                                 const cancerColsVisible = visibleSysGroups.has("Cancer");
                                 const stickyCell = { position: "sticky", left: 0, zIndex: 2 };
-                                const stickyWarnCell = { position: "sticky", left: 160, zIndex: 2 };
+                                const stickyAgeCell = { position: "sticky", left: 160, zIndex: 2 };
+                                const stickySexCell = { position: "sticky", left: 160 + AGE_COL_W, zIndex: 2 };
+                                const stickyWarnCell = { position: "sticky", left: 160 + AGE_COL_W + SEX_COL_W, zIndex: 2 };
                                 return (
                                     <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                         <table style={{ borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
                                             <colgroup>
                                                 <col style={{ width: 160 }} />
+                                                <col style={{ width: AGE_COL_W }} />
+                                                <col style={{ width: SEX_COL_W }} />
                                                 <col style={{ width: 44 }} />
                                                 {visibleSystems.map(s => <col key={s.id} style={{ width: 88 }} />)}
                                                 {cancerColsVisible && CANCER_HEALTH_SYSTEMS.map(t => <col key={t.id} style={{ width: 88 }} />)}
@@ -5057,6 +5192,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                             <thead>
                                                 <tr style={{ background: C.navy }}>
                                                     <th style={{ ...stickyCell, padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Client</th>
+                                                    <th style={{ ...stickyAgeCell, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Age</th>
+                                                    <th style={{ ...stickySexCell, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Sex</th>
                                                     <th style={{ ...stickyWarnCell, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>⚠</th>
                                                     {visibleSystems.map(s => <th key={s.id} style={{ padding: "10px 6px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, minWidth: 80 }}><div style={{ minWidth: 72, maxWidth: 100, margin: "0 auto", lineHeight: 1.3 }}>{s.name}</div></th>)}
                                                     {cancerColsVisible && CANCER_HEALTH_SYSTEMS.map(t => <th key={t.id} style={{ padding: "10px 6px", textAlign: "center", color: C.iceLight, fontSize: 11, fontWeight: 600, minWidth: 80 }}><div style={{ minWidth: 72, maxWidth: 100, margin: "0 auto", lineHeight: 1.3 }}>{t.shortLabel}</div></th>)}
@@ -5069,6 +5206,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                     return (
                                                         <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
                                                             <td onClick={() => onNavigate(row.pid)} style={{ ...stickyCell, padding: "8px 16px", fontFamily: T.mono, fontSize: 11, color: C.textSecond, whiteSpace: "nowrap", background: rowBg, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="Explore in Adjust Weighting">{row.label ?? row.pid}</td>
+                                                            <td style={{ ...stickyAgeCell, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap", fontFamily: T.mono, fontSize: 11, color: C.textSecond }}>{row.age ?? <span style={{ color: C.textFaint }}>—</span>}</td>
+                                                            <td style={{ ...stickySexCell, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap", fontSize: 11 }}><SexBadge sex={row.sex} /></td>
                                                             {(() => {
                                                                 const syScores = visibleSystems.map(s => row.systems.find(rs => rs.id === s.id)?.score).filter(x => x != null);
                                                                 const healthSystemScores = cancerColsVisible ? (row.cancerHealthSystemScores?.map(t => t.score).filter(x => x != null) ?? []) : [];
@@ -5192,7 +5331,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 const procC = cancerHealthSystemColour(baseStats?.mean);
                                                 return (
                                                     <tr key={healthSystem.id} style={{ borderTop: `1px solid ${C.border}`, background: si % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
-                                                        <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}` }}>{healthSystem.shortLabel} — {healthSystem.label.replace(/^Tier \d — /, "")}</td>
+                                                        <td onClick={() => {
+                                                            const pidScores = aggregateData[0].clients.map(r => ({ pid: r.pid, score: r.cancerHealthSystemScores?.find(t => t.id === healthSystem.id)?.score ?? null }));
+                                                            openRygDemoModal(`${healthSystem.shortLabel} — Demographics`, pidScores, overviewYellow, overviewGreen);
+                                                        }} style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}`, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="View age/sex breakdown">{healthSystem.shortLabel} — {healthSystem.label.replace(/^Tier \d — /, "")}</td>
                                                         {aggregateData.map(({ profile }, pi) => {
                                                             const st = allStats[pi];
                                                             const col = PROF_COLORS[pi % PROF_COLORS.length];
@@ -5214,7 +5356,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 const procC = overviewColour(baseStats?.mean);
                                                 return (
                                                     <tr key={sys.id} style={{ borderTop: `1px solid ${C.border}`, background: si % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
-                                                        <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}` }}>{sys.name}</td>
+                                                        <td onClick={() => {
+                                                            const pidScores = aggregateData[0].clients.map(r => ({ pid: r.pid, score: r.systems.find(rs => rs.id === sys.id)?.score ?? null }));
+                                                            openRygDemoModal(`${sys.name} — Demographics`, pidScores, overviewYellow, overviewGreen);
+                                                        }} style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}`, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="View age/sex breakdown">{sys.name}</td>
                                                         {aggregateData.map(({ profile }, pi) => {
                                                             const st = allStats[pi];
                                                             const col = PROF_COLORS[pi % PROF_COLORS.length];
@@ -5416,18 +5561,24 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
                                     const allProcs = ALL_PROCS_FLAT.filter(p => visibleProcs.has(p));
                                     const stickyCell = { position: "sticky", left: 0, zIndex: 2 };
-                                    const stickyWarnCell = { position: "sticky", left: 160, zIndex: 2 };
+                                    const stickyAgeCell = { position: "sticky", left: 160, zIndex: 2 };
+                                    const stickySexCell = { position: "sticky", left: 160 + AGE_COL_W, zIndex: 2 };
+                                    const stickyWarnCell = { position: "sticky", left: 160 + AGE_COL_W + SEX_COL_W, zIndex: 2 };
                                     return (
                                         <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                             <table style={{ borderCollapse: "collapse", fontSize: 11, tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
                                                 <colgroup>
                                                     <col style={{ width: 160 }} />
+                                                    <col style={{ width: AGE_COL_W }} />
+                                                    <col style={{ width: SEX_COL_W }} />
                                                     <col style={{ width: 44 }} />
                                                     {allProcs.map(p => <col key={p} style={{ width: 80 }} />)}
                                                 </colgroup>
                                                 <thead>
                                                     <tr style={{ background: C.navy }}>
                                                         <th style={{ ...stickyCell, padding: "10px 16px", textAlign: "left", color: C.iceLight, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Client</th>
+                                                        <th style={{ ...stickyAgeCell, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Age</th>
+                                                        <th style={{ ...stickySexCell, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>Sex</th>
                                                         <th style={{ ...stickyWarnCell, padding: "10px 8px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", background: C.navy }}>⚠</th>
                                                         {allProcs.map(p => <th key={p} style={{ padding: "8px 6px", textAlign: "center", color: C.iceLight, fontSize: 10, fontWeight: 600, overflow: "hidden" }}><div style={{ lineHeight: 1.3, whiteSpace: "normal", wordBreak: "break-word" }}>{p}</div></th>)}
                                                     </tr>
@@ -5439,6 +5590,8 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                         return (
                                                             <tr key={row.pid} style={{ borderTop: `1px solid ${C.border}` }}>
                                                                 <td onClick={() => onNavigate(row.pid)} style={{ ...stickyCell, padding: "7px 16px", fontFamily: T.mono, fontSize: 10, color: C.textSecond, whiteSpace: "nowrap", background: rowBg, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="Explore in Adjust Weighting">{row.label ?? row.pid}</td>
+                                                                <td style={{ ...stickyAgeCell, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap", fontFamily: T.mono, fontSize: 10, color: C.textSecond }}>{row.age ?? <span style={{ color: C.textFaint }}>—</span>}</td>
+                                                                <td style={{ ...stickySexCell, padding: "6px 8px", textAlign: "center", background: rowBg, whiteSpace: "nowrap", fontSize: 10 }}><SexBadge sex={row.sex} /></td>
                                                                 {(() => {
                                                                     const scores = allProcs.map(procName => row.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null).filter(x => x != null);
                                                                     const nY = scores.filter(s => Math.floor(s) >= overviewYellow && Math.floor(s) < overviewGreen).length;
@@ -5508,7 +5661,10 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                 const procC = overviewColour(baseStats?.mean);
                                                 return (
                                                     <tr key={procName} style={{ borderTop: `1px solid ${C.border}`, background: pi % 2 === 0 ? "transparent" : `${C.iceLight}20` }}>
-                                                        <td style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}` }}>{procName}</td>
+                                                        <td onClick={() => {
+                                                            const pidScores = aggregateData[0].clients.map(r => ({ pid: r.pid, score: r.systems.flatMap(s => (s.procs ?? []).filter(p => p.name === procName).map(p => p.score))[0] ?? null }));
+                                                            openRygDemoModal(`${procName} — Demographics`, pidScores, procRedCutoff, procYellowCutoff);
+                                                        }} style={{ padding: "9px 16px", fontSize: 11, color: C.textPrimary, fontWeight: 600, whiteSpace: "nowrap", borderLeft: `3px solid ${baseStats ? procC : C.border}`, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="View age/sex breakdown">{procName}</td>
                                                         {aggregateData.map(({ profile }, pii) => {
                                                             const st = allStats[pii];
                                                             const col = PROF_COLORS[pii % PROF_COLORS.length];
@@ -5552,6 +5708,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                 )}
 
             </div>
+            {demoModal && <DemographicModal title={demoModal.title} tiers={demoModal.tiers} rows={aggregateData[0].clients} onClose={() => setDemoModal(null)} />}
         </div>
     );
 }

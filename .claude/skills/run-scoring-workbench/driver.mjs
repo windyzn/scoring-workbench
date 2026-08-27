@@ -55,6 +55,13 @@ const COMMANDS = {
         catch (e) { console.log('ERROR:', e.message.split('\n')[0]); }
     },
 
+    async upload(args) {
+        if (!page) return console.log('ERROR: launch first');
+        const [sel, filePath] = args.split(/\s+(.+)/).filter(Boolean); // sel, then rest-of-line as path (paths may not have spaces here, but be safe)
+        try { await page.locator(sel).first().setInputFiles(filePath, { timeout: 5000 }); console.log('uploaded:', filePath, 'to', sel); }
+        catch (e) { console.log('ERROR:', e.message.split('\n')[0]); }
+    },
+
     async type(text) { if (page) await page.keyboard.type(text, { delay: 30 }); },
     async press(key) { if (page) await page.keyboard.press(key); },
 
