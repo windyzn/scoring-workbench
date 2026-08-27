@@ -1706,78 +1706,97 @@ function rygBreakdown(scores, redCutoff, greenCutoff) {
     return { red: (nRed / scores.length) * 100, yellow: (nYellow / scores.length) * 100, green: (nGreen / scores.length) * 100 };
 }
 
-// Same tiering as rygBreakdown, but keeps the pid for each score instead of just
-// a percentage — needed to join back to age/sex for the demographic drill-down modal.
-function rygPidBuckets(pidScores, redCutoff, greenCutoff) {
-    const buckets = { Red: [], Yellow: [], Green: [] };
-    for (const { pid, score } of pidScores) {
-        if (score == null) continue;
-        const tier = Math.floor(score) < redCutoff ? "Red" : Math.floor(score) < greenCutoff ? "Yellow" : "Green";
-        buckets[tier].push(pid);
-    }
-    return buckets;
-}
-// Same idea as rygPidBuckets, but tiers by an arbitrary classification list (e.g.
-// CANCER_CLASSIFICATIONS) instead of a fixed red/yellow/green cutoff pair.
-function classPidBuckets(pidScores, classifications) {
-    const buckets = {};
-    classifications.forEach(c => { buckets[c.label] = []; });
-    for (const { pid, score } of pidScores) {
-        if (score == null) continue;
-        const cls = classifications.find(c => score >= c.min) ?? classifications[classifications.length - 1];
-        buckets[cls.label].push(pid);
-    }
-    return buckets;
-}
-// Age/sex summary for a set of pids, looked up against aggregateData client rows
-// (which already carry age/sex — see buildClients/buildClientFromAdminPortal).
-function demographicStats(pids, rows) {
-    const set = new Set(pids);
-    const matched = rows.filter(r => set.has(r.pid));
-    const ageStats = stats(matched.map(r => r.age).filter(a => a != null));
-    const nM = matched.filter(r => r.sex === "M").length;
-    const nF = matched.filter(r => r.sex === "F").length;
-    return { n: matched.length, ageStats, sex: { M: nM, F: nF, Unknown: matched.length - nM - nF } };
+// Demographic segments for the drill-down modal — grouping by these (rather than
+// by risk tier) is what lets the modal answer "do scores skew worse for a given
+// age/sex group", not just "what's the age/sex mix of the red bucket".
+const SEX_GROUPS = [
+    { label: "Female", test: sex => sex === "F" },
+    { label: "Male", test: sex => sex === "M" },
+    { label: "Unknown", test: sex => sex !== "M" && sex !== "F" },
+];
+const AGE_BRACKETS = [
+    { label: "Under 40", test: age => age != null && age < 40 },
+    { label: "40–59", test: age => age != null && age >= 40 && age < 60 },
+    { label: "60+", test: age => age != null && age >= 60 },
+    { label: "Unknown", test: age => age == null },
+];
+
+// Score stats + tier breakdown for whichever pids match a demographic predicate
+// (e.g. "sex === F"). `classify`/`tierMeta` are the same tiering already coloring
+// the row that opened the modal (RYG cutoffs, or CANCER_CLASSIFICATIONS).
+function demographicGroupStats(pidScores, pidRow, matchesGroup, classify, tierMeta) {
+    const scores = pidScores
+        .filter(({ pid, score }) => score != null && matchesGroup(pidRow.get(pid)))
+        .map(({ score }) => score);
+    const st = stats(scores);
+    if (!st) return { n: 0 };
+    const counts = {}; tierMeta.forEach(t => { counts[t.label] = 0; });
+    scores.forEach(s => { counts[classify(s)]++; });
+    const pct = {}; tierMeta.forEach(t => { pct[t.label] = (counts[t.label] / scores.length) * 100; });
+    return { n: scores.length, mean: st.mean, median: st.median, pct };
 }
 
-function DemographicModal({ title, tiers, rows, onClose }) {
+function TierBreakdown({ pct, tierMeta }) {
+    if (!pct) return <span style={{ color: C.textFaint }}>—</span>;
+    return (
+        <span style={{ fontFamily: T.mono, fontSize: 11, whiteSpace: "nowrap" }}>
+            {tierMeta.map((t, i) => (
+                <span key={t.label}>
+                    {i > 0 && <span style={{ color: C.textFaint }}> / </span>}
+                    <span style={{ color: t.color, fontWeight: 700 }}>{Math.round(pct[t.label])}%</span>
+                </span>
+            ))}
+        </span>
+    );
+}
+
+// Renders one demographic dimension (sex, age, ...) as a labeled group of rows —
+// pulled out so a new insight is just another call to this with a new grouping.
+function DemographicSection({ heading, groups, pidScores, pidRow, classify, tierMeta }) {
+    return (
+        <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>{heading}</div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 16, fontSize: 9, color: C.textFaint, padding: "0 0 3px" }}>
+                <span style={{ minWidth: 56, textAlign: "right" }}>n</span>
+                <span style={{ minWidth: 78, textAlign: "right" }}>Score mean/med</span>
+                <span style={{ minWidth: 90, textAlign: "right" }}>{tierMeta.map(t => t.label).join(" / ")}</span>
+            </div>
+            {groups.map(g => {
+                const stat = demographicGroupStats(pidScores, pidRow, r => g.test(r), classify, tierMeta);
+                return (
+                    <div key={g.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderTop: `1px solid ${C.border}` }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary }}>{g.label}</span>
+                        {stat.n === 0 ? (
+                            <span style={{ fontSize: 11, color: C.textFaint }}>No clients</span>
+                        ) : (
+                            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                                <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 56, textAlign: "right" }}>{stat.n} client{stat.n === 1 ? "" : "s"}</span>
+                                <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textSecond, minWidth: 78, textAlign: "right" }}>{stat.mean.toFixed(1)} / {stat.median.toFixed(1)}</span>
+                                <span style={{ minWidth: 90, textAlign: "right" }}><TierBreakdown pct={stat.pct} tierMeta={tierMeta} /></span>
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function DemographicModal({ title, pidScores, rows, classify, tierMeta, onClose }) {
+    const pidRow = new Map(rows.map(r => [r.pid, r]));
     return (
         <div style={{ position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 700, display: "flex", alignItems: "center", justifyContent: "center" }}
             onClick={onClose}>
-            <div style={{ background: C.surface, borderRadius: 14, width: 480, maxHeight: "80vh", overflow: "auto", boxShadow: "0 12px 48px rgba(24,55,75,0.3)" }}
+            <div style={{ background: C.surface, borderRadius: 14, width: 560, maxHeight: "80vh", overflow: "auto", boxShadow: "0 12px 48px rgba(24,55,75,0.3)" }}
                 onClick={e => e.stopPropagation()}>
                 <div style={{ background: C.navy, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0 }}>
                     <span style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>{title}</span>
                     <button onClick={onClose} style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
                 </div>
-                <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-                    <div style={{ fontSize: 11, color: C.textMuted }}>Age/sex breakdown per risk tier, across all clients currently loaded.</div>
-                    {tiers.map(({ label, color, pids }) => {
-                        const d = demographicStats(pids, rows);
-                        const pct = n => d.n ? Math.round((n / d.n) * 100) : 0;
-                        return (
-                            <div key={label} style={{ border: `1px solid ${C.border}`, borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "10px 14px" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color }}>{label}</span>
-                                    <span style={{ fontSize: 11, color: C.textMuted }}>{d.n} client{d.n === 1 ? "" : "s"}</span>
-                                </div>
-                                {d.n === 0 ? (
-                                    <div style={{ fontSize: 11, color: C.textFaint }}>No clients in this tier.</div>
-                                ) : (
-                                    <div style={{ display: "flex", gap: 20, fontSize: 11, color: C.textSecond }}>
-                                        <div>
-                                            <div style={{ color: C.textFaint, fontSize: 10, marginBottom: 2 }}>Age (mean / median)</div>
-                                            <div style={{ fontFamily: T.mono }}>{d.ageStats ? `${d.ageStats.mean.toFixed(1)} / ${d.ageStats.median.toFixed(1)}` : "—"}</div>
-                                        </div>
-                                        <div>
-                                            <div style={{ color: C.textFaint, fontSize: 10, marginBottom: 2 }}>Sex (M / F / Unknown)</div>
-                                            <div style={{ fontFamily: T.mono }}>{d.sex.M} ({pct(d.sex.M)}%) / {d.sex.F} ({pct(d.sex.F)}%) / {d.sex.Unknown} ({pct(d.sex.Unknown)}%)</div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+                <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 18 }}>
+                    <div style={{ fontSize: 11, color: C.textMuted }}>How scores break down by demographic group, across all clients currently loaded.</div>
+                    <DemographicSection heading="By Sex" groups={SEX_GROUPS.map(g => ({ label: g.label, test: r => g.test(r?.sex) }))} pidScores={pidScores} pidRow={pidRow} classify={classify} tierMeta={tierMeta} />
+                    <DemographicSection heading="By Age" groups={AGE_BRACKETS.map(b => ({ label: b.label, test: r => b.test(r?.age ?? null) }))} pidScores={pidScores} pidRow={pidRow} classify={classify} tierMeta={tierMeta} />
                 </div>
             </div>
         </div>
@@ -4772,12 +4791,16 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
         return st ? { ...st, breakdown: rygBreakdown(scores, overviewYellow, overviewGreen) } : null;
     }
     const nonDemoClients = aggregateData[0]?.clients.filter(r => !DEMO_IDS.includes(r.pid)) ?? [];
-    // Population Summary rows open a Red/Yellow/Green demographic drill-down using whatever
-    // cutoffs already color that row (baseline profile — aggregateData[0]).
+    // Population Summary rows open a demographic drill-down using whatever tiering
+    // already colors that row (baseline profile — aggregateData[0]): Red/Yellow/Green
+    // cutoffs for Health System/Area rows, CANCER_CLASSIFICATIONS for the Cancer Score row.
     const RYG_TIER_COLORS = { Red: C.critical, Yellow: C.fair, Green: C.teal };
     function openRygDemoModal(title, pidScores, redCutoff, greenCutoff) {
-        const buckets = rygPidBuckets(pidScores, redCutoff, greenCutoff);
-        setDemoModal({ title, tiers: ["Red", "Yellow", "Green"].map(label => ({ label, color: RYG_TIER_COLORS[label], pids: buckets[label] })) });
+        setDemoModal({
+            title, pidScores,
+            classify: s => (Math.floor(s) < redCutoff ? "Red" : Math.floor(s) < greenCutoff ? "Yellow" : "Green"),
+            tierMeta: ["Red", "Yellow", "Green"].map(label => ({ label, color: RYG_TIER_COLORS[label] })),
+        });
     }
 
     const downloadSysCSV = () => {
@@ -5074,8 +5097,11 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                                     <tr style={{ borderTop: `1px solid ${C.border}` }}>
                                                         <td onClick={() => {
                                                             const pidScores = aggregateData[0].clients.map(r => ({ pid: r.pid, score: r.cancerDomainScore }));
-                                                            const buckets = classPidBuckets(pidScores, CANCER_CLASSIFICATIONS);
-                                                            setDemoModal({ title: "Cancer Score — Demographics", tiers: CANCER_CLASSIFICATIONS.map(c => ({ label: c.label, color: c.color, pids: buckets[c.label] })) });
+                                                            setDemoModal({
+                                                                title: "Cancer Score — Demographics", pidScores,
+                                                                classify: s => (CANCER_CLASSIFICATIONS.find(c => s >= c.min) ?? CANCER_CLASSIFICATIONS[CANCER_CLASSIFICATIONS.length - 1]).label,
+                                                                tierMeta: CANCER_CLASSIFICATIONS.map(c => ({ label: c.label, color: c.color })),
+                                                            });
                                                         }} style={{ padding: "9px 16px", fontSize: 12, fontWeight: 700, color: C.textPrimary, borderLeft: `3px solid ${baseStats ? col : C.border}`, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${C.steel}55`, textUnderlineOffset: 3 }} title="View age/sex breakdown">Cancer Score</td>
                                                         {aggregateData.map(({ profile }, pi) => {
                                                             const st = allStats[pi];
@@ -5710,7 +5736,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                 )}
 
             </div>
-            {demoModal && <DemographicModal title={demoModal.title} tiers={demoModal.tiers} rows={aggregateData[0].clients} onClose={() => setDemoModal(null)} />}
+            {demoModal && <DemographicModal title={demoModal.title} pidScores={demoModal.pidScores} classify={demoModal.classify} tierMeta={demoModal.tierMeta} rows={aggregateData[0].clients} onClose={() => setDemoModal(null)} />}
         </div>
     );
 }
