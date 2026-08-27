@@ -4868,7 +4868,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
     };
 
     const AGG_TABS = [
-        { key: "domain-summary", label: "Cancer Score Summary" },
+        { key: "domain-summary", label: "Domain Score Summary" },
         { key: "overview", label: "Health System Summary" },
         { key: "process-summary", label: "Health Area Summary" },
         { key: "histograms", label: "Histograms" },
@@ -4904,7 +4904,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px" }}>
 
-                {/* Profile selector — shown on Cancer Score Summary and Health System Summary tabs */}
+                {/* Profile selector — shown on Domain Score Summary and Health System Summary tabs */}
                 {(aggTab === "domain-summary" || aggTab === "overview") && <div style={{ marginBottom: 24 }}>
                     <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>
                         {isComparing
@@ -4937,7 +4937,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                     </div>
                 </div>}
 
-                {/* ── Cancer Score Summary tab — Cancer only ── */}
+                {/* ── Domain Score Summary tab — Cancer only ── */}
                 {aggTab === "domain-summary" && (() => {
                     const { clients: rows } = aggregateData[isComparing ? clientTab : 0];
                     // Cancer Score stats across profiles
@@ -4954,9 +4954,15 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                         <div>
                             {/* Client scores table */}
                             <div style={{ marginBottom: 32 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Cancer Scores</div>
-                                    <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>{nonDemoClients.length} reports</span>
+                                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, fontFamily: T.display }}>Client Cancer Scores</div>
+                                        <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>{nonDemoClients.length} reports</span>
+                                    </div>
+                                    <button onClick={() => document.getElementById("domain-pop-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                                        style={{ fontSize: 10, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>
+                                        Jump to Population Summary ↓
+                                    </button>
                                 </div>
                                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Cancer Score per client.</div>
                                 {isComparing && (
@@ -5074,7 +5080,7 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                             </div>
                             {/* Population summary */}
                             <div>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Population Summary</div>
+                                <div id="domain-pop-summary" style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4, fontFamily: T.display }}>Population Summary</div>
                                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>Summary statistics for Cancer Score across all clients.</div>
                                 <div style={{ ...card, padding: 0, overflow: "auto" }}>
                                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -5120,6 +5126,12 @@ function AggregateView({ aggregateData, profiles, compareIds, setCompareIds, car
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+                            <div style={{ textAlign: "right", marginTop: 8 }}>
+                                <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                                    style={{ fontSize: 10, color: C.steel, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>
+                                    ↑ Back to top
+                                </button>
                             </div>
                         </div>
                     );
