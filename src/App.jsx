@@ -1729,11 +1729,87 @@ function demographicGroupStats(pidScores, pidRow, matchesGroup, classify, tierMe
         .filter(({ pid, score }) => score != null && matchesGroup(pidRow.get(pid)))
         .map(({ score }) => score);
     const st = stats(scores);
-    if (!st) return { n: 0 };
+    if (!st) return { n: 0, scores };
     const counts = {}; tierMeta.forEach(t => { counts[t.label] = 0; });
     scores.forEach(s => { counts[classify(s)]++; });
     const pct = {}; tierMeta.forEach(t => { pct[t.label] = (counts[t.label] / scores.length) * 100; });
-    return { n: scores.length, mean: st.mean, median: st.median, sd: st.sd, min: st.min, max: st.max, pct };
+    return { n: scores.length, mean: st.mean, median: st.median, sd: st.sd, min: st.min, max: st.max, pct, scores };
+}
+
+// Score values where classify()'s output changes — i.e. the tier cutoffs, derived
+// generically instead of threaded through as separate props, so this works the same
+// for RYG cutoffs and for CANCER_CLASSIFICATIONS. Drawn as reference lines on the
+// histograms below so the score shape reads against the same tiers as the table.
+function tierBoundaries(classify, tierMeta) {
+    const colorOf = label => tierMeta.find(t => t.label === label)?.color;
+    const bounds = [];
+    let prev = classify(0);
+    for (let s = 1; s <= 100; s++) {
+        const cur = classify(s);
+        if (cur !== prev) { bounds.push({ score: s, color: colorOf(cur) }); prev = cur; }
+    }
+    return bounds;
+}
+
+// Below this sample size a binned shape is more noise than signal (one client can
+// swing a whole bin) — show a plain note instead of a histogram that overstates its
+// own precision.
+const MIN_N_FOR_HISTOGRAM = 15;
+const HIST_BINS = 10;
+
+// A frequency polygon (line through binned counts) rather than a smoothed density
+// curve — it's the honest version of "the curve in the example": no bandwidth
+// choice, and it visibly gets jagged on small groups instead of hiding it.
+function ScoreHistogram({ label, scores, domain, classify, tierMeta, width = 128, height = 64 }) {
+    const n = scores.length;
+    const padX = 4, padY = 8;
+    const plotW = width - padX * 2, plotH = height - padY * 2;
+    const [domainMin, domainMax] = domain;
+    const xScale = s => padX + ((s - domainMin) / (domainMax - domainMin)) * plotW;
+    const baselineY = padY + plotH;
+
+    let body;
+    if (n < MIN_N_FOR_HISTOGRAM) {
+        body = (
+            <div style={{
+                width, height, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
+                fontSize: 9, color: C.textFaint, padding: "0 6px", border: `1px dashed ${C.border}`, borderRadius: 6, boxSizing: "border-box",
+            }}>
+                n={n} — too few for a shape
+            </div>
+        );
+    } else {
+        const binWidth = (domainMax - domainMin) / HIST_BINS;
+        const binStarts = Array.from({ length: HIST_BINS }, (_, i) => domainMin + i * binWidth);
+        const counts = binStarts.map(b => scores.filter(s => s >= b && (b === binStarts[HIST_BINS - 1] ? s <= b + binWidth : s < b + binWidth)).length);
+        const pct = counts.map(c => (c / n) * 100);
+        const maxPct = Math.max(...pct, 1);
+        const points = binStarts.map((b, i) => [xScale(b + binWidth / 2), baselineY - (pct[i] / maxPct) * plotH]);
+        const linePath = points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x},${y}`).join(" ");
+        const areaPath = `${linePath} L${points[points.length - 1][0]},${baselineY} L${points[0][0]},${baselineY} Z`;
+        const bounds = tierBoundaries(classify, tierMeta).filter(b => b.score > domainMin && b.score < domainMax);
+        body = (
+            <svg width={width} height={height}>
+                <line x1={padX} y1={baselineY} x2={width - padX} y2={baselineY} stroke={C.border} strokeWidth={1} />
+                {bounds.map(b => (
+                    <line key={b.score} x1={xScale(b.score)} y1={padY} x2={xScale(b.score)} y2={baselineY}
+                        stroke={b.color} strokeWidth={1} strokeDasharray="3,2" opacity={0.7} />
+                ))}
+                <path d={areaPath} fill={C.steel} opacity={0.1} stroke="none" />
+                <path d={linePath} fill="none" stroke={C.steel} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+            </svg>
+        );
+    }
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap" }}>{label}</div>
+            {body}
+            <div style={{ display: "flex", justifyContent: "space-between", width, fontSize: 8, color: C.textFaint, fontFamily: T.mono }}>
+                <span>{Math.round(domainMin)}</span><span>{Math.round(domainMax)}</span>
+            </div>
+        </div>
+    );
 }
 
 function TierBreakdown({ pct, tierMeta }) {
@@ -1770,7 +1846,9 @@ function TierBar({ pct, tierMeta, width = 100, height = 7 }) {
 
 // Renders one demographic dimension (sex, age, ...) as a labeled group of rows —
 // pulled out so a new insight is just another call to this with a new grouping.
-function DemographicSection({ heading, groups, pidScores, pidRow, classify, tierMeta }) {
+function DemographicSection({ heading, groups, pidScores, pidRow, classify, tierMeta, domain }) {
+    // Stats computed once per group, shared by the row list and the histogram strip below it.
+    const withStats = groups.map(g => ({ label: g.label, stat: demographicGroupStats(pidScores, pidRow, r => g.test(r), classify, tierMeta) }));
     return (
         <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>{heading}</div>
@@ -1781,34 +1859,43 @@ function DemographicSection({ heading, groups, pidScores, pidRow, classify, tier
                 <span style={{ minWidth: 66, textAlign: "right" }}>Range</span>
                 <span style={{ minWidth: 100, textAlign: "right" }}>{tierMeta.map(t => t.label).join(" / ")}</span>
             </div>
-            {groups.map(g => {
-                const stat = demographicGroupStats(pidScores, pidRow, r => g.test(r), classify, tierMeta);
-                return (
-                    <div key={g.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderTop: `1px solid ${C.border}` }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary }}>{g.label}</span>
-                        {stat.n === 0 ? (
-                            <span style={{ fontSize: 11, color: C.textFaint }}>No clients</span>
-                        ) : (
-                            <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
-                                <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 56, textAlign: "right" }}>{stat.n} client{stat.n === 1 ? "" : "s"}</span>
-                                <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textSecond, minWidth: 82, textAlign: "right" }}>{stat.mean.toFixed(1)} / {stat.median.toFixed(1)}</span>
-                                <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 46, textAlign: "right" }}>{stat.sd.toFixed(1)}</span>
-                                <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 66, textAlign: "right" }}>{Math.floor(stat.min)}–{Math.floor(stat.max)}</span>
-                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, minWidth: 100 }}>
-                                    <TierBreakdown pct={stat.pct} tierMeta={tierMeta} />
-                                    <TierBar pct={stat.pct} tierMeta={tierMeta} />
-                                </div>
+            {withStats.map(({ label, stat }) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderTop: `1px solid ${C.border}` }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary }}>{label}</span>
+                    {stat.n === 0 ? (
+                        <span style={{ fontSize: 11, color: C.textFaint }}>No clients</span>
+                    ) : (
+                        <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
+                            <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 56, textAlign: "right" }}>{stat.n} client{stat.n === 1 ? "" : "s"}</span>
+                            <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textSecond, minWidth: 82, textAlign: "right" }}>{stat.mean.toFixed(1)} / {stat.median.toFixed(1)}</span>
+                            <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 46, textAlign: "right" }}>{stat.sd.toFixed(1)}</span>
+                            <span style={{ fontFamily: T.mono, fontSize: 11, color: C.textMuted, minWidth: 66, textAlign: "right" }}>{Math.floor(stat.min)}–{Math.floor(stat.max)}</span>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, minWidth: 100 }}>
+                                <TierBreakdown pct={stat.pct} tierMeta={tierMeta} />
+                                <TierBar pct={stat.pct} tierMeta={tierMeta} />
                             </div>
-                        )}
-                    </div>
-                );
-            })}
+                        </div>
+                    )}
+                </div>
+            ))}
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+                {withStats.map(({ label, stat }) => (
+                    <ScoreHistogram key={label} label={label} scores={stat.scores ?? []} domain={domain} classify={classify} tierMeta={tierMeta} />
+                ))}
+            </div>
         </div>
     );
 }
 
 function DemographicModal({ title, pidScores, rows, classify, tierMeta, onClose }) {
     const pidRow = new Map(rows.map(r => [r.pid, r]));
+    // Shared x-axis domain for every histogram in the modal (both sections partition
+    // the same clients, so one domain covers both) — rounded to the nearest 10 so the
+    // scale itself doesn't imply more precision than the data has.
+    const allScores = pidScores.map(p => p.score).filter(s => s != null);
+    const domain = allScores.length
+        ? [Math.floor(Math.min(...allScores) / 10) * 10, Math.ceil(Math.max(...allScores) / 10) * 10]
+        : [0, 100];
     return (
         <div style={{ position: "fixed", inset: 0, background: "rgba(24,55,75,0.55)", zIndex: 700, display: "flex", alignItems: "center", justifyContent: "center" }}
             onClick={onClose}>
@@ -1820,8 +1907,8 @@ function DemographicModal({ title, pidScores, rows, classify, tierMeta, onClose 
                 </div>
                 <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 18 }}>
                     <div style={{ fontSize: 11, color: C.textMuted }}>How scores break down by demographic group, across all clients currently loaded.</div>
-                    <DemographicSection heading="By Sex" groups={SEX_GROUPS.map(g => ({ label: g.label, test: r => g.test(r?.sex) }))} pidScores={pidScores} pidRow={pidRow} classify={classify} tierMeta={tierMeta} />
-                    <DemographicSection heading="By Age" groups={AGE_BRACKETS.map(b => ({ label: b.label, test: r => b.test(r?.age ?? null) }))} pidScores={pidScores} pidRow={pidRow} classify={classify} tierMeta={tierMeta} />
+                    <DemographicSection heading="By Sex" groups={SEX_GROUPS.map(g => ({ label: g.label, test: r => g.test(r?.sex) }))} pidScores={pidScores} pidRow={pidRow} classify={classify} tierMeta={tierMeta} domain={domain} />
+                    <DemographicSection heading="By Age" groups={AGE_BRACKETS.map(b => ({ label: b.label, test: r => b.test(r?.age ?? null) }))} pidScores={pidScores} pidRow={pidRow} classify={classify} tierMeta={tierMeta} domain={domain} />
                 </div>
             </div>
         </div>
