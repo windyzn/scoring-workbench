@@ -1736,31 +1736,21 @@ function demographicGroupStats(pidScores, pidRow, matchesGroup, classify, tierMe
     return { n: scores.length, mean: st.mean, median: st.median, sd: st.sd, min: st.min, max: st.max, pct, scores };
 }
 
-// Score values where classify()'s output changes — i.e. the tier cutoffs, derived
-// generically instead of threaded through as separate props, so this works the same
-// for RYG cutoffs and for CANCER_CLASSIFICATIONS. Drawn as reference lines on the
-// histograms below so the score shape reads against the same tiers as the table.
-function tierBoundaries(classify, tierMeta) {
-    const colorOf = label => tierMeta.find(t => t.label === label)?.color;
-    const bounds = [];
-    let prev = classify(0);
-    for (let s = 1; s <= 100; s++) {
-        const cur = classify(s);
-        if (cur !== prev) { bounds.push({ score: s, color: colorOf(cur) }); prev = cur; }
-    }
-    return bounds;
-}
-
 // Below this sample size a binned shape is more noise than signal (one client can
 // swing a whole bin) — show a plain note instead of a histogram that overstates its
 // own precision.
 const MIN_N_FOR_HISTOGRAM = 15;
 const HIST_BINS = 10;
 
+// Mean/median reference lines share one neutral color and are told apart by dash
+// pattern (not color) — they're a property of the shape itself, not a status, so
+// they shouldn't borrow the red/yellow/green vocabulary used everywhere else here.
+const MEAN_DASH = "4,2", MEDIAN_DASH = "1,2.5";
+
 // A frequency polygon (line through binned counts) rather than a smoothed density
 // curve — it's the honest version of "the curve in the example": no bandwidth
 // choice, and it visibly gets jagged on small groups instead of hiding it.
-function ScoreHistogram({ label, scores, domain, classify, tierMeta, width = 128, height = 64 }) {
+function ScoreHistogram({ label, scores, domain, mean, median, width = 128, height = 64 }) {
     const n = scores.length;
     const padX = 4, padY = 8;
     const plotW = width - padX * 2, plotH = height - padY * 2;
@@ -1787,16 +1777,13 @@ function ScoreHistogram({ label, scores, domain, classify, tierMeta, width = 128
         const points = binStarts.map((b, i) => [xScale(b + binWidth / 2), baselineY - (pct[i] / maxPct) * plotH]);
         const linePath = points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x},${y}`).join(" ");
         const areaPath = `${linePath} L${points[points.length - 1][0]},${baselineY} L${points[0][0]},${baselineY} Z`;
-        const bounds = tierBoundaries(classify, tierMeta).filter(b => b.score > domainMin && b.score < domainMax);
         body = (
             <svg width={width} height={height}>
                 <line x1={padX} y1={baselineY} x2={width - padX} y2={baselineY} stroke={C.border} strokeWidth={1} />
-                {bounds.map(b => (
-                    <line key={b.score} x1={xScale(b.score)} y1={padY} x2={xScale(b.score)} y2={baselineY}
-                        stroke={b.color} strokeWidth={1} strokeDasharray="3,2" opacity={0.7} />
-                ))}
                 <path d={areaPath} fill={C.steel} opacity={0.1} stroke="none" />
                 <path d={linePath} fill="none" stroke={C.steel} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                <line x1={xScale(mean)} y1={padY} x2={xScale(mean)} y2={baselineY} stroke={C.navy} strokeWidth={1} strokeDasharray={MEAN_DASH} opacity={0.8} />
+                <line x1={xScale(median)} y1={padY} x2={xScale(median)} y2={baselineY} stroke={C.navy} strokeWidth={1} strokeDasharray={MEDIAN_DASH} opacity={0.8} />
             </svg>
         );
     }
@@ -1808,6 +1795,17 @@ function ScoreHistogram({ label, scores, domain, classify, tierMeta, width = 128
             <div style={{ display: "flex", justifyContent: "space-between", width, fontSize: 8, color: C.textFaint, fontFamily: T.mono }}>
                 <span>{Math.round(domainMin)}</span><span>{Math.round(domainMax)}</span>
             </div>
+        </div>
+    );
+}
+// Shared legend for the mean/median lines above — one per histogram strip rather
+// than repeated on every small multiple, since the dash meaning is constant across them.
+function ScoreHistogramLegend() {
+    const swatch = dash => <svg width={16} height={8} style={{ verticalAlign: "middle" }}><line x1={0} y1={4} x2={16} y2={4} stroke={C.navy} strokeWidth={1.5} strokeDasharray={dash} /></svg>;
+    return (
+        <div style={{ display: "flex", gap: 14, fontSize: 9, color: C.textFaint, alignItems: "center" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{swatch(MEAN_DASH)} Mean</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{swatch(MEDIAN_DASH)} Median</span>
         </div>
     );
 }
@@ -1878,10 +1876,13 @@ function DemographicSection({ heading, groups, pidScores, pidRow, classify, tier
                     )}
                 </div>
             ))}
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
-                {withStats.map(({ label, stat }) => (
-                    <ScoreHistogram key={label} label={label} scores={stat.scores ?? []} domain={domain} classify={classify} tierMeta={tierMeta} />
-                ))}
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+                <div style={{ marginBottom: 6 }}><ScoreHistogramLegend /></div>
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                    {withStats.map(({ label, stat }) => (
+                        <ScoreHistogram key={label} label={label} scores={stat.scores ?? []} domain={domain} mean={stat.mean} median={stat.median} />
+                    ))}
+                </div>
             </div>
         </div>
     );
