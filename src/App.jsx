@@ -1736,76 +1736,113 @@ function demographicGroupStats(pidScores, pidRow, matchesGroup, classify, tierMe
     return { n: scores.length, mean: st.mean, median: st.median, sd: st.sd, min: st.min, max: st.max, pct, scores };
 }
 
-// Below this sample size a binned shape is more noise than signal (one client can
-// swing a whole bin) — show a plain note instead of a histogram that overstates its
-// own precision.
-const MIN_N_FOR_HISTOGRAM = 15;
-const HIST_BINS = 10;
+// Quartiles by linear interpolation (the "type 7" definition R and numpy default to)
+// so a group of 6 and a group of 600 are cut the same way.
+function quantile(sorted, p) {
+    if (sorted.length === 1) return sorted[0];
+    const pos = (sorted.length - 1) * p, lo = Math.floor(pos), hi = Math.ceil(pos);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
 
-// Mean/median reference lines share one neutral color and are told apart by dash
-// pattern (not color) — they're a property of the shape itself, not a status, so
-// they shouldn't borrow the red/yellow/green vocabulary used everywhere else here.
-const MEAN_DASH = "4,2", MEDIAN_DASH = "1,2.5";
+// Below this a box is drawing quartiles out of a handful of points — show the raw
+// clients as dots instead, which says "here is everyone" rather than implying a shape.
+const MIN_N_FOR_BOX = 5;
 
-// A frequency polygon (line through binned counts) rather than a smoothed density
-// curve — it's the honest version of "the curve in the example": no bandwidth
-// choice, and it visibly gets jagged on small groups instead of hiding it.
-function ScoreHistogram({ label, scores, domain, mean, median, width = 128, height = 64 }) {
-    const n = scores.length;
-    const padX = 4, padY = 8;
-    const plotW = width - padX * 2, plotH = height - padY * 2;
+// Deterministic horizontal jitter so coincident dots stay distinguishable without
+// re-randomising on every render.
+const jitter = (i, spread) => (((i * 37) % 11) / 10 - 0.5) * 2 * spread;
+
+// Side-by-side boxplots on one shared score axis — the point of this panel is
+// comparing groups, and a common axis with aligned medians does that far better
+// than a row of separately-scaled shapes. Box = IQR, whiskers = Tukey 1.5×IQR
+// fences (drawn to the furthest client inside them), dots = clients beyond.
+function ScoreBoxplots({ groups, domain, slotWidth = 104, plotHeight = 190 }) {
+    const axisW = 30, padTop = 10, labelH = 30, boxW = 38;
+    const width = axisW + slotWidth * groups.length, height = padTop + plotHeight + labelH;
     const [domainMin, domainMax] = domain;
-    const xScale = s => padX + ((s - domainMin) / (domainMax - domainMin)) * plotW;
-    const baselineY = padY + plotH;
-
-    let body;
-    if (n < MIN_N_FOR_HISTOGRAM) {
-        body = (
-            <div style={{
-                width, height, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
-                fontSize: 9, color: C.textFaint, padding: "0 6px", border: `1px dashed ${C.border}`, borderRadius: 6, boxSizing: "border-box",
-            }}>
-                n={n} — too few for a shape
-            </div>
-        );
-    } else {
-        const binWidth = (domainMax - domainMin) / HIST_BINS;
-        const binStarts = Array.from({ length: HIST_BINS }, (_, i) => domainMin + i * binWidth);
-        const counts = binStarts.map(b => scores.filter(s => s >= b && (b === binStarts[HIST_BINS - 1] ? s <= b + binWidth : s < b + binWidth)).length);
-        const pct = counts.map(c => (c / n) * 100);
-        const maxPct = Math.max(...pct, 1);
-        const points = binStarts.map((b, i) => [xScale(b + binWidth / 2), baselineY - (pct[i] / maxPct) * plotH]);
-        const linePath = points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x},${y}`).join(" ");
-        const areaPath = `${linePath} L${points[points.length - 1][0]},${baselineY} L${points[0][0]},${baselineY} Z`;
-        body = (
-            <svg width={width} height={height}>
-                <line x1={padX} y1={baselineY} x2={width - padX} y2={baselineY} stroke={C.border} strokeWidth={1} />
-                <path d={areaPath} fill={C.steel} opacity={0.1} stroke="none" />
-                <path d={linePath} fill="none" stroke={C.steel} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-                <line x1={xScale(mean)} y1={padY} x2={xScale(mean)} y2={baselineY} stroke={C.navy} strokeWidth={1} strokeDasharray={MEAN_DASH} opacity={0.8} />
-                <line x1={xScale(median)} y1={padY} x2={xScale(median)} y2={baselineY} stroke={C.navy} strokeWidth={1} strokeDasharray={MEDIAN_DASH} opacity={0.8} />
-            </svg>
-        );
-    }
+    const yScale = s => padTop + (1 - (s - domainMin) / (domainMax - domainMin)) * plotHeight;
+    const ticks = Array.from({ length: 5 }, (_, i) => domainMin + (i * (domainMax - domainMin)) / 4);
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap" }}>{label}</div>
-            {body}
-            <div style={{ display: "flex", justifyContent: "space-between", width, fontSize: 8, color: C.textFaint, fontFamily: T.mono }}>
-                <span>{Math.round(domainMin)}</span><span>{Math.round(domainMax)}</span>
-            </div>
-        </div>
+        <svg width={width} height={height} style={{ overflow: "visible" }}>
+            {ticks.map(t => (
+                <g key={t}>
+                    <line x1={axisW} y1={yScale(t)} x2={width} y2={yScale(t)} stroke={C.border} strokeWidth={1} opacity={t === domainMin ? 1 : 0.55} />
+                    <text x={axisW - 5} y={yScale(t) + 3} textAnchor="end" fontSize={8} fill={C.textFaint} fontFamily={T.mono}>{Math.round(t)}</text>
+                </g>
+            ))}
+            {groups.map(({ label, scores, mean }, gi) => {
+                const cx = axisW + slotWidth * gi + slotWidth / 2;
+                const n = scores.length;
+                const nameY = padTop + plotHeight + 14;
+                const caption = (
+                    <g key={`${label}-label`}>
+                        <text x={cx} y={nameY} textAnchor="middle" fontSize={10} fontWeight={600} fill={C.textPrimary}>{label}</text>
+                        <text x={cx} y={nameY + 11} textAnchor="middle" fontSize={8} fill={C.textFaint} fontFamily={T.mono}>{n ? `n=${n}` : "no clients"}</text>
+                    </g>
+                );
+                if (!n) return caption;
+
+                const sorted = [...scores].sort((a, b) => a - b);
+                if (n < MIN_N_FOR_BOX) {
+                    return (
+                        <g key={label}>
+                            {sorted.map((s, i) => <circle key={i} cx={cx + jitter(i, boxW / 3)} cy={yScale(s)} r={2.5} fill={C.steel} opacity={0.55} />)}
+                            {caption}
+                        </g>
+                    );
+                }
+
+                const q1 = quantile(sorted, 0.25), med = quantile(sorted, 0.5), q3 = quantile(sorted, 0.75);
+                const iqr = q3 - q1, loFence = q1 - 1.5 * iqr, hiFence = q3 + 1.5 * iqr;
+                const inliers = sorted.filter(s => s >= loFence && s <= hiFence);
+                const whiskLo = inliers.length ? inliers[0] : q1, whiskHi = inliers.length ? inliers[inliers.length - 1] : q3;
+                const outliers = sorted.filter(s => s < loFence || s > hiFence);
+                const yQ1 = yScale(q1), yQ3 = yScale(q3);
+                return (
+                    <g key={label}>
+                        <title>{`${label} — median ${med.toFixed(1)}, IQR ${q1.toFixed(1)}–${q3.toFixed(1)}, n=${n}`}</title>
+                        <line x1={cx} y1={yScale(whiskHi)} x2={cx} y2={yQ3} stroke={C.steel} strokeWidth={1} />
+                        <line x1={cx} y1={yQ1} x2={cx} y2={yScale(whiskLo)} stroke={C.steel} strokeWidth={1} />
+                        <line x1={cx - boxW / 4} y1={yScale(whiskHi)} x2={cx + boxW / 4} y2={yScale(whiskHi)} stroke={C.steel} strokeWidth={1} />
+                        <line x1={cx - boxW / 4} y1={yScale(whiskLo)} x2={cx + boxW / 4} y2={yScale(whiskLo)} stroke={C.steel} strokeWidth={1} />
+                        <rect x={cx - boxW / 2} y={yQ3} width={boxW} height={Math.max(yQ1 - yQ3, 1)} rx={2}
+                            fill={C.steel} fillOpacity={0.14} stroke={C.steel} strokeWidth={1.25} />
+                        <line x1={cx - boxW / 2} y1={yScale(med)} x2={cx + boxW / 2} y2={yScale(med)} stroke={C.navy} strokeWidth={2} />
+                        <path d={diamond(cx, yScale(mean), 4)} fill={C.surface} stroke={C.navy} strokeWidth={1.25} />
+                        {/* Skewed score distributions can put hundreds of clients past the fence —
+                            drawn small, translucent and widely jittered they read as a density
+                            tail instead of a blob that visually outweighs the box. */}
+                        {outliers.map((s, i) => <circle key={i} cx={cx + jitter(i, boxW / 2)} cy={yScale(s)} r={1.6} fill={C.steel} opacity={outliers.length > 40 ? 0.3 : 0.55} />)}
+                        {caption}
+                    </g>
+                );
+            })}
+        </svg>
     );
 }
-// Shared legend for the mean/median lines above — one per histogram strip rather
-// than repeated on every small multiple, since the dash meaning is constant across them.
-function ScoreHistogramLegend() {
-    const swatch = dash => <svg width={16} height={8} style={{ verticalAlign: "middle" }}><line x1={0} y1={4} x2={16} y2={4} stroke={C.navy} strokeWidth={1.5} strokeDasharray={dash} /></svg>;
+const diamond = (cx, cy, r) => `M${cx},${cy - r} L${cx + r},${cy} L${cx},${cy + r} L${cx - r},${cy} Z`;
+
+// One legend per boxplot panel rather than per group — the encoding is constant
+// across the small multiples, so repeating it would just be noise.
+function ScoreBoxplotLegend() {
     return (
-        <div style={{ display: "flex", gap: 14, fontSize: 9, color: C.textFaint, alignItems: "center" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{swatch(MEAN_DASH)} Mean</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{swatch(MEDIAN_DASH)} Median</span>
+        <div style={{ display: "flex", gap: 14, fontSize: 9, color: C.textFaint, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <svg width={16} height={9}><line x1={0} y1={4.5} x2={16} y2={4.5} stroke={C.navy} strokeWidth={2} /></svg> Median
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <svg width={12} height={12}><path d={diamond(6, 6, 4)} fill={C.surface} stroke={C.navy} strokeWidth={1.25} /></svg> Mean
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <svg width={16} height={10}><rect x={0.5} y={1} width={15} height={8} rx={2} fill={C.steel} fillOpacity={0.14} stroke={C.steel} strokeWidth={1.25} /></svg> Middle 50% (IQR)
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <svg width={16} height={10}><line x1={8} y1={0} x2={8} y2={10} stroke={C.steel} strokeWidth={1} /><line x1={4} y1={0.5} x2={12} y2={0.5} stroke={C.steel} strokeWidth={1} /><line x1={4} y1={9.5} x2={12} y2={9.5} stroke={C.steel} strokeWidth={1} /></svg> Range within 1.5×IQR
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <svg width={10} height={10}><circle cx={5} cy={5} r={2} fill={C.steel} opacity={0.6} /></svg> Outlier client
+            </span>
         </div>
     );
 }
@@ -1877,12 +1914,8 @@ function DemographicSection({ heading, groups, pidScores, pidRow, classify, tier
                 </div>
             ))}
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
-                <div style={{ marginBottom: 6 }}><ScoreHistogramLegend /></div>
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                    {withStats.map(({ label, stat }) => (
-                        <ScoreHistogram key={label} label={label} scores={stat.scores ?? []} domain={domain} mean={stat.mean} median={stat.median} />
-                    ))}
-                </div>
+                <div style={{ marginBottom: 8 }}><ScoreBoxplotLegend /></div>
+                <ScoreBoxplots groups={withStats.map(({ label, stat }) => ({ label, scores: stat.scores ?? [], mean: stat.mean }))} domain={domain} />
             </div>
         </div>
     );
