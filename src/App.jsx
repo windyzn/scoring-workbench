@@ -1939,7 +1939,7 @@ function DemographicModal({ title, pidScores, rows, classify, tierMeta, onClose 
                     <span style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>{title}</span>
                     <button onClick={onClose} style={{ background: "none", border: "none", color: C.iceMid, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
                 </div>
-                <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 18 }}>
+                <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 32 }}>
                     <div style={{ fontSize: 11, color: C.textMuted }}>How scores break down by demographic group, across all clients currently loaded.</div>
                     <DemographicSection heading="By Sex" groups={SEX_GROUPS.map(g => ({ label: g.label, test: r => g.test(r?.sex) }))} pidScores={pidScores} pidRow={pidRow} classify={classify} tierMeta={tierMeta} domain={domain} />
                     <DemographicSection heading="By Age" groups={AGE_BRACKETS.map(b => ({ label: b.label, test: r => b.test(r?.age ?? null) }))} pidScores={pidScores} pidRow={pidRow} classify={classify} tierMeta={tierMeta} domain={domain} />
