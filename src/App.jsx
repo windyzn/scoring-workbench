@@ -1,4 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+// Health system + disease associations, generated from the science team's CSV.
+import { SYSTEMS, DISEASE_SYSTEMS } from "./data/associations.js";
 
 // ─── Brand tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -11,265 +13,40 @@ const C = {
 const T = { display: "'Georgia',serif", body: "'Trebuchet MS','Segoe UI',sans-serif", mono: "'Courier New',monospace" };
 
 // ─── System / process / marker mapping ───────────────────────────────────────
-const SYSTEMS = [
-    {
-        id: "bfvh", name: "Blood Flow & Vessel Health", processes: {
-            "Blood Clotting Control": ["Alpha-2-antiplasmin", "Antithrombin-III", "Beta-2-glycoprotein 1", "Carboxypeptidase B2", "Heparin cofactor 2", "Histidine-rich glycoprotein", "Kininogen-1"],
-            "Blood Vessel Lining Health": ["Asymmetric dimethylarginine", "Cadherin-5", "Kallistatin"],
-            "Cell Membrane Lipids": ["Hydroxysphingomyelin C14:1", "Sphingomyelin C16:0", "Sphingomyelin C20:2"],
-            "Circulation Support": ["Angiotensinogen", "Phosphatidylinositol-glycan-specific phospholipase D", "Plasma serine protease inhibitor", "Tetranectin"],
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Kidney Filtration": ["Beta-2-microglobulin", "Creatinine", "Cystatin-C", "Uric acid"],
-            "Oxygen Transport": ["Carbonic anhydrase 1", "Hemoglobin subunit alpha 1"],
-            "Vitamin & Mineral Transport": ["Afamin", "Retinol-binding protein 4", "Serotransferrin", "Serum albumin", "Transthyretin", "Vitamin D-binding protein"],
-        }
-    },
-    {
-        id: "cdd", name: "Cell Defence & Detox", processes: {
-            "Blood Cleaning & Recycling": ["Glutathione peroxidase 3", "Haptoglobin", "Hemopexin", "Peroxiredoxin-2"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Dietary & Environmental Exposures": ["Cotinine", "Proline-Betaine"],
-            "Enzyme Control": ["Alpha-1-antichymotrypsin", "Alpha-1-antitrypsin", "Carboxypeptidase N catalytic chain", "Carboxypeptidase N subunit 2", "Inter-alpha-trypsin inhibitor heavy chain H1", "Inter-alpha-trypsin inhibitor heavy chain H2", "Inter-alpha-trypsin inhibitor heavy chain H4", "Protein AMBP"],
-        }
-    },
-    {
-        id: "dgh", name: "Digestion & Gut Health", processes: {
-            "Digestive Enzymes": ["Biotinidase", "Xaa-Pro dipeptidase"],
-            "Gut Bacteria Activity": ["Benzoic acid", "Hippuric acid", "Hydroxyphenylacetic acid", "Indole acetic acid", "Para-hydroxyhippuric acid", "Trigonelline", "Trimethylamine N-oxide"],
-            "Gut Lining Health": ["Citrulline"],
-            "Short-Chain Fatty Acid Production": ["Butyric acid", "Isobutyric acid", "Propionic acid"],
-        }
-    },
-    {
-        id: "em", name: "Energy & Metabolism", processes: {
-            "Amino Acid Pool": ["Acetyl-Ornithine", "Alpha-amino-N-butyric acid", "alpha-Aminoadipic acid", "Arginine", "Asparagine", "Beta-alanine", "Carnosine", "cis-OH-Proline", "Glutamine", "Histidine", "Lysine", "Methylhistidine", "Ornithine", "Taurine", "trans-OH-Proline"],
-            "Amino Acids Used for Energy": ["Creatine", "Isoleucine", "Leucine", "Methionine", "Phenylalanine", "Proline", "Serine", "Threonine", "Tyrosine", "Valine"],
-            "Blood Sugar Control": ["Adipocyte plasma membrane-associated protein", "Alanine", "Aspartic acid", "Glucose", "Glutamic acid"],
-            "Cell Growth and Renewal": ["Diacetylspermine", "Putrescine", "Spermidine", "Spermine"],
-            "DNA & Gene Regulation": ["Betaine", "Choline", "Glycine", "Sarcosine"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Methylation & B-Vitamin Status": ["Homocysteine", "Methylmalonic acid"],
-            "Mitochondrial Energy": ["alpha-Ketoglutaric acid", "Citric acid", "Fumaric acid", "Lactic acid", "Pyruvic acid", "Succinic acid"],
-            "Tryptophan Processing": ["Kynurenine", "Tryptophan"],
-        }
-    },
-    {
-        id: "hbf", name: "Hormone & Brain Function", processes: {
-            "Brain & Nerve Signals": ["5-Hydroxyindole-3-acetic acid", "DOPA", "Gamma-aminobutyric acid", "Histamine", "Homovanillic acid", "Phenylethylamine", "Serotonin", "Tyramine"],
-            "Hormone Balance": ["Corticosteroid-binding globulin", "Insulin-like growth factor-binding protein 2", "Insulin-like growth factor-binding protein 3", "Insulin-like growth factor-binding protein complex acid labile subunit", "Pregnancy zone protein", "Sex hormone-binding globulin", "Thyroxine-binding globulin"],
-        }
-    },
-    {
-        id: "isi", name: "Immune System & Inflammation", processes: {
-            "Early Warning Response": ["Alpha-1B-glycoprotein", "Clusterin", "Lipopolysaccharide-binding protein", "Plasma protease C1 inhibitor"],
-            "Germ Detection": ["Ficolin-2", "Ficolin-3", "Lysozyme C", "Mannan-binding lectin serine protease 2", "Mannose-binding protein C"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune Cell Movement": ["Endothelial protein C receptor", "Plastin-2"],
-            "Immune Cell Recruitment": ["Attractin", "CD44 antigen", "Galectin-3-binding protein", "Intercellular adhesion molecule 1", "L-selectin"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-    {
-        id: "trh", name: "Tissue Repair & Healing", processes: {
-            "Clotting & Wound Healing": ["Coagulation factor IX", "Coagulation factor V", "Coagulation factor X", "Coagulation factor XI", "Coagulation factor XII", "Coagulation factor XIII A chain", "Coagulation factor XIII B chain", "Fibrinogen alpha chain", "Fibrinogen beta chain", "Fibrinogen gamma chain", "Plasminogen", "Protein Z-dependent protease inhibitor", "Prothrombin", "Thrombospondin-1", "Vitamin K-dependent protein S", "Vitamin K-dependent protein Z", "Vitronectin", "von Willebrand Factor"],
-            "Tissue & Joint Health": ["Angiogenin", "Cartilage acidic protein 1", "Extracellular matrix protein 1", "Fibronectin", "Fibulin-1", "Gelsolin", "Lumican", "Proteoglycan 4", "Tenascin"],
-            "Tissue Support Proteins": ["Alpha-2-HS-glycoprotein", "Fetuin-B", "Pigment epithelium-derived factor", "Vasorin"],
-        }
-    },
-];
-
+// Health system and disease associations already use database measure names (see
+// scripts/build_associations.py). These aliases cover older hand-written names still used by
+// CANCER_SYSTEMS. Case/punctuation-only differences are handled by findMarker.
 const ALIASES = {
     "Asymmetric dimethylarginine": "ADMA", "Hydroxysphingomyelin C14:1": "SM (OH) C14:1",
     "Sphingomyelin C16:0": "SM C16:0", "Sphingomyelin C20:2": "SM C20:2",
 };
 
-// ─── Disease Health Systems ──────────────────────────────────────────────────
-// Processes reuse the same biomarker→process mapping as body health systems.
-const DISEASE_SYSTEMS = [
-    {
-        id: "alzheimers_disease", name: "Alzheimer's Disease", processes: {
-            "Blood Vessel Lining Health": ["Asymmetric dimethylarginine", "Cadherin-5", "Kallistatin"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Cell Growth and Renewal": ["Diacetylspermine", "Putrescine", "Spermidine", "Spermine"],
-            "DNA & Gene Regulation": ["Betaine", "Choline", "Glycine", "Sarcosine"],
-            "Methylation & B-Vitamin Status": ["Homocysteine", "Methylmalonic acid"],
-            "Mitochondrial Energy": ["alpha-Ketoglutaric acid", "Citric acid", "Fumaric acid", "Lactic acid", "Pyruvic acid", "Succinic acid"],
-            "Tryptophan Processing": ["Kynurenine", "Tryptophan"],
-            "Brain & Nerve Signals": ["5-Hydroxyindole-3-acetic acid", "DOPA", "Gamma-aminobutyric acid", "Histamine", "Homovanillic acid", "Phenylethylamine", "Serotonin", "Tyramine"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-    {
-        id: "atherosclerosis", name: "Atherosclerosis", processes: {
-            "Blood Clotting Control": ["Alpha-2-antiplasmin", "Antithrombin-III", "Beta-2-glycoprotein 1", "Carboxypeptidase B2", "Heparin cofactor 2", "Histidine-rich glycoprotein", "Kininogen-1"],
-            "Blood Vessel Lining Health": ["Asymmetric dimethylarginine", "Cadherin-5", "Kallistatin"],
-            "Cell Membrane Lipids": ["Hydroxysphingomyelin C14:1", "Sphingomyelin C16:0", "Sphingomyelin C20:2"],
-            "Circulation Support": ["Angiotensinogen", "Phosphatidylinositol-glycan-specific phospholipase D", "Plasma serine protease inhibitor", "Tetranectin"],
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune Cell Recruitment": ["Attractin", "CD44 antigen", "Galectin-3-binding protein", "Intercellular adhesion molecule 1", "L-selectin"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-            "Clotting & Wound Healing": ["Coagulation factor IX", "Coagulation factor V", "Coagulation factor X", "Coagulation factor XI", "Coagulation factor XII", "Coagulation factor XIII A chain", "Coagulation factor XIII B chain", "Fibrinogen alpha chain", "Fibrinogen beta chain", "Fibrinogen gamma chain", "Plasminogen", "Protein Z-dependent protease inhibitor", "Prothrombin", "Thrombospondin-1", "Vitamin K-dependent protein S", "Vitamin K-dependent protein Z", "Vitronectin", "von Willebrand Factor"],
-        }
-    },
-    {
-        id: "cardiovascular_disease", name: "Cardiovascular Disease", processes: {
-            "Blood Clotting Control": ["Alpha-2-antiplasmin", "Antithrombin-III", "Beta-2-glycoprotein 1", "Carboxypeptidase B2", "Heparin cofactor 2", "Histidine-rich glycoprotein", "Kininogen-1"],
-            "Blood Vessel Lining Health": ["Asymmetric dimethylarginine", "Cadherin-5", "Kallistatin"],
-            "Cell Membrane Lipids": ["Hydroxysphingomyelin C14:1", "Sphingomyelin C16:0", "Sphingomyelin C20:2"],
-            "Circulation Support": ["Angiotensinogen", "Phosphatidylinositol-glycan-specific phospholipase D", "Plasma serine protease inhibitor", "Tetranectin"],
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Oxygen Transport": ["Carbonic anhydrase 1", "Hemoglobin subunit alpha 1"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Blood Sugar Control": ["Adipocyte plasma membrane-associated protein", "Alanine", "Aspartic acid", "Glucose", "Glutamic acid"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Hormone Balance": ["Corticosteroid-binding globulin", "Insulin-like growth factor-binding protein 2", "Insulin-like growth factor-binding protein 3", "Insulin-like growth factor-binding protein complex acid labile subunit", "Pregnancy zone protein", "Sex hormone-binding globulin", "Thyroxine-binding globulin"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-            "Clotting & Wound Healing": ["Coagulation factor IX", "Coagulation factor V", "Coagulation factor X", "Coagulation factor XI", "Coagulation factor XII", "Coagulation factor XIII A chain", "Coagulation factor XIII B chain", "Fibrinogen alpha chain", "Fibrinogen beta chain", "Fibrinogen gamma chain", "Plasminogen", "Protein Z-dependent protease inhibitor", "Prothrombin", "Thrombospondin-1", "Vitamin K-dependent protein S", "Vitamin K-dependent protein Z", "Vitronectin", "von Willebrand Factor"],
-        }
-    },
-    {
-        id: "chronic_kidney_disease", name: "Chronic Kidney Disease", processes: {
-            "Blood Vessel Lining Health": ["Asymmetric dimethylarginine", "Cadherin-5", "Kallistatin"],
-            "Circulation Support": ["Angiotensinogen", "Phosphatidylinositol-glycan-specific phospholipase D", "Plasma serine protease inhibitor", "Tetranectin"],
-            "Kidney Filtration": ["Beta-2-microglobulin", "Creatinine", "Cystatin-C", "Uric acid"],
-            "Vitamin & Mineral Transport": ["Afamin", "Retinol-binding protein 4", "Serotransferrin", "Serum albumin", "Transthyretin", "Vitamin D-binding protein"],
-            "Blood Cleaning & Recycling": ["Glutathione peroxidase 3", "Haptoglobin", "Hemopexin", "Peroxiredoxin-2"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Amino Acid Pool": ["Acetyl-Ornithine", "Alpha-amino-N-butyric acid", "alpha-Aminoadipic acid", "Arginine", "Asparagine", "Beta-alanine", "Carnosine", "cis-OH-Proline", "Glutamine", "Histidine", "Lysine", "Methylhistidine", "Ornithine", "Taurine", "trans-OH-Proline"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Hormone Balance": ["Corticosteroid-binding globulin", "Insulin-like growth factor-binding protein 2", "Insulin-like growth factor-binding protein 3", "Insulin-like growth factor-binding protein complex acid labile subunit", "Pregnancy zone protein", "Sex hormone-binding globulin", "Thyroxine-binding globulin"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-    {
-        id: "chronic_obstructive_pulmonary_disease", name: "COPD", processes: {
-            "Oxygen Transport": ["Carbonic anhydrase 1", "Hemoglobin subunit alpha 1"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Enzyme Control": ["Alpha-1-antichymotrypsin", "Alpha-1-antitrypsin", "Carboxypeptidase N catalytic chain", "Carboxypeptidase N subunit 2", "Inter-alpha-trypsin inhibitor heavy chain H1", "Inter-alpha-trypsin inhibitor heavy chain H2", "Inter-alpha-trypsin inhibitor heavy chain H4", "Protein AMBP"],
-            "Mitochondrial Energy": ["alpha-Ketoglutaric acid", "Citric acid", "Fumaric acid", "Lactic acid", "Pyruvic acid", "Succinic acid"],
-            "Early Warning Response": ["Alpha-1B-glycoprotein", "Clusterin", "Lipopolysaccharide-binding protein", "Plasma protease C1 inhibitor"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune Cell Recruitment": ["Attractin", "CD44 antigen", "Galectin-3-binding protein", "Intercellular adhesion molecule 1", "L-selectin"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-            "Tissue Support Proteins": ["Alpha-2-HS-glycoprotein", "Fetuin-B", "Pigment epithelium-derived factor", "Vasorin"],
-        }
-    },
-    {
-        id: "depression", name: "Depression", processes: {
-            "Gut Bacteria Activity": ["Benzoic acid", "Hippuric acid", "Hydroxyphenylacetic acid", "Indole acetic acid", "Para-hydroxyhippuric acid", "Trigonelline", "Trimethylamine N-oxide"],
-            "Methylation & B-Vitamin Status": ["Homocysteine", "Methylmalonic acid"],
-            "Mitochondrial Energy": ["alpha-Ketoglutaric acid", "Citric acid", "Fumaric acid", "Lactic acid", "Pyruvic acid", "Succinic acid"],
-            "Tryptophan Processing": ["Kynurenine", "Tryptophan"],
-            "Brain & Nerve Signals": ["5-Hydroxyindole-3-acetic acid", "DOPA", "Gamma-aminobutyric acid", "Histamine", "Homovanillic acid", "Phenylethylamine", "Serotonin", "Tyramine"],
-            "Hormone Balance": ["Corticosteroid-binding globulin", "Insulin-like growth factor-binding protein 2", "Insulin-like growth factor-binding protein 3", "Insulin-like growth factor-binding protein complex acid labile subunit", "Pregnancy zone protein", "Sex hormone-binding globulin", "Thyroxine-binding globulin"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-    {
-        id: "inflammatory_bowel_disease", name: "Inflammatory Bowel Disease", processes: {
-            "Digestive Enzymes": ["Biotinidase", "Xaa-Pro dipeptidase"],
-            "Gut Bacteria Activity": ["Benzoic acid", "Hippuric acid", "Hydroxyphenylacetic acid", "Indole acetic acid", "Para-hydroxyhippuric acid", "Trigonelline", "Trimethylamine N-oxide"],
-            "Gut Lining Health": ["Citrulline"],
-            "Short-Chain Fatty Acid Production": ["Butyric acid", "Isobutyric acid", "Propionic acid"],
-            "Early Warning Response": ["Alpha-1B-glycoprotein", "Clusterin", "Lipopolysaccharide-binding protein", "Plasma protease C1 inhibitor"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune Cell Movement": ["Endothelial protein C receptor", "Plastin-2"],
-            "Immune Cell Recruitment": ["Attractin", "CD44 antigen", "Galectin-3-binding protein", "Intercellular adhesion molecule 1", "L-selectin"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-            "Tissue & Joint Health": ["Angiogenin", "Cartilage acidic protein 1", "Extracellular matrix protein 1", "Fibronectin", "Fibulin-1", "Gelsolin", "Lumican", "Proteoglycan 4", "Tenascin"],
-        }
-    },
-    {
-        id: "liver_disease", name: "Liver Disease", processes: {
-            "Blood Clotting Control": ["Alpha-2-antiplasmin", "Antithrombin-III", "Beta-2-glycoprotein 1", "Carboxypeptidase B2", "Heparin cofactor 2", "Histidine-rich glycoprotein", "Kininogen-1"],
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Blood Cleaning & Recycling": ["Glutathione peroxidase 3", "Haptoglobin", "Hemopexin", "Peroxiredoxin-2"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Dietary & Environmental Exposures": ["Cotinine", "Proline-Betaine"],
-            "Enzyme Control": ["Alpha-1-antichymotrypsin", "Alpha-1-antitrypsin", "Carboxypeptidase N catalytic chain", "Carboxypeptidase N subunit 2", "Inter-alpha-trypsin inhibitor heavy chain H1", "Inter-alpha-trypsin inhibitor heavy chain H2", "Inter-alpha-trypsin inhibitor heavy chain H4", "Protein AMBP"],
-            "Amino Acid Pool": ["Acetyl-Ornithine", "Alpha-amino-N-butyric acid", "alpha-Aminoadipic acid", "Arginine", "Asparagine", "Beta-alanine", "Carnosine", "cis-OH-Proline", "Glutamine", "Histidine", "Lysine", "Methylhistidine", "Ornithine", "Taurine", "trans-OH-Proline"],
-            "Amino Acids Used for Energy": ["Creatine", "Isoleucine", "Leucine", "Methionine", "Phenylalanine", "Proline", "Serine", "Threonine", "Tyrosine", "Valine"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-            "Tissue Support Proteins": ["Alpha-2-HS-glycoprotein", "Fetuin-B", "Pigment epithelium-derived factor", "Vasorin"],
-        }
-    },
-    {
-        id: "non_alcoholic_fatty_liver_disease", name: "NAFLD", processes: {
-            "Cell Membrane Lipids": ["Hydroxysphingomyelin C14:1", "Sphingomyelin C16:0", "Sphingomyelin C20:2"],
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Blood Cleaning & Recycling": ["Glutathione peroxidase 3", "Haptoglobin", "Hemopexin", "Peroxiredoxin-2"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Dietary & Environmental Exposures": ["Cotinine", "Proline-Betaine"],
-            "Enzyme Control": ["Alpha-1-antichymotrypsin", "Alpha-1-antitrypsin", "Carboxypeptidase N catalytic chain", "Carboxypeptidase N subunit 2", "Inter-alpha-trypsin inhibitor heavy chain H1", "Inter-alpha-trypsin inhibitor heavy chain H2", "Inter-alpha-trypsin inhibitor heavy chain H4", "Protein AMBP"],
-            "Gut Bacteria Activity": ["Benzoic acid", "Hippuric acid", "Hydroxyphenylacetic acid", "Indole acetic acid", "Para-hydroxyhippuric acid", "Trigonelline", "Trimethylamine N-oxide"],
-            "Blood Sugar Control": ["Adipocyte plasma membrane-associated protein", "Alanine", "Aspartic acid", "Glucose", "Glutamic acid"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Mitochondrial Energy": ["alpha-Ketoglutaric acid", "Citric acid", "Fumaric acid", "Lactic acid", "Pyruvic acid", "Succinic acid"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-    {
-        id: "polyendocrine_metabolic_ovarian_syndrome", name: "PMOS", processes: {
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Blood Sugar Control": ["Adipocyte plasma membrane-associated protein", "Alanine", "Aspartic acid", "Glucose", "Glutamic acid"],
-            "Cell Growth and Renewal": ["Diacetylspermine", "Putrescine", "Spermidine", "Spermine"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Hormone Balance": ["Corticosteroid-binding globulin", "Insulin-like growth factor-binding protein 2", "Insulin-like growth factor-binding protein 3", "Insulin-like growth factor-binding protein complex acid labile subunit", "Pregnancy zone protein", "Sex hormone-binding globulin", "Thyroxine-binding globulin"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-    {
-        id: "rheumatoid_arthritis", name: "Rheumatoid Arthritis", processes: {
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Early Warning Response": ["Alpha-1B-glycoprotein", "Clusterin", "Lipopolysaccharide-binding protein", "Plasma protease C1 inhibitor"],
-            "Germ Detection": ["Ficolin-2", "Ficolin-3", "Lysozyme C", "Mannan-binding lectin serine protease 2", "Mannose-binding protein C"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Immune Cell Movement": ["Endothelial protein C receptor", "Plastin-2"],
-            "Immune Cell Recruitment": ["Attractin", "CD44 antigen", "Galectin-3-binding protein", "Intercellular adhesion molecule 1", "L-selectin"],
-            "Immune System Regulation": ["C4b-binding protein alpha chain", "CD5 antigen-like", "Complement factor H", "Complement factor I", "Ig mu chain C region", "IgGFc-binding protein", "Leucine-rich alpha-2-glycoprotein 1", "Protein S100-A9"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-            "Clotting & Wound Healing": ["Coagulation factor IX", "Coagulation factor V", "Coagulation factor X", "Coagulation factor XI", "Coagulation factor XII", "Coagulation factor XIII A chain", "Coagulation factor XIII B chain", "Fibrinogen alpha chain", "Fibrinogen beta chain", "Fibrinogen gamma chain", "Plasminogen", "Protein Z-dependent protease inhibitor", "Prothrombin", "Thrombospondin-1", "Vitamin K-dependent protein S", "Vitamin K-dependent protein Z", "Vitronectin", "von Willebrand Factor"],
-            "Tissue & Joint Health": ["Angiogenin", "Cartilage acidic protein 1", "Extracellular matrix protein 1", "Fibronectin", "Fibulin-1", "Gelsolin", "Lumican", "Proteoglycan 4", "Tenascin"],
-            "Tissue Support Proteins": ["Alpha-2-HS-glycoprotein", "Fetuin-B", "Pigment epithelium-derived factor", "Vasorin"],
-        }
-    },
-    {
-        id: "type_2_diabetes", name: "Type 2 Diabetes", processes: {
-            "Blood Vessel Lining Health": ["Asymmetric dimethylarginine", "Cadherin-5", "Kallistatin"],
-            "Cell Membrane Lipids": ["Hydroxysphingomyelin C14:1", "Sphingomyelin C16:0", "Sphingomyelin C20:2"],
-            "Fat & Cholesterol Transport": ["Apolipoprotein A-I", "Apolipoprotein A-II", "Apolipoprotein A-IV", "Apolipoprotein B-100", "Apolipoprotein C-I", "Apolipoprotein C-II", "Apolipoprotein C-III", "Apolipoprotein C-IV", "Apolipoprotein D", "Apolipoprotein E", "Apolipoprotein L1", "Apolipoprotein M", "Phospholipid transfer protein", "Zinc-alpha-2-glycoprotein"],
-            "Kidney Filtration": ["Beta-2-microglobulin", "Creatinine", "Cystatin-C", "Uric acid"],
-            "Cell Protection & Detox": ["Beta-Ala-His dipeptidase", "Ceruloplasmin", "Cholinesterase", "Methionine-Sulfoxide", "Nitro-Tyrosine", "Serum paraoxonase/arylesterase 1"],
-            "Gut Bacteria Activity": ["Benzoic acid", "Hippuric acid", "Hydroxyphenylacetic acid", "Indole acetic acid", "Para-hydroxyhippuric acid", "Trigonelline", "Trimethylamine N-oxide"],
-            "Amino Acid Pool": ["Acetyl-Ornithine", "Alpha-amino-N-butyric acid", "alpha-Aminoadipic acid", "Arginine", "Asparagine", "Beta-alanine", "Carnosine", "cis-OH-Proline", "Glutamine", "Histidine", "Lysine", "Methylhistidine", "Ornithine", "Taurine", "trans-OH-Proline"],
-            "Amino Acids Used for Energy": ["Creatine", "Isoleucine", "Leucine", "Methionine", "Phenylalanine", "Proline", "Serine", "Threonine", "Tyrosine", "Valine"],
-            "Blood Sugar Control": ["Adipocyte plasma membrane-associated protein", "Alanine", "Aspartic acid", "Glucose", "Glutamic acid"],
-            "Fatty Acid Oxidation": ["beta-Hydroxybutyric acid", "Carnitine", "Hexadecanoylcarnitine", "Octadecadienylcarnitine", "Octadecanoylcarnitine"],
-            "Mitochondrial Energy": ["alpha-Ketoglutaric acid", "Citric acid", "Fumaric acid", "Lactic acid", "Pyruvic acid", "Succinic acid"],
-            "Hormone Balance": ["Corticosteroid-binding globulin", "Insulin-like growth factor-binding protein 2", "Insulin-like growth factor-binding protein 3", "Insulin-like growth factor-binding protein complex acid labile subunit", "Pregnancy zone protein", "Sex hormone-binding globulin", "Thyroxine-binding globulin"],
-            "Immune Activation": ["Complement C1q subcomponent subunit B", "Complement C1r subcomponent", "Complement C1r subcomponent-like protein", "Complement C1s subcomponent", "Complement C2", "Complement C3", "Complement C4-B", "Complement C5", "Complement component C6", "Complement component C7", "Complement component C8 alpha chain", "Complement component C8 beta chain", "Complement component C9", "Complement factor B", "Complement factor D", "Probable G-protein coupled receptor 116"],
-            "Inflammation Response": ["Alpha-1-acid glycoprotein 1", "Alpha-2-macroglobulin", "C-reactive protein", "Serum amyloid A-1 protein", "Serum amyloid A-4 protein", "Serum amyloid P-component"],
-        }
-    },
-];
-
+const normName = n => (n ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const normIndexCache = new WeakMap();
+// Resolve an association name to the key a client's measurement is stored under: exact name,
+// then the current-panel alias, then a case/punctuation-insensitive match on either.
+function findMarkerKey(markers, name) {
+    if (name in markers) return name;
+    const alias = ALIASES[name];
+    if (alias !== undefined && alias in markers) return alias;
+    let idx = normIndexCache.get(markers);
+    if (!idx) {
+        idx = new Map();
+        for (const k of Object.keys(markers)) if (!idx.has(normName(k))) idx.set(normName(k), k);
+        normIndexCache.set(markers, idx);
+    }
+    return idx.get(normName(name)) ?? (alias !== undefined ? idx.get(normName(alias)) : undefined);
+}
+function findMarker(markers, name) {
+    const k = findMarkerKey(markers, name);
+    return k === undefined ? undefined : markers[k];
+}
+// True when two association/measure names refer to the same biomarker.
+function sameMarker(a, b) {
+    const keys = n => [normName(n), normName(ALIASES[n])].filter(Boolean);
+    const kb = keys(b);
+    return keys(a).some(k => kb.includes(k));
+}
 
 const CANCER_SYSTEMS = [
     {
@@ -468,7 +245,19 @@ const CHANGELOG = [
         title: "Cancer Score cut-offs set to a dedicated 85/70/69 scale",
         summary: "Per the Executive Summary & Sign-Off: Cancer Scoring Model (2026-07-27), the Cancer Score classification no longer shares the app-wide 91/70/69 scale — it now uses its own Green ≥85 / Yellow 70–84 / Red <70 cut-offs. Individual tier/Cancer Process scores are unaffected and continue to use the standard 91/70/69 scale.",
     },
+    {
+        date: "2026-11-13", type: "associations", commit: "pending",
+        title: "Health system and disease associations updated to MYMet 2.0 (Panel A + B)",
+        summary: "Health systems and diseases now come from the science team's MYMet2.0_associations.csv (349 biomarkers across 30 health areas). Health areas were reorganised (e.g. Amino Acids Breakdown, Protein Turnover, Genetic Material Recycling, Gut Microbial Plant/Protein Processing). Diseases now score only the biomarkers associated with each one, each with its own high/low/both direction, instead of every biomarker in a shared health area. Disease list is now 10: Atherosclerosis merged into Cardiovascular Disease, NAFLD into Liver Disease, COPD became Pulmonary Disease and CKD became Kidney Disease. Biomarker names follow the lab database spelling (e.g. Nitro-Tyrosine, C0, TMAO); new-panel biomarkers with no database match yet keep the science team's name. Cancer associations are unchanged. Browsers with previously saved associations are prompted to reset to pick this up.",
+    },
 ];
+
+// Built-in association version. Each browser saves its own full copy of the associations, and
+// that copy is what gets scored, so new defaults only reach a user when they reset. Bump `major`
+// for changes everyone should pick up: users with an older saved copy get a prompt to reset.
+// Minor changes don't prompt; they appear after "Reset to Defaults" in the Associations tab.
+// (Saved copies from before versioning count as major 1.)
+const ASSOC_VERSION = { major: 2, label: "MYMet 2.0 (Panel A + B)", date: "2026-11-13" };
 
 const ALL_SYSTEMS = [...SYSTEMS, ...DISEASE_SYSTEMS, ...CANCER_SYSTEMS];
 
@@ -1472,8 +1261,7 @@ function effectiveWeight(entry, hasEntry, zone, status, yellowW, redW, level = "
 function computeSystem(sys, markers, bioW, procW, cutoff, gp, curve, yellowW, redW) {
     const procResults = Object.entries(sys.processes).map(([proc, bms]) => {
         const scored = bms.map(name => {
-            const key = ALIASES[name] ?? name;
-            const m = markers[key] ?? markers[name];
+            const m = findMarker(markers, name);
             const nsKey = `${sys.id}::${name}`;
             const assocLevel = sys.levels?.[`${proc}::${name}`] ?? "both";
             if (!m) return { name, missing: true, weight: (bioW[nsKey]?.weight ?? 1), entry: bioW[nsKey] ?? { ...DEFAULT_BIO_ENTRY }, assocLevel, level: assocLevel };
@@ -2178,6 +1966,24 @@ export default function App() {
     useEffect(() => {
         localStorage.setItem("myco_assoc_systems", JSON.stringify(assocSystems));
     }, [assocSystems]);
+    // Prompt to reset when this browser's saved associations predate the current major version.
+    const [assocUpdatePrompt, setAssocUpdatePrompt] = useState(() => {
+        try {
+            const hasSaved = localStorage.getItem("myco_assoc_systems") !== null;
+            const savedMajor = Number(localStorage.getItem("myco_assoc_major") ?? (hasSaved ? 1 : ASSOC_VERSION.major));
+            return hasSaved && savedMajor < ASSOC_VERSION.major;
+        } catch { return false; }
+    });
+    useEffect(() => {
+        if (!assocUpdatePrompt) localStorage.setItem("myco_assoc_major", String(ASSOC_VERSION.major));
+    }, [assocUpdatePrompt]);
+    const resetAssocToLatest = () => {
+        const saved = localStorage.getItem("myco_assoc_systems");
+        if (saved) localStorage.setItem("myco_assoc_systems_backup", saved);
+        setAssocSystems(DEFAULT_ALL_SYSTEMS);
+        setAssocGroups(DEFAULT_ASSOC_GROUPS);
+        setAssocUpdatePrompt(false);
+    };
     const [assocGroups, setAssocGroups] = useState(() => {
         try {
             const saved = localStorage.getItem("myco_assoc_groups");
@@ -2545,7 +2351,8 @@ export default function App() {
         if (!Object.keys(overrides).length) return base;
         const merged = { ...base };
         Object.entries(overrides).forEach(([name, val]) => {
-            if (merged[name]) merged[name] = { ...merged[name], value: val };
+            const k = findMarkerKey(base, name);
+            if (k !== undefined) merged[k] = { ...merged[k], value: val };
         });
         return merged;
     }, [clientId, clients, concOverrides]);
@@ -2910,6 +2717,47 @@ export default function App() {
             {/* ── Upload chooser modal ── */}
 
             {/* ── Concentration edit warning modal ── */}
+            {assocUpdatePrompt && (
+                <div style={{
+                    position: "fixed", inset: 0, background: "rgba(24,55,75,0.6)", zIndex: 650,
+                    display: "flex", alignItems: "center", justifyContent: "center"
+                }}>
+                    <div style={{
+                        background: C.surface, borderRadius: 14, width: 460, padding: 0,
+                        boxShadow: "0 12px 48px rgba(24,55,75,0.35)", overflow: "hidden"
+                    }}>
+                        <div style={{ background: C.navy, padding: "16px 20px" }}>
+                            <span style={{ fontFamily: T.display, fontSize: 15, color: C.iceLight }}>Associations updated: {ASSOC_VERSION.label}</span>
+                        </div>
+                        <div style={{ padding: "20px 24px 24px" }}>
+                            <p style={{ fontSize: 13, color: C.textSecond, lineHeight: 1.7, marginBottom: 12 }}>
+                                The built-in health system and disease associations were updated on {ASSOC_VERSION.date}.
+                                This browser is still using an older saved copy, so <strong>scores won't reflect the update</strong> until you reset.
+                            </p>
+                            <p style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6, marginBottom: 24 }}>
+                                Resetting replaces any association edits you made in this browser. Your current copy is kept as a backup.
+                                You can reset later from Associations → Reset to Defaults. See "What's changed" for details.
+                            </p>
+                            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                                <button onClick={() => setAssocUpdatePrompt(false)}
+                                    style={{
+                                        padding: "8px 18px", borderRadius: 7, border: `1px solid ${C.border}`,
+                                        background: "transparent", color: C.textMuted, fontSize: 12, cursor: "pointer"
+                                    }}>
+                                    Keep my associations
+                                </button>
+                                <button onClick={resetAssocToLatest}
+                                    style={{
+                                        padding: "8px 18px", borderRadius: 7, border: "none",
+                                        background: C.navy, color: C.iceLight, fontSize: 12, cursor: "pointer", fontWeight: 600
+                                    }}>
+                                    Reset to latest
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
             {concWarnModal && (
                 <div style={{
                     position: "fixed", inset: 0, background: "rgba(24,55,75,0.6)", zIndex: 600,
@@ -4295,7 +4143,7 @@ function BioWeightsTab({ activeProcResult, selProc, bioWeights, setBioWeights, g
                     const zoneCol = bm.zone === "green" ? C.teal : bm.zone === "yellow" ? C.fair : C.critical;
                     const rng = bm.refHigh - bm.refLow;
                     const pctOut = bm.zone === "red" ? (bm.status === "HIGH" ? (bm.value - bm.refHigh) / rng : (bm.refLow - bm.value) / rng) * 100 : 0;
-                    const origValue = clientMarkers[bm.name]?.value ?? bm.value;
+                    const origValue = findMarker(clientMarkers ?? {}, bm.name)?.value ?? bm.value;
                     const isOverridden = concOverrides[bm.name] !== undefined;
                     return (
                         <div key={bm.name} {...(isFirstVisible ? { "data-tutorial": "first-bio-card" } : {})} style={{
@@ -4701,10 +4549,11 @@ function BiomarkerDetailModal({ bm, bioWeights, cutoff, greenPct, curve, onClose
     const memberships = [];
     assocSystems.forEach(sys => {
         Object.entries(sys.processes).forEach(([proc, markers]) => {
-            if (markers.includes(bm.name) || markers.includes(Object.keys(ALIASES).find(k => ALIASES[k] === bm.name))) {
-                const nsKey = `${sys.id}::${bm.name}`;
+            const member = markers.find(m => m === bm.name) ?? markers.find(m => sameMarker(m, bm.name));
+            if (member) {
+                const nsKey = `${sys.id}::${member}`;
                 const entry = bioWeights[nsKey] ?? { ...DEFAULT_BIO_ENTRY };
-                const assocLevel = sys.levels?.[`${proc}::${bm.name}`] ?? "both";
+                const assocLevel = sys.levels?.[`${proc}::${member}`] ?? "both";
                 memberships.push({ sys: sys.name, sysId: sys.id, proc, entry, assocLevel });
             }
         });
