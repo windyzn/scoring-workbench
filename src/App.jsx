@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 // Health system + disease associations, generated from the science team's CSV.
 import { SYSTEMS, DISEASE_SYSTEMS } from "./data/associations.js";
+// MYCO ID -> database name, and known spellings -> MYCO ID (generated from the MYCO ID lists).
+import { MARKER_NAMES, MARKER_IDS } from "./data/markers.js";
 
 // ─── Brand tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -13,29 +15,36 @@ const C = {
 const T = { display: "'Georgia',serif", body: "'Trebuchet MS','Segoe UI',sans-serif", mono: "'Courier New',monospace" };
 
 // ─── System / process / marker mapping ───────────────────────────────────────
-// Health system and disease associations already use database measure names (see
-// scripts/build_associations.py). These aliases cover older hand-written names still used by
-// CANCER_SYSTEMS. Case/punctuation-only differences are handled by findMarker.
-const ALIASES = {
-    "Asymmetric dimethylarginine": "ADMA", "Hydroxysphingomyelin C14:1": "SM (OH) C14:1",
-    "Sphingomyelin C16:0": "SM C16:0", "Sphingomyelin C20:2": "SM C20:2",
-};
-
+// Biomarkers are matched by MYCO ID. Any known spelling of a marker (MYSCI database names,
+// science-team synonyms, older lab-export short names) resolves to its ID, so an association and a client's measurement match
+// whenever they name the same ID, however each is spelled. Names with no known ID fall back to a
+// case/punctuation-insensitive name match.
 const normName = n => (n ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-const normIndexCache = new WeakMap();
+// Spelling key for MARKER_IDS; keeps % and # so "Basophils" != "Basophils%".
+// Must match spelling_key() in scripts/build_associations.py.
+const markerKey = n => (n ?? "").toLowerCase().replace(/[^a-z0-9%#]/g, "");
+// MYCO ID for a marker name, or undefined when the name isn't in any MYCO ID list.
+const markerId = name => MARKER_IDS[markerKey(name)];
+// Database spelling for a marker name (the name itself when it has no MYCO ID).
+const dbMarkerName = name => MARKER_NAMES[markerId(name)] ?? name;
+
+const markerIndexCache = new WeakMap();
 // Resolve an association name to the key a client's measurement is stored under: exact name,
-// then the current-panel alias, then a case/punctuation-insensitive match on either.
+// then the same MYCO ID, then (only among names with no ID) a case/punctuation-insensitive match.
 function findMarkerKey(markers, name) {
     if (name in markers) return name;
-    const alias = ALIASES[name];
-    if (alias !== undefined && alias in markers) return alias;
-    let idx = normIndexCache.get(markers);
+    let idx = markerIndexCache.get(markers);
     if (!idx) {
-        idx = new Map();
-        for (const k of Object.keys(markers)) if (!idx.has(normName(k))) idx.set(normName(k), k);
-        normIndexCache.set(markers, idx);
+        idx = { byId: new Map(), byName: new Map() };
+        for (const k of Object.keys(markers)) {
+            const id = markerId(k);
+            if (id) { if (!idx.byId.has(id)) idx.byId.set(id, k); }
+            else if (!idx.byName.has(normName(k))) idx.byName.set(normName(k), k);
+        }
+        markerIndexCache.set(markers, idx);
     }
-    return idx.get(normName(name)) ?? (alias !== undefined ? idx.get(normName(alias)) : undefined);
+    const id = markerId(name);
+    return (id && idx.byId.get(id)) ?? idx.byName.get(normName(name));
 }
 function findMarker(markers, name) {
     const k = findMarkerKey(markers, name);
@@ -43,11 +52,25 @@ function findMarker(markers, name) {
 }
 // True when two association/measure names refer to the same biomarker.
 function sameMarker(a, b) {
-    const keys = n => [normName(n), normName(ALIASES[n])].filter(Boolean);
-    const kb = keys(b);
-    return keys(a).some(k => kb.includes(k));
+    const ia = markerId(a), ib = markerId(b);
+    return ia && ib ? ia === ib : normName(a) === normName(b);
+}
+// Rename a system's biomarkers to their database spelling, carrying levels / PMIDs along.
+// Keeps saved or imported associations (and weight keys built from them) on one spelling.
+function withDbMarkerNames(sys) {
+    const rekey = obj => obj && Object.fromEntries(Object.entries(obj).map(([k, v]) => {
+        const i = k.indexOf("::");
+        return [i < 0 ? k : `${k.slice(0, i)}::${dbMarkerName(k.slice(i + 2))}`, v];
+    }));
+    return {
+        ...sys,
+        processes: Object.fromEntries(Object.entries(sys.processes).map(([p, bms]) => [p, [...new Set(bms.map(dbMarkerName))]])),
+        ...(sys.levels ? { levels: rekey(sys.levels) } : {}),
+        ...(sys.pmids ? { pmids: rekey(sys.pmids) } : {}),
+    };
 }
 
+// Names as written in cancer_map.csv; matched by MYCO ID and shown with database spellings.
 const CANCER_SYSTEMS = [
     {
         id: "cancer_inflammation", name: "Thromboinflammation", processes: {
@@ -201,7 +224,7 @@ const CANCER_SYSTEMS = [
             "Metastasis::Adipocyte plasma membrane-associated protein": "high",
         },
     },
-];
+].map(withDbMarkerNames);
 
 const CANCER_HEALTH_SYSTEMS = [
     { id: "tier1", label: "Tier 1 — Systemic Environment",  shortLabel: "Tier 1", weight: 1,
@@ -249,6 +272,11 @@ const CHANGELOG = [
         date: "2026-11-13", type: "associations", commit: "pending",
         title: "Health system and disease associations updated to MYMet 2.0 (Panel A + B)",
         summary: "Health systems and diseases now come from the science team's MYMet2.0_associations.csv (349 biomarkers across 30 health areas). Health areas were reorganised (e.g. Amino Acids Breakdown, Protein Turnover, Genetic Material Recycling, Gut Microbial Plant/Protein Processing). Diseases now score only the biomarkers associated with each one, each with its own high/low/both direction, instead of every biomarker in a shared health area. Disease list is now 10: Atherosclerosis merged into Cardiovascular Disease, NAFLD into Liver Disease, COPD became Pulmonary Disease and CKD became Kidney Disease. Biomarker names follow the lab database spelling (e.g. Nitro-Tyrosine, C0, TMAO); new-panel biomarkers with no database match yet keep the science team's name. Cancer associations are unchanged. Browsers with previously saved associations are prompted to reset to pick this up.",
+    },
+    {
+        date: "2026-11-16", type: "associations", commit: "pending",
+        title: "Biomarkers matched by MYCO ID; names follow the MYSCI database (UNI-951)",
+        summary: "Associations and client measurements are now matched by MYCO ID instead of by name, using the MYSCI database marker list (including proteomics), plus a short list of science-team synonyms and older lab-export short names (C0, ADMA, PC aa C36:2, ...). Any known spelling of a marker resolves to its ID, so spelling differences between the science team's file, older lab exports and the new panel no longer break matching. Biomarker names everywhere (health systems, diseases, cancer) now use the MYSCI database spelling, e.g. Carnitine, Asymmetric dimethylarginine, Trimethylamine N-oxide, N-Acetylalanine. 3-Hydroxyphenylacetic acid now scores as Hydroxyphenylacetic acid (it matched no lab name before). 3-Hydroxybutyric acid now uses its MYSCI ID (M00000510), so older lab rows named beta-Hydroxybutyric acid (M00000618) no longer count toward it. The associations CSV export/import and the weights export carry a MYCO_ID column, and imports use it to pick the marker. Saved associations are renamed automatically; no reset needed."
     },
 ];
 
@@ -1951,7 +1979,8 @@ export default function App() {
         try {
             const saved = localStorage.getItem("myco_assoc_systems");
             if (saved) {
-                const loaded = JSON.parse(saved);
+                // Saved copies may use older spellings; move them onto the database names.
+                const loaded = JSON.parse(saved).map(withDbMarkerNames);
                 const defaultMap = new Map(DEFAULT_ALL_SYSTEMS.map(s => [s.id, s]));
                 return loaded.map(s => {
                     const def = defaultMap.get(s.id);
@@ -2201,7 +2230,7 @@ export default function App() {
                     const e = p.bioWeights[nsKey];
                     if (!e) return;
                     rows.push([
-                        "",                    // MYCO_ID — leave blank
+                        markerId(bmName) ?? "", // MYCO_ID — blank only for markers with no known ID
                         "biomarker_weight",
                         "",                    // HEALTH_SYSTEM_TYPE
                         sys.id,                // HEALTH_SYSTEM_ID — used on re-import to reconstruct ns key
@@ -2313,7 +2342,10 @@ export default function App() {
                 const newProcWeights = {};
                 rows.forEach(row => {
                     const cat = (row["category"] ?? "").trim().toLowerCase();
-                    const name = (row["item_name"] ?? "").trim();
+                    const itemName = (row["item_name"] ?? "").trim();
+                    // Biomarkers: the MYCO ID picks the marker; the name is only a fallback.
+                    const mycoId = (row["myco_id"] ?? "").trim();
+                    const name = cat === "biomarker_weight" ? (MARKER_NAMES[mycoId] ?? dbMarkerName(itemName)) : itemName;
                     const color = (row["color"] ?? "red").trim().toLowerCase();
                     const level = (row["level"] ?? "both").trim().toLowerCase();
                     const val = parseFloat(row["value"] ?? "1");
@@ -6728,6 +6760,7 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
     }
 
     function applyUpsert(group, systemName, process, biomarker, level, pmid, oldRow) {
+        biomarker = dbMarkerName(biomarker.trim());
         setAssocSystems(prev => {
             let updated = prev;
             // Remove old entry if editing
@@ -6785,8 +6818,8 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
 
     // ── CSV Export ──
     function exportAssocCSV() {
-        const header = ["GROUP", "SYSTEM_NAME", "HEALTH_AREA", "BIOMARKER", "LEVEL", "PMID"];
-        const rows = allRows.map(r => [exportGroupLabel(r.group), r.systemName, r.process, r.biomarker, r.level, r.pmid]);
+        const header = ["GROUP", "SYSTEM_NAME", "HEALTH_AREA", "BIOMARKER", "MYCO_ID", "LEVEL", "PMID"];
+        const rows = allRows.map(r => [exportGroupLabel(r.group), r.systemName, r.process, r.biomarker, markerId(r.biomarker) ?? "", r.level, r.pmid]);
         const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
         const a = document.createElement("a");
         a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -6809,7 +6842,10 @@ function AssociationsTab({ assocSystems, setAssocSystems, assocGroups, setAssocG
                     const sysId  = (row["system_id"] ?? "").trim();
                     const sysName = (row["system_name"] ?? "").trim();
                     const proc   = (row["health_area"] ?? row["process"] ?? "").trim();
-                    const bm     = (row["biomarker"] ?? "").trim();
+                    // The MYCO ID picks the marker and its database name; the written name is
+                    // only used for rows without a (known) ID.
+                    const mycoId = (row["myco_id"] ?? "").trim();
+                    const bm     = MARKER_NAMES[mycoId] ?? dbMarkerName((row["biomarker"] ?? "").trim());
                     const lvl    = (row["level"] ?? "both").trim().toLowerCase();
                     const pmid   = (row["pmid"] ?? "").trim();
                     if (!sysName || !bm) return;

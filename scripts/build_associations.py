@@ -1,27 +1,44 @@
-"""Regenerate SYSTEMS and DISEASE_SYSTEMS (src/data/associations.js) from the science team's
-association file (data/data-associations/MYMet2.0_associations.csv).
+"""Regenerate the workbench association and marker files from the science team's association
+file and the MYCO ID lists.
+
+  src/data/associations.js  SYSTEMS and DISEASE_SYSTEMS, from data/data-associations/MYMet2.0_associations.csv
+  src/data/markers.js       MYCO ID -> database name, and every known spelling -> MYCO ID
 
 Usage: python3 scripts/build_associations.py [--check]
 
-Cleanup applied to the source file (reported on stdout):
+Biomarkers are matched by MYCO ID, not by name. Each association row's MYCO_ID column picks the
+marker; the name shown in the workbench is the database name for that ID. Rows without a MYCO_ID
+fall back to looking their name up in the spelling index, and rows that still don't resolve keep
+their name as written (they're reported, and score only if a lab export uses that exact name).
+
+Database names and spellings come from:
+  1. data/data-associations/mysci_markers_myco_ids.csv   (pulled from the MYSCI database)
+  2. data/data-associations/marker_synonyms.csv          (other spellings the science team uses for
+                                                          a MYSCI marker; every ID must be in MYSCI)
+  3. data/data-associations/lab_export_names.csv         (short names older lab exports use, e.g.
+                                                          C0, ADMA, PC aa C36:2; these exports carry
+                                                          no MYCO ID, so the workbench matches them
+                                                          by name. Frozen from the MYCO 1.2 mapping.)
+A spelling claimed by two IDs is ambiguous and left out. A synonym whose spelling already belongs
+to a different MYSCI marker is ignored. Both are reported. Synonyms still marked "pending" are
+listed on every run until science confirms them.
+
+Cleanup applied to the association file (reported on stdout):
   - CR line endings, surrounding whitespace, "?" (lost non-breaking hyphen) -> "-"
-  - case-only variants of a system / health area / biomarker collapse to one spelling
-  - "Trimethylamine-N-Oxide" merges into "Trimethylamine N-Oxide"
+  - case-only variants of a system / health area collapse to one spelling
   - exact duplicate rows dropped; conflicting directions are reported and fail the run
   - "Individual biomarker" rows are excluded (no downstream health area grouping)
-
-Biomarker names: the database spelling (MEASURE_NAME in our lab exports) wins. A science-team
-name is matched to the database by DB_NAMES below, then by a case/punctuation-insensitive
-comparison. Names with no database match are kept as written; they're new-panel biomarkers
-that will start scoring once the lab reports them under that name.
 """
-import csv, io, re, sys, collections
+import csv, io, re, sys, collections, json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "data/data-associations/MYMet2.0_associations.csv"
-DB_EXPORTS = [ROOT / "data/biomarker_full_export_20260827.csv", ROOT / "data/biomarker_explorer_full.csv"]
+MYSCI_FILE = ROOT / "data/data-associations/mysci_markers_myco_ids.csv"
+SYNONYMS_FILE = ROOT / "data/data-associations/marker_synonyms.csv"
+LAB_NAMES_FILE = ROOT / "data/data-associations/lab_export_names.csv"
 OUT = ROOT / "src/data/associations.js"
+MARKERS_OUT = ROOT / "src/data/markers.js"
 
 HEALTH_SYSTEM_IDS = {  # keep existing ids so saved weight profiles still line up
     "Blood Flow & Vessel Health": "bfvh", "Cell Defence & Detox": "cdd",
@@ -41,37 +58,6 @@ DISEASES = {  # source name -> (id, display name)
     "Rheumatoid arthritis": ("rheumatoid_arthritis", "Rheumatoid Arthritis"),
     "Type 2 diabetes": ("type_2_diabetes", "Type 2 Diabetes"),
 }
-BIOMARKER_MERGES = {"Trimethylamine-N-Oxide": "Trimethylamine N-Oxide"}
-# Science-team name -> database measure name, where the two differ by more than case/punctuation.
-DB_NAMES = {
-    "3-(3-Hydroxyphenyl)-3-hydroxypropanoic acid": "HPHPA",
-    "3-Hydroxybutyric acid": "beta-Hydroxybutyric acid",
-    "3-Indoleacetic acid": "Indole acetic acid",
-    "3-Nitrotyrosine": "Nitro-Tyrosine",
-    "5-Hydroxyindoleacetic Acid": "5HIAA",
-    "alpha-Aminobutyric acid": "Alpha-amino-N-butyric acid",
-    "Asymmetric dimethylarginine": "ADMA",
-    "Carnitine": "C0",
-    "cis-4-Hydroxyproline": "cis-OH-Proline",
-    "Guanidinoacetic Acid": "Guanidoacetic acid",
-    "Hexadecanoylcarnitine": "C16",
-    "Hydroxysphingomyelin C14:1": "SM (OH) C14:1",
-    "L-Pipecolic Acid": "Pipecolic acid",
-    "N-Acetyl-L-Alanine": "N-Acetylalanine",
-    "N-Acetyl-L-Tyrosine": "N-Acetyltyrosine",
-    "N1,N12-Diacetylspermine": "Diacetylspermine",
-    "N2-Acetyl-Ornithine": "Acetyl-Ornithine",
-    "N6-Acetyl-Glutamine": "N-Acetylglutamine",          # same molecule (Julia, 2026-11-13)
-    "Octadecadienylcarnitine": "C18:2",
-    "Octadecanoylcarnitine": "C18",
-    "p-Hydroxyhippuric Acid": "Para-hydroxyhippuric acid",
-    "Sphingomyelin C16:0": "SM C16:0",
-    "Sphingomyelin C16:1": "SM C16:1",
-    "Sphingomyelin C20:2": "SM C20:2",
-    "Total dimethylarginine": "Asymmetric dimethylarginine + Symmetric dimethylarginine",  # (Julia, 2026-11-13)
-    "trans-4-Hydroxyproline": "trans-OH-Proline",
-    "Trimethylamine N-Oxide": "TMAO",
-}
 # Preferred spelling when case-variants disagree (otherwise the most common one wins).
 PREFERRED = {"b-vitamin status": "B-Vitamin Status"}
 SKIP_HEALTH_AREAS = {"individual biomarker"}
@@ -79,6 +65,49 @@ SKIP_HEALTH_AREAS = {"individual biomarker"}
 
 def clean(s):
     return re.sub(r"\s+", " ", s.replace("?", "-")).strip()
+
+
+def spelling_key(n):
+    """Case/punctuation-insensitive key; keeps % and # so "Basophils" != "Basophils%".
+    Must match markerKey() in src/App.jsx."""
+    return re.sub(r"[^a-z0-9%#]", "", n.lower())
+
+
+def read_csv(path):
+    with open(path, newline="", encoding="utf-8-sig") as fh:
+        return list(csv.DictReader(fh))
+
+
+def registry():
+    """-> (names: id -> database name, spellings: key -> id, notes)"""
+    names, spellings, notes = {}, {}, []
+    by_key = collections.defaultdict(set)
+    for r in read_csv(MYSCI_FILE):
+        n, i = r["MARKER_NAME"].strip(), r["MYCO_ID"].strip()
+        if n and i:
+            names.setdefault(i, n)
+            by_key[spelling_key(n)].add((n, i))
+    for k, hits in sorted(by_key.items()):
+        ids = {i for _, i in hits}
+        if len(ids) > 1:
+            label = " / ".join(sorted({n for n, _ in hits}))
+            notes.append(f"MYSCI: {label!r} is used for {', '.join(sorted(ids))}; spelling left out")
+        else:
+            spellings[k] = ids.pop()
+    extra = [(r["ALTERNATE_NAME"], r["MYCO_ID"], r["STATUS"], SYNONYMS_FILE) for r in read_csv(SYNONYMS_FILE)]
+    extra += [(r["LAB_NAME"], r["MYCO_ID"], "confirmed", LAB_NAMES_FILE) for r in read_csv(LAB_NAMES_FILE)]
+    for n, i, status, src in extra:
+        n, i, status = n.strip(), i.strip(), status.strip().lower()
+        if i not in names:
+            raise SystemExit(f"{src.name}: {n!r} points at {i}, which isn't in {MYSCI_FILE.name}")
+        k = spelling_key(n)
+        if spellings.get(k, i) != i:
+            notes.append(f"synonym {n!r} -> {i} ignored; that spelling is already {spellings[k]} in MYSCI")
+            continue
+        spellings[k] = i
+        if status != "confirmed":
+            notes.append(f"synonym pending science review: {n!r} -> {names[i]} ({i})")
+    return names, spellings, notes
 
 
 def canonical(values):
@@ -98,48 +127,36 @@ def load():
     raw = SRC.read_text(encoding="utf-8-sig").replace("\r\n", "\n").replace("\r", "\n")
     rows = [{k: clean(v or "") for k, v in r.items()} for r in csv.DictReader(io.StringIO(raw))]
     for r in rows:
-        r["BIOMARKER"] = BIOMARKER_MERGES.get(r["BIOMARKER"], r["BIOMARKER"])
         r["LEVEL"] = r["LEVEL"].lower()
-    for col in ("SYSTEM_NAME", "HEALTH_AREA", "BIOMARKER"):
+        r.setdefault("MYCO_ID", "")
+    for col in ("SYSTEM_NAME", "HEALTH_AREA"):
         canon = canonical(r[col] for r in rows)
         for r in rows:
             r[col] = canon[r[col]]
     return rows
 
 
-def norm(n):
-    return re.sub(r"[^a-z0-9]", "", n.lower())
-
-
-def db_names():
-    names = set()
-    for f in DB_EXPORTS:
-        with open(f, newline="", encoding="utf-8-sig") as fh:
-            for r in csv.DictReader(fh):
-                names.add((r.get("MEASURE_NAME") or "").strip())
-    names.discard("")
-    return names
-
-
-def to_db_names(rows):
-    db = db_names()
-    by_norm = {}
-    for n in sorted(db):
-        by_norm.setdefault(norm(n), n)
-    mapped, new = {}, set()
+def resolve_ids(rows, names, spellings):
+    """Set each row's BIOMARKER to the database name for its MYCO ID. Returns report lines."""
+    renamed, unresolved, mismatched = {}, set(), set()
     for r in rows:
-        n = r["BIOMARKER"]
-        target = DB_NAMES.get(n)
-        if target is not None and target not in db:
-            raise SystemExit(f"DB_NAMES maps {n!r} to {target!r}, which isn't in the database exports")
-        hit = target or (n if n in db else by_norm.get(norm(n)))
-        if hit:
-            if hit != n:
-                mapped[n] = hit
-            r["BIOMARKER"] = hit
-        else:
-            new.add(n)
-    return mapped, new
+        written, mid = r["BIOMARKER"], r["MYCO_ID"]
+        by_name = spellings.get(spelling_key(written))
+        if mid and mid not in names:
+            raise SystemExit(f"{written!r} has MYCO_ID {mid}, which isn't in the MYSCI list")
+        if mid and by_name and by_name != mid:
+            mismatched.add(f"{written!r}: MYCO_ID column says {mid}, name matches {by_name}; using {mid}")
+        mid = mid or by_name
+        if not mid:
+            unresolved.add(written)
+            continue
+        r["MYCO_ID"], r["BIOMARKER"] = mid, names[mid]
+        if names[mid] != written:
+            renamed[written] = f"{names[mid]} ({mid})"
+    lines = [f"name: {a} -> {b}" for a, b in sorted(renamed.items(), key=lambda kv: kv[0].lower())]
+    lines += [f"WARN: {m}" for m in sorted(mismatched)]
+    lines += [f"name: {n} (no MYCO ID; kept as written)" for n in sorted(unresolved, key=str.lower)]
+    return lines
 
 
 def build(rows):
@@ -179,7 +196,7 @@ def build(rows):
 
 
 def js_str(s):
-    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return json.dumps(s, ensure_ascii=False)
 
 
 def sort_ci(xs):
@@ -189,6 +206,7 @@ def sort_ci(xs):
 def render(health, disease):
     out = ["// GENERATED FILE: don't hand-edit. Source: data/data-associations/MYMet2.0_associations.csv",
            "// Regenerate with: python3 scripts/build_associations.py",
+           "// Biomarker names are database names for each row's MYCO ID (see src/data/markers.js).",
            "",
            "// ─── Health Systems ──────────────────────────────────────────────────────────",
            "export const SYSTEMS = ["]
@@ -220,16 +238,31 @@ def render(health, disease):
         out.append("        },")
         out.append("    },")
     out.append("];")
-    return sys_block, "\n".join(out)
+    return sys_block + "\n\n" + "\n".join(out) + "\n"
+
+
+def render_markers(names, spellings):
+    out = ["// GENERATED FILE: don't hand-edit. Regenerate with: python3 scripts/build_associations.py",
+           "// Sources: data/data-associations/mysci_markers_myco_ids.csv, marker_synonyms.csv, lab_export_names.csv",
+           "",
+           "// MYCO ID -> database measure name (MYSCI database spelling).",
+           "export const MARKER_NAMES = {"]
+    out += [f"    {js_str(i)}: {js_str(n)}," for i, n in sorted(names.items())]
+    out += ["};", "",
+            "// Spelling key (lowercase, only a-z 0-9 % #; see markerKey in App.jsx) -> MYCO ID.",
+            "export const MARKER_IDS = {"]
+    out += [f"    {js_str(k)}: {js_str(i)}," for k, i in sorted(spellings.items())]
+    out.append("};")
+    return "\n".join(out) + "\n"
 
 
 def main():
+    names, spellings, reg_notes = registry()
+    for n in reg_notes:
+        print("ids:", n)
     rows = load()
-    mapped, new = to_db_names(rows)
-    for a, b in sorted(mapped.items(), key=lambda kv: kv[0].lower()):
-        print(f"name: {a} -> {b}")
-    for n in sorted(new, key=str.lower):
-        print(f"name: {n} (no database match; kept, likely new-panel)")
+    for line in resolve_ids(rows, names, spellings):
+        print(line)
     health, disease, notes, errors = build(rows)
     for n in notes:
         print("note:", n)
@@ -237,15 +270,15 @@ def main():
         for e in errors:
             print("ERROR:", e)
         sys.exit(1)
-    sys_block, dis_block = render(health, disease)
-    content = sys_block + "\n\n" + dis_block + "\n"
+    outputs = {OUT: render(health, disease), MARKERS_OUT: render_markers(names, spellings)}
     bms = {b for s in health.values() for l in s.values() for b in l} | {b for d in disease.values() for p in d.values() for b in p}
     print(f"health systems: {len(health)}, health areas: {sum(len(s) for s in health.values())}, "
-          f"diseases: {len(disease)}, biomarkers: {len(bms)}")
+          f"diseases: {len(disease)}, biomarkers: {len(bms)}, marker ids: {len(names)}")
     if "--check" in sys.argv:
-        sys.exit(0 if OUT.exists() and OUT.read_text() == content else 2)
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(content)
+        sys.exit(0 if all(p.exists() and p.read_text() == c for p, c in outputs.items()) else 2)
+    for p, c in outputs.items():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(c)
 
 
 if __name__ == "__main__":
