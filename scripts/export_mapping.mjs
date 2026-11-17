@@ -5,6 +5,7 @@
 //
 // Usage: node scripts/export_mapping.mjs > mapping_data.json
 import { readFileSync } from "node:fs";
+import { MARKER_NAMES, MARKER_IDS } from "../src/data/markers.js";
 
 const app = ["../src/data/associations.js", "../src/App.jsx"]
     .map(f => readFileSync(new URL(f, import.meta.url), "utf8")).join("\n");
@@ -29,14 +30,35 @@ function constSource(name) {
 const C = new Proxy({}, { get: (_, k) => String(k) }); // colour tokens aren't part of the mapping
 const evalConst = name => Function("C", `return (${constSource(name)});`)(C);
 
-const strip = ({ id, name, processes, levels }) => (levels ? { id, name, processes, levels } : { id, name, processes });
-const out = {
-    association_version: evalConst("ASSOC_VERSION"),
+// Same as markerKey / dbMarkerName in App.jsx: the app shows and scores every association under
+// the database name for its MYCO ID (CANCER_SYSTEMS is written with older names in source).
+const markerKey = n => (n ?? "").toLowerCase().replace(/[^a-z0-9%#]/g, "");
+const dbName = n => MARKER_NAMES[MARKER_IDS[markerKey(n)]] ?? n;
+const rekey = obj => Object.fromEntries(Object.entries(obj).map(([k, v]) => {
+    const i = k.indexOf("::");
+    return [i < 0 ? k : `${k.slice(0, i)}::${dbName(k.slice(i + 2))}`, v];
+}));
+const strip = ({ id, name, processes, levels }) => {
+    const procs = Object.fromEntries(Object.entries(processes).map(([p, bms]) => [p, [...new Set(bms.map(dbName))]]));
+    return levels ? { id, name, processes: procs, levels: rekey(levels) } : { id, name, processes: procs };
+};
+const systems = {
     health_systems: evalConst("SYSTEMS").map(strip),
     disease_systems: evalConst("DISEASE_SYSTEMS").map(strip),
     cancer_systems: evalConst("CANCER_SYSTEMS").map(strip),
+};
+// Other known spellings (case/punctuation-insensitive keys) of the markers used above -> the
+// database name they're listed under. Only spellings that differ beyond case/punctuation.
+const loose = n => n.toLowerCase().replace(/[^a-z0-9]/g, "");
+const used = new Set(Object.values(systems).flat().flatMap(s => Object.values(s.processes).flat()));
+const aliases = Object.fromEntries(Object.entries(MARKER_IDS)
+    .filter(([k, id]) => used.has(MARKER_NAMES[id]) && loose(k) !== loose(MARKER_NAMES[id]))
+    .map(([k, id]) => [k, MARKER_NAMES[id]]));
+const out = {
+    association_version: evalConst("ASSOC_VERSION"),
+    ...systems,
     cancer_tiers: evalConst("CANCER_HEALTH_SYSTEMS"),
     cancer_classifications: evalConst("CANCER_CLASSIFICATIONS").map(({ min, max, label }) => ({ min, max, label })),
-    aliases: evalConst("ALIASES"),
+    aliases,
 };
 process.stdout.write(JSON.stringify(out, null, 2) + "\n");
