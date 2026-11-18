@@ -276,7 +276,12 @@ const CHANGELOG = [
     {
         date: "2026-11-16", type: "associations", commit: "pending",
         title: "Biomarkers matched by MYCO ID; names follow the MYSCI database (UNI-951)",
-        summary: "Associations and client measurements are now matched by MYCO ID instead of by name, using the MYSCI database marker list (including proteomics), plus a short list of science-team synonyms and older lab-export short names (C0, ADMA, PC aa C36:2, ...). Any known spelling of a marker resolves to its ID, so spelling differences between the science team's file, older lab exports and the new panel no longer break matching. Biomarker names everywhere (health systems, diseases, cancer) now use the MYSCI database spelling, e.g. Carnitine, Asymmetric dimethylarginine, Trimethylamine N-oxide, N-Acetylalanine. 3-Hydroxyphenylacetic acid now scores as Hydroxyphenylacetic acid (it matched no lab name before). 3-Hydroxybutyric acid now uses its MYSCI ID (M00000510), so older lab rows named beta-Hydroxybutyric acid (M00000618) no longer count toward it. The associations CSV export/import and the weights export carry a MYCO_ID column, and imports use it to pick the marker. Saved associations are renamed automatically; no reset needed."
+        summary: "Associations and client measurements are now matched by MYCO ID instead of by name, using the MYSCI database marker list (including proteomics), plus a short list of science-team synonyms and older lab-export short names (C0, ADMA, PC aa C36:2, ...). Any known spelling of a marker resolves to its ID, so spelling differences between the science team's file, older lab exports and the new panel no longer break matching. Biomarker names everywhere (health systems, diseases, cancer) now use the MYSCI database spelling, e.g. Carnitine, Asymmetric dimethylarginine, Trimethylamine N-oxide, N-Acetylalanine. 3-Hydroxyphenylacetic acid now scores as Hydroxyphenylacetic acid (it matched no lab name before). The associations CSV export/import and the weights export carry a MYCO_ID column, and imports use it to pick the marker. Saved associations are renamed automatically; no reset needed."
+    },
+    {
+        date: "2026-11-18", type: "associations", commit: "pending",
+        title: "MYMet 2.0 associations updated with science-confirmed MYCO IDs (UNI-951)",
+        summary: "Rebuilt from the science team's updated MYMet2.0_associations.csv, where every biomarker now has a confirmed MYCO ID. 3-Hydroxybutyric acid now uses beta-Hydroxybutyric acid (M00000618), the measure on the MYCO 1.1, MYCO 1.2 and MYMet 2.0 assays, so older lab rows score it again. N6-Acetyl-Lysine has no database ID of its own yet, so it borrows M00000892 (the combined N1-Acetyllysine + N6-Acetyllysine measure) and scores on that value until the database adds an N6-only ID. Glutathione peroxidase 1 and 2 are replaced by Glutathione peroxidase 3, and Leucine-rich alpha-2-glycoprotein 2 by Leucine-rich alpha-2-glycoprotein 1, since only GPX3 and LRG1 are in the MYSCI database. Browsers with previously saved associations are prompted to reset to pick this up."
     },
 ];
 
@@ -285,7 +290,7 @@ const CHANGELOG = [
 // for changes everyone should pick up: users with an older saved copy get a prompt to reset.
 // Minor changes don't prompt; they appear after "Reset to Defaults" in the Associations tab.
 // (Saved copies from before versioning count as major 1.)
-const ASSOC_VERSION = { major: 2, label: "MYMet 2.0 (Panel A + B)", date: "2026-11-13" };
+const ASSOC_VERSION = { major: 3, label: "MYMet 2.0 (Panel A + B), science-confirmed IDs", date: "2026-11-18" };
 
 const ALL_SYSTEMS = [...SYSTEMS, ...DISEASE_SYSTEMS, ...CANCER_SYSTEMS];
 

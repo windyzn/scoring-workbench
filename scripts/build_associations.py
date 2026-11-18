@@ -61,6 +61,15 @@ DISEASES = {  # source name -> (id, display name)
 # Preferred spelling when case-variants disagree (otherwise the most common one wins).
 PREFERRED = {"b-vitamin status": "B-Vitamin Status"}
 SKIP_HEALTH_AREAS = {"individual biomarker"}
+# Stand-in IDs: the science team borrowed an existing MYSCI ID for a biomarker the database doesn't
+# have its own ID for yet. The workbench shows the science team's name instead of the MYSCI name,
+# and the run prints a reminder. Remove the entry once the database adds the real ID.
+STAND_IN_NAMES = {
+    # N6-Acetyl-Lysine has no MYSCI ID yet. Julia used the combined N1 + N6 measure's ID, meaning
+    # N6 only; Carin confirmed the DB will add one (2026-11-18). Lab values for M00000892 are the
+    # combined measure until then.
+    "M00000892": "N6-Acetyl-Lysine",
+}
 
 
 def clean(s):
@@ -94,6 +103,12 @@ def registry():
             notes.append(f"MYSCI: {label!r} is used for {', '.join(sorted(ids))}; spelling left out")
         else:
             spellings[k] = ids.pop()
+    for i, n in STAND_IN_NAMES.items():
+        if i not in names:
+            raise SystemExit(f"STAND_IN_NAMES: {i} isn't in {MYSCI_FILE.name}")
+        notes.append(f"stand-in ID: {n!r} shown for {i} (MYSCI: {names[i]!r}) until the DB adds its own ID")
+        names[i] = n
+        spellings.setdefault(spelling_key(n), i)
     extra = [(r["ALTERNATE_NAME"], r["MYCO_ID"], r["STATUS"], SYNONYMS_FILE) for r in read_csv(SYNONYMS_FILE)]
     extra += [(r["LAB_NAME"], r["MYCO_ID"], "confirmed", LAB_NAMES_FILE) for r in read_csv(LAB_NAMES_FILE)]
     for n, i, status, src in extra:
